@@ -1,0 +1,19 @@
+version: '3'
+services:
+  app:
+    image: joswayski/josevalerio:latest
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+#     depends_on:
+#       - postgres
+#   postgres:
+#     image: postgres:latest
+#     environment:
+#       POSTGRES_USER: ${DB_USER}
+#       POSTGRES_PASSWORD: ${DB_PASS}
+#     volumes:
+#       - postgres-data:/var/lib/postgresql/data
+# volumes:
+#   postgres-data:
