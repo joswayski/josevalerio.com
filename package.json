@@ -2,11 +2,12 @@
   "name": "josevalerio.com",
   "private": true,
   "sideEffects": false,
+  "type": "module",
   "scripts": {
     "build": "remix build",
-    "dev": "remix dev --manual",
+    "dev": "remix dev -c \"npm run start\"",
     "lint": "eslint --ignore-path .gitignore --cache --cache-location ./node_modules/.cache/eslint .",
-    "start": "ts-node server.ts",
+    "start": "tsx server.ts",
     "typecheck": "tsc"
   },
   "dependencies": {
@@ -21,7 +22,8 @@
     "pg": "^8.11.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "tsx": "^4.7.0"
   },
   "devDependencies": {
     "@remix-run/dev": "^2.6.0",

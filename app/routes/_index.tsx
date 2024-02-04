@@ -48,12 +48,12 @@ export default function Index() {
             Jose&apos;s company Plutomi Inc.
           </a>
         </li>
-        {/* <li>
-          <Link to="/pointing">Point your storys</Link>;
-        </li>
-        <li>
-          <Link to="/infra">Infrastructure</Link>
-        </li> */}
+        <button
+          type="button"
+          className="rounded-md bg-indigo-50 px-3.5 py-2.5 text-sm font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
+        >
+          <Link to="/poker">Poker</Link>
+        </button>
       </ul>
     </div>
   );
