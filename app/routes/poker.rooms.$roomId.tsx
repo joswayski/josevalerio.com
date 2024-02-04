@@ -9,7 +9,7 @@ import {
   useMatches,
 } from "@remix-run/react";
 import { db } from "../db.server";
-import { Tables } from "consts";
+import { Tables } from "../../consts";
 import { nanoid } from "nanoid";
 import { Toaster, toast } from "react-hot-toast";
 import { useEffect } from "react";
@@ -23,11 +23,11 @@ enum Intent {
 
 const voteOptions = [
   // listen man, i dont care
-  { amount: 1, label: "1 point", isLast: false, isMiddle: false },
-  { amount: 2, label: "2 points", isLast: false, isMiddle: true },
-  { amount: 3, label: "3 points", isLast: false, isMiddle: true },
-  { amount: 5, label: "5 points", isLast: false, isMiddle: true },
-  { amount: 8, label: "8 points", isLast: true, isMiddle: false },
+  { amount: 1, label: "1 point" },
+  { amount: 2, label: "2 points" },
+  { amount: 3, label: "3 points" },
+  { amount: 5, label: "5 points" },
+  { amount: 8, label: "8 points" },
 ];
 
 export const loader = async ({ params }) => {
@@ -121,7 +121,7 @@ export default function Room() {
       </header>
       <div className="max-w-4xl px-4 sm:px-6 lg:px-8  py-8 flex flex-row  justify-between items-center">
         <span className="isolate inline-flex rounded-md shadow-sm">
-          {voteOptions.map((option) => (
+          {voteOptions.map((option, idx) => (
             <Form method="post" key={option.label}>
               <input type="hidden" name="intent" value={Intent.VOTE} />
               <input type="hidden" name="userId" value={"1111"} /> {/* TODO */}
@@ -130,10 +130,12 @@ export default function Room() {
                 value={option.amount}
                 type="submit"
                 className={`relative inline-flex items-center ${
-                  option.isLast ? "rounded-r-md border-l-0" : ""
+                  idx === voteOptions.length - 1
+                    ? "rounded-r-md border-l-0"
+                    : ""
                 } ${
                   // First option
-                  !option.isMiddle && !option.isLast
+                  idx === 0
                     ? "rounded-l-md rounded-r-none border-l"
                     : "border-l-0"
                 } bg-white px-3 py-2 text-sm font-semibold text-gray-900 border  border-gray-300 hover:bg-gray-50 focus:z-10`}

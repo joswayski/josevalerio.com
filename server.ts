@@ -6,7 +6,7 @@ import { createRequestHandler } from "@remix-run/express";
 import express from "express";
 import { broadcastDevReady } from "@remix-run/node";
 import * as build from "./build/index.js";
-import { Tables } from "consts.js";
+import { Tables } from "./consts";
 
 const targetDatabase = "poker";
 
