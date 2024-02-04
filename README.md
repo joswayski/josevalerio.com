@@ -3,7 +3,6 @@
 Create a VPC with an ipv6 subnet - aws is chargin $4 / mo per ip address so. yeah
 https://aws.amazon.com/blogs/networking-and-content-delivery/introducing-ipv6-only-subnets-and-ec2-instances/
 
-
 TODO- if you dont have access to ipv6 use this https://tunnelbroker.net/new_tunnel.php
 
 Create an instance
@@ -20,8 +19,26 @@ sudo yum update -y && sudo yum install git docker -y && sudo systemctl start doc
 
 -
 - # certbot stuff
-  sudo yum install python3 augeas-libs
-  sudo python3 -m venv /opt/certbot/sudo /opt/certbot/bin/pip install --upgrade pipsudo /opt/certbot/bin/pip install certbot certbot-nginxsudo ln -s /opt/certbot/bin/certbot /usr/bin/certbot
+
+# Install python3 and augeas-libs
+
+sudo yum install python3 augeas-libs -y && \
+
+# Create a virtual environment for Certbot
+
+sudo python3 -m venv /opt/certbot/ && \
+
+# Upgrade pip in the virtual environment
+
+sudo /opt/certbot/bin/pip install --upgrade pip && \
+
+# Install Certbot and the Certbot Nginx plugin
+
+sudo /opt/certbot/bin/pip install certbot certbot-nginx && \
+
+# Create a symbolic link to the certbot executable
+
+sudo ln -s /opt/certbot/bin/certbot /usr/bin/certbot
 
 Make sure to add the DNS records in cloud flare -> A records to the IP of the server
 sudo certbot certonly --standalone -d yourdomain.com -d www.yourdomain.com
