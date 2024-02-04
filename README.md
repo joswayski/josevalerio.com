@@ -13,7 +13,7 @@ You might have some luck using this if your ISP does not support ipv6: https://t
 
 3.  Create a security group with the following rules:
     Inbound:
-    - SSH (22) - My IP
+    - SSH (22) - My IP (ipv6?)
     - HTTP (80) - Anywhere
     - HTTPS (443) - Anywhere
     - Custom TCP (5432) - My IP - For database access with TablePlus or your favorite database client
@@ -39,6 +39,11 @@ PG_DBNAME=yourdbname
 sudo reboot
 
 7. 
+
+7. Update name servers to allow for ipv6 from github
+
+sudo nano /etc/resolv.conf
+
 
 sudo yum update -y && sudo yum install git docker -y && sudo systemctl start docker && sudo systemctl enable docker && sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose && git clone https://github.com/joswayski/josevalerio.com.git && cd josevalerio.com && sudo docker-compose pull && sudo docker-compose up -d
 
