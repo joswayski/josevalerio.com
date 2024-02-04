@@ -3,7 +3,6 @@ import { redirect } from "@remix-run/node";
 import { db } from "../db.server";
 import { nanoid } from "nanoid";
 
-
 export const action = async ({ request }) => {
   console.log("In the server now!");
   const formData = await request.formData();
@@ -25,7 +24,7 @@ export const action = async ({ request }) => {
       name,
       custom_id: `user_${nanoid(10)}`,
     })
-    .returning("id");
+    .returning(["id", "custom_id"]);
 
   console.log("User in server", user);
   await db("users_in_rooms").insert({
@@ -33,7 +32,19 @@ export const action = async ({ request }) => {
     room_id: room[0].id,
   });
 
-  return redirect(`/poker/rooms/${custom_room_id}`);
+  const cookieHeaders = new Headers();
+  cookieHeaders.append(
+    "Set-Cookie",
+    `user-custom-id=${user[0].custom_id}; Path=/; HttpOnly; SameSite=Strict;`
+  );
+  cookieHeaders.append(
+    "Set-Cookie",
+    `user-primary-id=${user[0].id}; Path=/; HttpOnly; SameSite=Strict;`
+  );
+
+  return redirect(`/poker/rooms/${custom_room_id}`, {
+    headers: cookieHeaders,
+  });
 };
 
 export default function Poker() {
