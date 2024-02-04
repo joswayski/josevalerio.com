@@ -14,12 +14,10 @@ export default function Index() {
       <h1>WIP</h1>
       <p>
         This is running on a t4g.nano with a 3 year savings plan so it&apos;s
-        costing ~$1.30/month - not bad!
+        costing ~$1.30/month - not bad! ipv4 tho... yikes. Trying to get ipv6 to
+        work :)
       </p>
-      <p>
-        I want to practice sshing into more things... have been playing with too
-        much magic recently.
-      </p>
+
       <p>
         Site runs on Remix and Express. Postgres for data, will use it later.
       </p>

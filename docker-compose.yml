@@ -1,11 +1,27 @@
 version: '3'
 services:
-  app:
+  blog:
     restart: always
     image: joswayski/josevalerio:latest
     environment:
       NODE_ENV: production
+      DB_USER: ${PG_USERNAME}
+      DB_PASSWORD: ${PG_PASSWORD}
+      DB_NAME: ${PG_DBNAME}
+    depends_on:
+      - postgres
 
+  postgres:
+    image: postgres:latest
+    restart: always
+    environment:
+      POSTGRES_USER: ${PG_USERNAME}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+  
   nginx:
     image: nginx:latest
     ports:
@@ -14,3 +30,6 @@ services:
       - ./myapp.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - app
+
+volumes:
+  postgres-data:

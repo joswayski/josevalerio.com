@@ -1,56 +1,45 @@
 #### Rough Readme WIP
 
-Create a VPC with an ipv6 subnet - aws is chargin $4 / mo per ip address so. yeah
-https://aws.amazon.com/blogs/networking-and-content-delivery/introducing-ipv6-only-subnets-and-ec2-instances/
+We're going to transfer files using SCP btw since GitHub does not allow cloning repos from ipv6 addresses.
+https://github.com/orgs/community/discussions/10539
 
-TODO- if you dont have access to ipv6 use this https://tunnelbroker.net/new_tunnel.php
+You might have some luck using this if your ISP does not support ipv6: https://tunnelbroker.net/new_tunnel.php
 
-Create an instance
+1.  Create a VPC with an ipv6 subnet - AWS is charging ~$4 / mo per ipv4 address so this is a good way to save money.
+    https://aws.amazon.com/blogs/networking-and-content-delivery/introducing-ipv6-only-subnets-and-ec2-instances/
 
-Create an SSH key pair
+2.  Create an instance with ipv6.
 
-chmod 400 “KEY_NAME.pem”
 
-Allow SSH access to the instance
-TODO: ipv6!!
-ssh -i “KEY_NAME.pem" ec2-user@ec2-XX-XXX-XXX-XX.compute-1.amazonaws.com
+3.  Create a security group with the following rules:
+    Inbound:
+    - SSH (22) - My IP
+    - HTTP (80) - Anywhere
+    - HTTPS (443) - Anywhere
+    - Custom TCP (5432) - My IP - For database access with TablePlus or your favorite database client
+      Outbound:
+    - All traffic - Anywhere
+
+4.  Create an SSH key pair
+
+5.  chmod 400 “KEY_NAME.pem”
+
+6.  Connect to the instance using the ipv6 address
+ssh -i “KEY_NAME.pem" ec2-user@ec2-XXXXXXXXX-.compute-1.amazonaws.com
+
+7. Setup your environment variables
+sudo vi /etc/environment
+
+PG_USERNAME=blah
+PG_PASSWORD=yourpassword
+PG_DBNAME=yourdbname
+
+:wq
+
+sudo reboot
+
+7. 
 
 sudo yum update -y && sudo yum install git docker -y && sudo systemctl start docker && sudo systemctl enable docker && sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose && git clone https://github.com/joswayski/josevalerio.com.git && cd josevalerio.com && sudo docker-compose pull && sudo docker-compose up -d
 
--
-- # certbot stuff
-
-# Install python3 and augeas-libs
-
-sudo yum install python3 augeas-libs -y && \
-
-# Create a virtual environment for Certbot
-
-sudo python3 -m venv /opt/certbot/ && \
-
-# Upgrade pip in the virtual environment
-
-sudo /opt/certbot/bin/pip install --upgrade pip && \
-
-# Install Certbot and the Certbot Nginx plugin
-
-sudo /opt/certbot/bin/pip install certbot certbot-nginx && \
-
-# Create a symbolic link to the certbot executable
-
-sudo ln -s /opt/certbot/bin/certbot /usr/bin/certbot
-
 Make sure to add the DNS records in cloud flare -> A records to the IP of the server
-sudo certbot certonly --standalone -d yourdomain.com -d www.yourdomain.com
-
-- The --standalone option is used to temporarily start a web server on port 80 to complete the domain verification. Ensure no other service is running on port 80 when you do this, which might require temporarily stopping your Docker containers. This is why we run apache on 8000 instead
-- Specify all domains you want the certificate to cover with -d options.
-
-crontab for automatic renewals
-
-sudo yum install cronie
-sudo systemctl enable crondsudo crontab -e
-
-`0 */12 * * *` sudo docker-compose down && sudo /opt/certbot/bin/certbot renew --dry-run --post-hook "cd /home/ec2-user/josevalerio.com && sudo docker-compose up -d"
-
-sudo docker-compose up -d and ur up :)
