@@ -12,6 +12,9 @@ export default function Index() {
   return (
     <div style={{ fontFamily: "system-ui, sans-serif", lineHeight: "1.8" }}>
       <h1>WIP</h1>
+      <h1 className="text-3xl font-bold underline p-4 border border-red-500">
+        Hello world!
+      </h1>
       <p>
         This is running on a t4g.nano with a 3 year savings plan so it&apos;s
         costing ~$1.30/month - not bad! ipv4 tho... yikes. Trying to get ipv6 to
