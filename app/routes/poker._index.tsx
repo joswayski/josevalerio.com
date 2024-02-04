@@ -1,7 +1,8 @@
-import { Form } from "@remix-run/react";
+import { Form, Link } from "@remix-run/react";
 import { redirect } from "@remix-run/node";
 import { db } from "../db.server";
 import { nanoid } from "nanoid";
+
 
 export const action = async ({ request }) => {
   console.log("In the server now!");

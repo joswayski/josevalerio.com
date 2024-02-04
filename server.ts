@@ -68,6 +68,7 @@ app.listen(3000, async () => {
         table.text("custom_id").unique();
         table.timestamp("created_at").defaultTo(db.fn.now());
         table.timestamp("updated_at").defaultTo(db.fn.now());
+        table.boolean("active").defaultTo(true);
       });
     } catch (error) {
       console.error("Error creating rooms table:", error);
@@ -79,6 +80,8 @@ app.listen(3000, async () => {
       await db.schema.createTable(Tables.VOTES, function (table) {
         table.bigIncrements("id");
         table.integer("amount");
+        table.boolean("revealed").defaultTo(false);
+        table.boolean("archived").defaultTo(false); // Set to true when clearing
 
         table.timestamp("created_at").defaultTo(db.fn.now());
         table.timestamp("updated_at").defaultTo(db.fn.now());
