@@ -5,9 +5,8 @@ services:
     image: joswayski/josevalerio:latest
     environment:
       NODE_ENV: production
-      DB_USER: ${PG_USERNAME}
-      DB_PASSWORD: ${PG_PASSWORD}
-      DB_NAME: ${PG_DBNAME}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     depends_on:
       - postgres
 
@@ -15,8 +14,8 @@ services:
     image: postgres:latest
     restart: always
     environment:
-      POSTGRES_USER: ${PG_USERNAME}
-      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:

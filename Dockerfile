@@ -22,11 +22,12 @@ USER remix
 
 EXPOSE 3000
 
-
 COPY --from=prod-deps --chown=remix:remix /app/package*.json ./
 COPY --from=prod-deps --chown=remix:remix /app/node_modules ./node_modules
 COPY --from=builder --chown=remix:remix /app/build ./build
 COPY --from=builder --chown=remix:remix /app/public ./public
 COPY --from=builder --chown=remix:remix /app/server.mjs ./server.mjs
 
-ENTRYPOINT [ "node", "server.mjs"]
+RUN npm install -g ts-node
+
+ENTRYPOINT [ "ts-node", "server.ts"]
