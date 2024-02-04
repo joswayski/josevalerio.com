@@ -1,5 +1,11 @@
 #### Rough Readme WIP
 
+Create a VPC with an ipv6 subnet - aws is chargin $4 / mo per ip address so. yeah
+https://aws.amazon.com/blogs/networking-and-content-delivery/introducing-ipv6-only-subnets-and-ec2-instances/
+
+
+TODO- if you dont have access to ipv6 use this https://tunnelbroker.net/new_tunnel.php
+
 Create an instance
 
 Create an SSH key pair
@@ -10,10 +16,7 @@ Allow SSH access to the instance
 TODO: ipv6!!
 ssh -i “KEY_NAME.pem" ec2-user@ec2-XX-XXX-XXX-XX.compute-1.amazonaws.com
 
-sudo yum install git docker -y
-sudo systemctl start docker
-sudo systemctl enable docker
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-composesudo docker-compose pull
+sudo yum update -y && sudo yum install git docker -y && sudo systemctl start docker && sudo systemctl enable docker && sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose && git clone https://github.com/joswayski/josevalerio.com.git && cd josevalerio.com && sudo docker-compose pull && sudo docker-compose up -d
 
 -
 - # certbot stuff

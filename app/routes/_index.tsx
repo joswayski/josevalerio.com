@@ -13,8 +13,8 @@ export default function Index() {
     <div style={{ fontFamily: "system-ui, sans-serif", lineHeight: "1.8" }}>
       <h1>WIP</h1>
       <p>
-        I&apos;m working on deploying this in EC2 right now. It&apos;s costing
-        about $1.30/month (t4g.nano - 3 year savings plan) - not bad!
+        This is running on a t4g.nano with a 3 year savings plan so it&apos;s
+        costing ~$1.30/month - not bad!
       </p>
       <p>
         I want to practice sshing into more things... have been playing with too
