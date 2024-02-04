@@ -29,8 +29,8 @@
 6. Setup your environment variables
    sudo vi /etc/environment
 
-PG_USERNAME=blah
-PG_PASSWORD=yourpassword
+POSTGRES_USER=blah
+POSTGRES_PASSWORD=yourpassword
 PG_DBNAME=yourdbname
 
 :wq
@@ -41,8 +41,15 @@ You'll have to re-connect to the instance after the reboot.
 
 Modify your `myapp.conf` and `docker-compose.yml` files as needed. Push to github
 
+Build your docker image and push it to the docker hub
+Note that this deployment is from an ARM Mac to ARM EC2 instance running Amazon Linux. If you're using x86 or another OS like Ubuntu, you might run into some issues.
+
+
 7. Install git, docker, and docker-compose & pull the repo and images
    (i build them locally because i have a powerful laptop)
+
+> Incase youre using centos and it defaults to podman-docker
+> sudo yum remove podman-docker -y && sudo yum clean all && sudo yum install -y yum-utils && sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 
 > sudo yum update -y && sudo yum install git docker -y && sudo systemctl start docker && sudo systemctl enable docker && sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose && git clone https://github.com/joswayski/josevalerio.com.git && cd josevalerio.com && sudo docker-compose pull && sudo docker-compose up -d
 

@@ -1,6 +1,7 @@
 version: '3'
 services:
   blog:
+    container_name: blog
     restart: always
     image: joswayski/josevalerio:latest
     environment:
@@ -11,6 +12,7 @@ services:
       - postgres
 
   postgres:
+    container_name: postgres
     image: postgres:latest
     restart: always
     environment:
@@ -22,6 +24,7 @@ services:
       - "5432:5432"
   
   nginx:
+    container_name: nginx
     image: nginx:latest
     ports:
       - "80:80"
