@@ -16,6 +16,9 @@ RUN npm install --production
 FROM base as runner
 WORKDIR /app
 
+RUN npm install -g tsx
+
+
 RUN addgroup --system --gid 1001 remix
 RUN adduser --system --uid 1001 remix
 USER remix
@@ -26,8 +29,9 @@ COPY --from=prod-deps --chown=remix:remix /app/package*.json ./
 COPY --from=prod-deps --chown=remix:remix /app/node_modules ./node_modules
 COPY --from=builder --chown=remix:remix /app/build ./build
 COPY --from=builder --chown=remix:remix /app/public ./public
-COPY --from=builder --chown=remix:remix /app/server.mjs ./server.mjs
+COPY --from=builder --chown=remix:remix /app/server.ts ./server.ts
+COPY --from=builder --chown=remix:remix /app/consts.ts ./consts.ts
 
-RUN npm install -g ts-node
 
-ENTRYPOINT [ "ts-node", "server.ts"]
+
+ENTRYPOINT [ "tsx", "server.ts"]
