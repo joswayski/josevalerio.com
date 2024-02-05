@@ -7,12 +7,13 @@ import {
   useActionData,
   useLoaderData,
   useMatches,
+  useNavigation,
 } from "@remix-run/react";
 import { db } from "../db.server";
 import { Tables } from "../../consts";
 import { nanoid } from "nanoid";
 import { Toaster, toast } from "react-hot-toast";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { customUserId, userPrimaryId } from "~/utils/cookies";
 
 enum Intent {
@@ -99,9 +100,17 @@ export const action = async ({ request, params, headers }) => {
     return json({ success: true });
   }
 };
+
 export default function Room() {
+  const navigation = useNavigation();
+  const isSubmitting = navigation.state !== "idle";
   const { users, room } = useLoaderData();
   const actionData = useActionData();
+  const [submittingButton, setSubmittingButton] = useState(null);
+
+  const handleSubmit = (amount) => {
+    setSubmittingButton(amount); // Track which button is being submitted
+  };
 
   useEffect(() => {
     if (actionData?.success === true) {
@@ -109,6 +118,7 @@ export default function Room() {
         position: "top-center",
       });
     }
+    void setSubmittingButton(null); // Reset the button state
   }, [actionData]);
 
   return (
@@ -124,14 +134,18 @@ export default function Room() {
       <div className="max-w-4xl px-4 sm:px-6 lg:px-8  py-8 flex flex-row  justify-between items-center">
         <span className="isolate inline-flex rounded-md shadow-sm">
           {voteOptions.map((option, idx) => (
-            <Form method="post" key={option.label}>
+            <Form
+              method="post"
+              key={option.label}
+              onSubmit={() => handleSubmit(option.amount)}
+            >
               <input type="hidden" name="intent" value={Intent.VOTE} />
-              <input type="hidden" name="userId" value={"1111"} /> {/* TODO */}
               <button
                 name="amount"
                 value={option.amount}
                 type="submit"
-                className={`relative inline-flex items-center ${
+                disabled={submittingButton === option.amount}
+                className={`relative inline-flex items-center   ${
                   idx === voteOptions.length - 1
                     ? "rounded-r-md border-l-0"
                     : ""
@@ -140,7 +154,11 @@ export default function Room() {
                   idx === 0
                     ? "rounded-l-md rounded-r-none border-l"
                     : "border-l-0"
-                } bg-white px-3 py-2 text-sm font-semibold text-gray-900 border  border-gray-300 hover:bg-gray-50 focus:z-10`}
+                } bg-white px-3 py-2 text-sm font-semibold text-gray-900 border  bg focus:z-10 ${
+                  submittingButton === option.amount
+                    ? " bg-stone-200 text-slate-500 cursor-wait"
+                    : ""
+                }`}
               >
                 {option.label}
               </button>

@@ -1,6 +1,10 @@
 #### Rough Readme WIP
 
-`npm run local`
+To run locally, start your DB
+`docker-compose up -d postgres`
+
+Then start the app
+`npm run dev`
 
 ---
 
@@ -43,8 +47,6 @@ Spin up postgres
 ```bash
 sudo docker-compose up -d postgres
 ```
-
-Then we'll create the necessary databases and start the rest of the services. I didn't feel like adding this with Knex since its a one time setup and adding another script so, just connect with TablePlus if you want to manage / create the DBs.
 
 Then we'll create the necessary databases and start the rest of the services. I didn't feel like adding this with Knex since its a one time setup and adding another script so, just connect with TablePlus if you want to manage / create the DBs.
 

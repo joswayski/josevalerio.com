@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 export default function PokerLayout() {
   const location = useLocation();
+
   const [pages, setPages] = useState([
     { name: "New Pointing Session", href: "/poker", current: true },
   ]);

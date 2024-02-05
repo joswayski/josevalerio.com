@@ -1,10 +1,11 @@
-import { Form, Link } from "@remix-run/react";
+import { Form, Link, useNavigation } from "@remix-run/react";
 import { redirect } from "@remix-run/node";
 import { db } from "../db.server";
 import { nanoid } from "nanoid";
 import { customUserId, userPrimaryId } from "~/utils/cookies";
 
 export const action = async ({ request }) => {
+  await new Promise((resolve) => setTimeout(resolve, 1000));
   const formData = await request.formData();
 
   const roomName = formData.get("room-name");
@@ -46,8 +47,10 @@ export const action = async ({ request }) => {
 };
 
 export default function Poker() {
+  const navigation = useNavigation();
+  const isSubmitting = navigation.state !== "idle";
   return (
-    <div>
+    <div className={`${isSubmitting ? "cursor-wait" : ""}`}>
       <header>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <h1 className="text-3xl font-bold leading-tight tracking-tight text-gray-900">
@@ -61,7 +64,9 @@ export default function Poker() {
             <div className="relative">
               <label
                 htmlFor="room-name"
-                className="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-medium text-gray-900"
+                className={`absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-medium ${
+                  isSubmitting ? "text-slate-400" : "text-slate-900"
+                }`}
               >
                 Room Name
               </label>
@@ -69,7 +74,10 @@ export default function Poker() {
                 type="text"
                 name="room-name"
                 id="room-name"
-                className="block w-full px-2 rounded-md border-0 py-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                disabled={isSubmitting}
+                className={`block w-full px-2 rounded-md border-0 py-3 ${
+                  isSubmitting ? "text-slate-400" : "text-slate-900"
+                } shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6`}
                 placeholder="Deliver Team"
               />
             </div>
@@ -77,7 +85,9 @@ export default function Poker() {
             <div className="relative">
               <label
                 htmlFor="name"
-                className="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-medium text-gray-900"
+                className={`absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-medium ${
+                  isSubmitting ? "text-slate-400" : "text-slate-900"
+                }`}
               >
                 Your Name
               </label>
@@ -85,7 +95,10 @@ export default function Poker() {
                 type="text"
                 name="name"
                 id="name"
-                className="block w-full px-2 rounded-md border-0 py-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                disabled={isSubmitting}
+                className={`block w-full px-2 rounded-md border-0 py-3 ${
+                  isSubmitting ? "text-slate-400" : "text-slate-900"
+                } shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6`}
                 placeholder="Jose Valerio"
               />
             </div>
@@ -93,7 +106,12 @@ export default function Poker() {
             <div className="flex justify-end flex-row ">
               <button
                 type="submit"
-                className="rounded-md bg-white px-3.5 py-2.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                disabled={isSubmitting}
+                className={`rounded-md  px-3.5 py-2.5 text-sm font-semibold ${
+                  isSubmitting
+                    ? "text-slate-400 bg-stone-100"
+                    : "text-slate-900 bg-white"
+                } shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50`}
               >
                 Create
               </button>
