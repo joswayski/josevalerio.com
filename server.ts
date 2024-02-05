@@ -30,7 +30,7 @@ app.listen(3000, async () => {
   const db = knex({
     client: "pg",
     connection: {
-      host: "localhost",
+      host: process.env.NODE_ENV === "production" ? "postgres" : "localhost",
       port: 5432,
       // eslint-disable-next-line no-undef
       user: process.env.POSTGRES_USER,

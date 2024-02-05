@@ -2,9 +2,9 @@ import { Form, Link } from "@remix-run/react";
 import { redirect } from "@remix-run/node";
 import { db } from "../db.server";
 import { nanoid } from "nanoid";
+import { customUserId, userPrimaryId } from "~/utils/cookies";
 
 export const action = async ({ request }) => {
-  console.log("In the server now!");
   const formData = await request.formData();
 
   const roomName = formData.get("room-name");
@@ -17,7 +17,6 @@ export const action = async ({ request }) => {
       custom_id: custom_room_id,
     })
     .returning(["id", "custom_id"]);
-  console.log("Room in server", room);
 
   const user = await db("users")
     .insert({
@@ -26,7 +25,6 @@ export const action = async ({ request }) => {
     })
     .returning(["id", "custom_id"]);
 
-  console.log("User in server", user);
   await db("users_in_rooms").insert({
     user_id: user[0].id,
     room_id: room[0].id,
@@ -35,11 +33,11 @@ export const action = async ({ request }) => {
   const cookieHeaders = new Headers();
   cookieHeaders.append(
     "Set-Cookie",
-    `user-custom-id=${user[0].custom_id}; Path=/; HttpOnly; SameSite=Strict;`
+    await customUserId.serialize(user[0].custom_id)
   );
   cookieHeaders.append(
     "Set-Cookie",
-    `user-primary-id=${user[0].id}; Path=/; HttpOnly; SameSite=Strict;`
+    await userPrimaryId.serialize(user[0].id.toString())
   );
 
   return redirect(`/poker/rooms/${custom_room_id}`, {

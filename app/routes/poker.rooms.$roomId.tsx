@@ -84,6 +84,8 @@ export const action = async ({ request, params, headers }) => {
 
   console.log(`ROOM DATA: ${JSON.stringify(roomData)}`);
 
+  console.log("ROOM ID", roomData[0].id);
+  console.log("USERID", user_id);
   if (intent === Intent.VOTE) {
     await db
       .insert({

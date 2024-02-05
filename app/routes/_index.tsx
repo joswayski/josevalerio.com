@@ -40,7 +40,7 @@ export default function Index() {
             href="https://twitter.com/notjoswayski"
             rel="noreferrer"
           >
-            Jose on X / Twitter
+            Jose on X / Twitter asdasd
           </a>
         </li>
         <li>

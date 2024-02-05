@@ -32,6 +32,7 @@ COPY --from=builder --chown=remix:remix /app/public ./public
 COPY --from=builder --chown=remix:remix /app/server.ts ./server.ts
 COPY --from=builder --chown=remix:remix /app/consts.ts ./consts.ts
 
+ENV NODE_ENV=production
 
 
 ENTRYPOINT [ "tsx", "server.ts"]
