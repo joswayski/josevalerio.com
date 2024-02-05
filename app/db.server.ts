@@ -3,7 +3,7 @@ import knex from "knex";
 const db = knex({
   client: "pg",
   connection: {
-    host: process.env.NODE_ENV === "production" ? "postgres" : "localhost",
+    host: "postgres",
     port: 5432,
     // eslint-disable-next-line no-undef
     user: process.env.POSTGRES_USER,

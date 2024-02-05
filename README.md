@@ -1,5 +1,9 @@
 #### Rough Readme WIP
 
+`npm run local`
+
+---
+
 This is currently deployed on Hetzner, I moved it off of AWS because I get more resources there. Nginx to route traffic to my "apps" (just one for now), but will add more in the future. The app is a Remix FE served by Express and Postgres for data. I'm using docker-compose to manage everything.
 
 Wherever you deploy, make sure your network settings allow:

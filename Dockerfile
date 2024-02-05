@@ -33,4 +33,4 @@ COPY --from=builder --chown=remix:remix /app/server.ts ./server.ts
 COPY --from=builder --chown=remix:remix /app/consts.ts ./consts.ts
 
 
-ENTRYPOINT [ "tsx", "server.ts"]
+ENTRYPOINT [ "npm", "run", "start" ]
