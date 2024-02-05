@@ -5,7 +5,6 @@ import { nanoid } from "nanoid";
 import { customUserId, userPrimaryId } from "~/utils/cookies";
 
 export const action = async ({ request }) => {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
   const formData = await request.formData();
 
   const roomName = formData.get("room-name");

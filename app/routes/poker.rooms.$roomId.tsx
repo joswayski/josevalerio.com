@@ -168,6 +168,11 @@ export default function Room() {
         <span className="isolate inline-flex rounded-md shadow-sm">
           <button
             type="button"
+            onClick={() => {
+              toast("Not implemented yet sorry :D", {
+                icon: "🤖",
+              });
+            }}
             className="relative inline-flex items-center gap-x-1.5 rounded-l-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 border border-gray-300 hover:bg-gray-50 focus:z-10  "
           >
             <svg
@@ -189,6 +194,11 @@ export default function Room() {
           </button>
           <button
             type="button"
+            onClick={() => {
+              toast("Not implemented yet sorry :D", {
+                icon: "🤖",
+              });
+            }}
             className="relative -ml-px flex justify-between  items-center rounded-r-md bg-white px-4 py-2 text-sm font-semibold text-gray-900 border border-gray-300 hover:bg-gray-50 focus:z-10"
           >
             <svg
