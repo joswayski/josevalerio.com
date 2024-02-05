@@ -8,53 +8,79 @@ export const meta: MetaFunction = () => {
   ];
 };
 
+const items = [
+  {
+    id: "1",
+    text: "This site's code on GitHub",
+    href: "https://github.com/joswayski/josevalerio.com",
+  },
+  {
+    id: "2",
+    text: "Jose on X / Twitter",
+    href: "https://twitter.com/notjoswayski",
+  },
+  {
+    id: "3",
+    text: "Jose's company Plutomi Inc.",
+    href: "https://plutomi.com",
+  },
+];
+
 export default function Index() {
   return (
-    <div style={{ fontFamily: "system-ui, sans-serif", lineHeight: "1.8" }}>
-      <h1>WIP</h1>
-      <h1 className="text-3xl font-bold underline p-4 border border-red-500">
-        Hello world!
-      </h1>
-      <p>
-        This is running on a t4g.nano with a 3 year savings plan so it&apos;s
-        costing ~$1.30/month - not bad! ipv4 tho... yikes. Trying to get ipv6 to
-        work :)
-      </p>
+    <div className="mx-auto mt-40 max-w-3xl p-8 bg-gray-50 rounded-md shadow">
+      <h1 className="text-3xl font-bold text-slate-800 my-4">WIP </h1>
 
-      <p>
-        Site runs on Remix and Express. Postgres for data, will use it later.
-      </p>
-      <ul>
-        <li>
-          <a
-            target="_blank"
-            href="https://github.com/joswayski/josevalerio.com"
-            rel="noreferrer"
-          >
-            This site&apos;s code on GitHub
-          </a>
-        </li>
-        <li>
-          <a
-            target="_blank"
-            href="https://twitter.com/notjoswayski"
-            rel="noreferrer"
-          >
-            Jose on X / Twitter asdasd
-          </a>
-        </li>
-        <li>
-          <a target="_blank" href="https://plutomi.com" rel="noreferrer">
-            Jose&apos;s company Plutomi Inc.
-          </a>
-        </li>
+      <div className="flex flex-col space-y-4 ">
+        <p className="text-slate-500">
+          This is running on a t4g.nano with a 3 year savings plan so it&apos;s
+          costing ~$1.30/month - not bad! ipv4 tho... yikes. Trying to move this to Hetzner as well since 8x the ram.
+        </p>
+
+        <p className="text-md text-slate-500">
+          Site runs on Nginx, Remix + Express. Postgres for data. Setting up
+          Jira pointing poker right now.
+        </p>
+      </div>
+
+      <ul className="divide-y divide-gray-200 py-4 ">
+        {items.map((item) => (
+          <li key={item.id} className="py-2">
+            <a
+              target="_blank"
+              href={item.href}
+              rel="noreferrer"
+              className="text-blue-500 underline text-center hover:text-blue-700 transition duration-200 ease-in-out"
+            >
+              {item.text}
+            </a>
+          </li>
+        ))}
+      </ul>
+
+      <Link to="/poker" className="w-full flex  justify-end">
         <button
           type="button"
-          className="rounded-md bg-indigo-50 px-3.5 py-2.5 text-sm font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
+          className="inline-flex self-end items-center gap-x-2 rounded-md bg-slate-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600"
         >
-          <Link to="/poker">Poker</Link>
+          Pointing Poker
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="lucide lucide-arrow-right"
+          >
+            <path d="M5 12h14" />
+            <path d="m12 5 7 7-7 7" />
+          </svg>
         </button>
-      </ul>
+      </Link>
     </div>
   );
 }
