@@ -40,11 +40,9 @@ We're going to install git, docker, docker-compose, and pull the repo and images
 sudo yum update -y && sudo yum install git docker -y && sudo systemctl start docker && sudo systemctl enable docker && sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose && git clone https://github.com/joswayski/josevalerio.com.git && cd josevalerio.com && sudo docker-compose pull && sudo docker-compose up -d postgres
 ```
 
-Then we'll create the necessary databases and start the rest of the services. I didn't feel like adding this with Knex since its a one time setup and adding another script so, just connect with TablePlus if you want to manage the DBs.
+Then we'll create the necessary databases and start the rest of the services. I didn't feel like adding this with Knex since its a one time setup and adding another script so, just connect with TablePlus if you want to manage / create the DBs.
 
-> Create the necessary DBs, in this case just "poker" for now.
-
-Then, start the rest of the services.
+After you're done, start the rest of the services.
 
 ```bash
 sudo docker-compose up -d

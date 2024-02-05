@@ -28,17 +28,17 @@ const items = [
 
 export default function Index() {
   return (
-    <div className="mx-auto mt-40 max-w-3xl p-8 bg-gray-50 rounded-md shadow">
+    <div className="mx-auto mt-40 max-w-2xl p-8 bg-gray-50 rounded-md shadow">
       <h1 className="text-3xl font-bold text-slate-800 my-4">WIP </h1>
 
       <div className="flex flex-col space-y-4 ">
         <p className="text-slate-500">
-          This is running on a t4g.nano with a 3 year savings plan so it&apos;s
-          costing ~$1.30/month - not bad! ipv4 tho... yikes. Trying to move this to Hetzner as well since 8x the ram.
+          This is running on a Hetzner&apos;s CAX11 which is 2vCPUs and 4GB of
+          ram for $4.08 a month, not bad!
         </p>
 
         <p className="text-md text-slate-500">
-          Site runs on Nginx, Remix + Express. Postgres for data. Setting up
+          Site runs on Nginx, Remix + Express, and Postgres for data. Setting up
           Jira pointing poker right now.
         </p>
       </div>
