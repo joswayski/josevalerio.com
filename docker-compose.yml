@@ -30,6 +30,7 @@ services:
       - .env
 
   nginx:
+    restart: always
     container_name: nginx
     image: nginx:latest
     ports:
