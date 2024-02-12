@@ -34,7 +34,7 @@ export default function Index() {
       <div className="flex flex-col space-y-4 ">
         <p className="text-slate-500">
           This is running on a Hetzner&apos;s CAX11 which is 2vCPUs and 4GB of
-          ram for $4.08 a month, not bad!
+          ram for $4.08 a month, not bad! :)
         </p>
 
         <p className="text-md text-slate-500">
