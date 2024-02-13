@@ -34,23 +34,20 @@ docker buildx create --name multiarch --use
 docker buildx build --platform linux/amd64,linux/arm64 -t joswayski/josevalerio:latest . --push
 ```
 
-SSH into your instance and setup your environment. You'll need to install git, docker, and docker-compose.
-We're going to install git, docker, docker-compose, and pull the repo and images, and start our Postgres DB.
+Transfer your `.env`, `docker-compose.yml`, and `nginx.conf` files to your server.
+
+```bash
+rsync -avz --progress .env  docker-compose.yml nginx.conf root@your-server-ip:josevalerio.com
+```
+
+SSH into your instance and setup your environment. We're going to install docker, docker-compose, pull the images, and start our Postgres DB.
 
 ```bash
 ssh root@<your-ip>
 ```
 
 ```bash
-sudo apt-get update -y && sudo apt-get install git docker.io -y && sudo systemctl start docker && sudo systemctl enable docker && sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose && git clone https://github.com/joswayski/josevalerio.com.git && cd josevalerio.com && sudo docker-compose pull
-```
-
-Transfer your `.env` file to your server.
-
-> Only have to do this once if it hasn't been modified
-
-```bash
-scp ./.env root@your-server-ip:josevalerio.com
+sudo apt-get update -y && sudo apt-get install docker.io -y && sudo systemctl start docker && sudo systemctl enable docker && sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose && cd josevalerio.com && sudo docker-compose pull
 ```
 
 Spin up postgres
