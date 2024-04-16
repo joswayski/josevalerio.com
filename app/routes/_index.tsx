@@ -1,5 +1,4 @@
 import type { MetaFunction } from "@remix-run/node";
-import { Link } from "@remix-run/react";
 
 export const meta: MetaFunction = () => {
   return [
@@ -29,18 +28,15 @@ const items = [
 export default function Index() {
   return (
     <div className="mx-auto mt-40 max-w-2xl p-8 bg-gray-50 rounded-md shadow">
-      <h1 className="text-3xl font-bold text-slate-800 my-4">WIP </h1>
+      <h1 className="text-3xl font-bold text-slate-800 my-4">Hi :) </h1>
 
       <div className="flex flex-col space-y-4 ">
-        <p className="text-slate-500">
-          This is running on a Hetzner&apos;s CAX11 which is 2vCPUs and 4GB of
-          ram for $4.08 a month, not bad! :)
-        </p>
-
+        <p className="text-slate-500">I&apos;ll write something here soon</p>
+        {/* 
         <p className="text-md text-slate-500">
           Site runs on Nginx, Remix + Express, and Postgres for data. Setting up
           Jira pointing poker right now.
-        </p>
+        </p> */}
       </div>
 
       <ul className="divide-y divide-gray-200 py-4 ">
@@ -58,7 +54,7 @@ export default function Index() {
         ))}
       </ul>
 
-      <Link to="/poker" className="w-full flex  justify-end">
+      {/* <Link to="/poker" className="w-full flex  justify-end">
         <button
           type="button"
           className="inline-flex self-end items-center gap-x-2 rounded-md bg-slate-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600"
@@ -80,7 +76,7 @@ export default function Index() {
             <path d="m12 5 7 7-7 7" />
           </svg>
         </button>
-      </Link>
+      </Link> */}
     </div>
   );
 }
