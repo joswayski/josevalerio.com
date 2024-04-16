@@ -10,11 +10,11 @@ import { serve } from "@hono/node-server";
 
 const app = new Hono();
 
+app.get("/api/health", (c) => c.text("Hello Node.js!"));
+
 app.use("/build/*", serveStatic({ root: "public" }));
 
 app.use("*", remix({ build, mode: process.env.NODE_ENV || "production" }));
-
-app.get("/api/health", (c) => c.text("Hello Node.js!"));
 
 const server = serve(app, () => {
   // eslint-disable-next-line no-undef
