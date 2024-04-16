@@ -1,25 +1,28 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import { createRequestHandler } from "@remix-run/express";
-import express from "express";
+import { remix } from "remix-hono/handler";
 import { broadcastDevReady } from "@remix-run/node";
 import * as build from "./build/index.js";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
 
-const app = express();
-app.use(express.static("public"));
+const app = new Hono();
 
-// @ts-expect-error dont wanna deal with this right now
-app.all("*", createRequestHandler({ build }));
+app.use("/build/*", serveStatic({ root: "public" }));
 
-const server = app.listen(3000, async () => {
+app.use("*", remix({ build, mode: process.env.NODE_ENV || "production" }));
+
+app.get("/api/health", (c) => c.text("Hello Node.js!"));
+
+const server = serve(app, () => {
   // eslint-disable-next-line no-undef
   if (process.env.NODE_ENV === "development") {
     // @ts-expect-error dont wanna deal with this right now
     broadcastDevReady(build);
   }
-
-  console.log("App listening on http://localhost:3000");
+  console.log("Server is running on http://localhost:3000");
 });
 
 const gracefulShutdown = () => {
