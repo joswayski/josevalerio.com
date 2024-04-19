@@ -11,7 +11,7 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@hono/node-server": "^1.10.0",
+    "@hono/node-server": "^1.10.1",
     "@remix-run/css-bundle": "^2.6.0",
     "@remix-run/express": "^2.6.0",
     "@remix-run/node": "^2.6.0",
