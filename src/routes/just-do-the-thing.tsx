@@ -4,6 +4,14 @@ import { JustDoTheThing } from "~/data/postPreviews";
 
 export const Route = createFileRoute("/just-do-the-thing")({
   component: RouteComponent,
+  head: () => ({
+    meta: [
+      {
+        title: JustDoTheThing.title,
+        description: JustDoTheThing.previewText,
+      },
+    ],
+  }),
 });
 
 function RouteComponent() {
