@@ -1,6 +1,6 @@
 import { useCanGoBack, useRouter } from "@tanstack/react-router";
 import { PoastPreviewProps } from "./PoastPreview";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Home } from "lucide-react";
 import { redirect } from "@tanstack/react-router";
 import { useNavigate } from "@tanstack/react-router";
 
@@ -23,16 +23,12 @@ export function PoastLayout({
         <div className="py-4 px-4 flex items-center ">
           <button
             onClick={() =>
-              canGoBack
-                ? router.history.back()
-                : navigate({
-                    to: "/",
-                  })
+              canGoBack ? router.history.back() : navigate({ to: "/" })
             }
             className="text-slate-700 flex items-center gap-2"
           >
-            <ArrowLeft />
-            {canGoBack ? "Go Back" : "Home"}
+            <Home />
+            Home
           </button>
         </div>
       </div>
