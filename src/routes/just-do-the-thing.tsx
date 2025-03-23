@@ -17,7 +17,7 @@ export const Route = createFileRoute("/just-do-the-thing")({
 function RouteComponent() {
   return (
     <PoastLayout postPreview={JustDoTheThing}>
-      <div className="text-lg text-slate-700 space-y-3">
+      <div className="text-lg text-slate-700 space-y-8">
         <p className="">
           Sometimes you'll be working on a task and encounter some other part of
           the codebase that needs fixing, tech debt if you will. Other times,

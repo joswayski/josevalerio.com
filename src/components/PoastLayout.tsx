@@ -18,7 +18,7 @@ export function PoastLayout({
   const navigate = useNavigate();
 
   return (
-    <div>
+    <div className="pb-28">
       <div className="fixed top-0 left-0 right-0 z-10 bg-white border-b shadow-xl">
         <div className="py-4 px-4 flex items-center ">
           <button
