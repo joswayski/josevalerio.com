@@ -5,7 +5,7 @@ export const JustDoTheThing: PoastPreviewProps = {
   title: "Just do the thing",
   previewText:
     "Don't make a ticket, don't have a meeting, don't ask for permission, just do the thing.",
-  date: "March 3, 2025",
+  date: "March 23, 2025",
   link: "/just-do-the-thing",
 };
 
