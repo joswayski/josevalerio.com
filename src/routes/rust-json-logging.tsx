@@ -69,10 +69,16 @@ function RouteComponent() {
           <CodeSnippet>.json()</CodeSnippet> on the subscriber.. cool, lets try
           that.
         </p>
-        <img src="/rlog-1.png" />
+        <img
+          src="/rlog-1.png"
+          alt="Terminal output showing basic JSON logging with tracing crate - displays a simple 'Hi!' message with timestamp and level fields in JSON format"
+        />
 
         <p>Yay! We have some logs! In JSON too! Let's add some data..</p>
-        <img src="/rlog-2.png" />
+        <img
+          src="/rlog-2.png"
+          alt="Terminal output showing problematic JSON logging with Debug formatting - user data appears as escaped strings instead of proper JSON objects"
+        />
         <p>Eww.. why does it look like that?</p>
         <p>
           It's because we added the <CodeSnippet>?</CodeSnippet> sigil which
@@ -84,7 +90,10 @@ function RouteComponent() {
           <CodeSnippet>%</CodeSnippet> sigil for the{" "}
           <CodeSnippet>Display</CodeSnippet> implementation..
         </p>
-        <img src="/rlog-3.png" />
+        <img
+          src="/rlog-3.png"
+          alt="Code snippet showing workaround attempt using serde_json::Value and Display formatting with % sigil - still results in nested objects being stringified"
+        />
 
         <p>
           Except... sometimes you don't know what those fields will be... and
@@ -111,7 +120,10 @@ function RouteComponent() {
           First, add the valuable crate with{" "}
           <CodeSnippet>cargo add valuable</CodeSnippet>.
         </p>
-        <img src="/rlog-4.png" />
+        <img
+          src="/rlog-4.png"
+          alt="Terminal output from 'cargo add valuable' command showing the valuable crate being added to dependencies with version 0.1.1"
+        />
         <p>
           Enable the <CodeSnippet>derive</CodeSnippet> feature flag on{" "}
           <CodeSnippet>valuable</CodeSnippet>, and the{" "}
@@ -119,7 +131,10 @@ function RouteComponent() {
           <CodeSnippet>tracing</CodeSnippet> and{" "}
           <CodeSnippet>tracing-subscriber</CodeSnippet>:
         </p>
-        <img src="/rlog-5.png" />
+        <img
+          src="/rlog-5.png"
+          alt="Cargo.toml file showing feature flag configuration - valuable crate with derive feature, and tracing/tracing-subscriber with valuable features enabled"
+        />
 
         <p>
           During your <CodeSnippet>cargo build</CodeSnippet>, enable unstable
@@ -128,13 +143,19 @@ function RouteComponent() {
           alternatively, create a <CodeSnippet>.cargo/config.toml</CodeSnippet>{" "}
           file and add the Rust flags:
         </p>
-        <img src="/rlog-6.png" />
+        <img
+          src="/rlog-6.png"
+          alt="Cargo config.toml file showing rustflags configuration with '--cfg tracing_unstable' flag to enable experimental valuable support"
+        />
 
         <p>
           Now add <CodeSnippet>#[derive(Valuable)]</CodeSnippet> to each struct,
           and call it using <CodeSnippet>as_value()</CodeSnippet>:
         </p>
-        <img src="/rlog-7.png" />
+        <img
+          src="/rlog-7.png"
+          alt="Rust source code showing structs with #[derive(Debug, Serialize, Valuable)] attributes and logging call using user.as_value() method"
+        />
 
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 my-6">
           <p className="text-yellow-800">
@@ -144,7 +165,11 @@ function RouteComponent() {
             </ExternalLink>{" "}
             with the current implementation:
           </p>
-          <img src="/rlog-8.png" className="mt-2" />
+          <img
+            src="/rlog-8.png"
+            alt="Terminal output demonstrating enum serialization issue - shows how Transmission::Manual and Transmission::Automatic enums are represented in JSON logs"
+            className="mt-2"
+          />
         </div>
 
         <p>
