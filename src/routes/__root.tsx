@@ -80,7 +80,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body className="min-h-screen bg-white text-slate-950">
+      <body className="min-h-screen bg-slate-50 text-slate-950">
         {/*<div className="p-2 flex gap-2 text-lg">
          <Link
             to="/"

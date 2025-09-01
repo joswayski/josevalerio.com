@@ -11,6 +11,7 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
+import { Route as RustJsonLoggingImport } from './routes/rust-json-logging'
 import { Route as RedirectImport } from './routes/redirect'
 import { Route as JustDoTheThingImport } from './routes/just-do-the-thing'
 import { Route as DeferredImport } from './routes/deferred'
@@ -28,6 +29,12 @@ import { Route as PathlessLayoutNestedLayoutRouteBImport } from './routes/_pathl
 import { Route as PathlessLayoutNestedLayoutRouteAImport } from './routes/_pathlessLayout/_nested-layout/route-a'
 
 // Create/Update Routes
+
+const RustJsonLoggingRoute = RustJsonLoggingImport.update({
+  id: '/rust-json-logging',
+  path: '/rust-json-logging',
+  getParentRoute: () => rootRoute,
+} as any)
 
 const RedirectRoute = RedirectImport.update({
   id: '/redirect',
@@ -174,6 +181,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RedirectImport
       parentRoute: typeof rootRoute
     }
+    '/rust-json-logging': {
+      id: '/rust-json-logging'
+      path: '/rust-json-logging'
+      fullPath: '/rust-json-logging'
+      preLoaderRoute: typeof RustJsonLoggingImport
+      parentRoute: typeof rootRoute
+    }
     '/_pathlessLayout/_nested-layout': {
       id: '/_pathlessLayout/_nested-layout'
       path: ''
@@ -287,6 +301,7 @@ export interface FileRoutesByFullPath {
   '/deferred': typeof DeferredRoute
   '/just-do-the-thing': typeof JustDoTheThingRoute
   '/redirect': typeof RedirectRoute
+  '/rust-json-logging': typeof RustJsonLoggingRoute
   '/posts/$postId': typeof PostsPostIdRoute
   '/users/$userId': typeof UsersUserIdRoute
   '/posts/': typeof PostsIndexRoute
@@ -303,6 +318,7 @@ export interface FileRoutesByTo {
   '/deferred': typeof DeferredRoute
   '/just-do-the-thing': typeof JustDoTheThingRoute
   '/redirect': typeof RedirectRoute
+  '/rust-json-logging': typeof RustJsonLoggingRoute
   '/posts/$postId': typeof PostsPostIdRoute
   '/users/$userId': typeof UsersUserIdRoute
   '/posts': typeof PostsIndexRoute
@@ -321,6 +337,7 @@ export interface FileRoutesById {
   '/deferred': typeof DeferredRoute
   '/just-do-the-thing': typeof JustDoTheThingRoute
   '/redirect': typeof RedirectRoute
+  '/rust-json-logging': typeof RustJsonLoggingRoute
   '/_pathlessLayout/_nested-layout': typeof PathlessLayoutNestedLayoutRouteWithChildren
   '/posts/$postId': typeof PostsPostIdRoute
   '/users/$userId': typeof UsersUserIdRoute
@@ -341,6 +358,7 @@ export interface FileRouteTypes {
     | '/deferred'
     | '/just-do-the-thing'
     | '/redirect'
+    | '/rust-json-logging'
     | '/posts/$postId'
     | '/users/$userId'
     | '/posts/'
@@ -356,6 +374,7 @@ export interface FileRouteTypes {
     | '/deferred'
     | '/just-do-the-thing'
     | '/redirect'
+    | '/rust-json-logging'
     | '/posts/$postId'
     | '/users/$userId'
     | '/posts'
@@ -372,6 +391,7 @@ export interface FileRouteTypes {
     | '/deferred'
     | '/just-do-the-thing'
     | '/redirect'
+    | '/rust-json-logging'
     | '/_pathlessLayout/_nested-layout'
     | '/posts/$postId'
     | '/users/$userId'
@@ -391,6 +411,7 @@ export interface RootRouteChildren {
   DeferredRoute: typeof DeferredRoute
   JustDoTheThingRoute: typeof JustDoTheThingRoute
   RedirectRoute: typeof RedirectRoute
+  RustJsonLoggingRoute: typeof RustJsonLoggingRoute
   UsersUserIdRoute: typeof UsersUserIdRoute
   UsersIndexRoute: typeof UsersIndexRoute
   PostsPostIdDeepRoute: typeof PostsPostIdDeepRoute
@@ -404,6 +425,7 @@ const rootRouteChildren: RootRouteChildren = {
   DeferredRoute: DeferredRoute,
   JustDoTheThingRoute: JustDoTheThingRoute,
   RedirectRoute: RedirectRoute,
+  RustJsonLoggingRoute: RustJsonLoggingRoute,
   UsersUserIdRoute: UsersUserIdRoute,
   UsersIndexRoute: UsersIndexRoute,
   PostsPostIdDeepRoute: PostsPostIdDeepRoute,
@@ -426,6 +448,7 @@ export const routeTree = rootRoute
         "/deferred",
         "/just-do-the-thing",
         "/redirect",
+        "/rust-json-logging",
         "/users/$userId",
         "/users/",
         "/posts_/$postId/deep"
@@ -458,6 +481,9 @@ export const routeTree = rootRoute
     },
     "/redirect": {
       "filePath": "redirect.tsx"
+    },
+    "/rust-json-logging": {
+      "filePath": "rust-json-logging.tsx"
     },
     "/_pathlessLayout/_nested-layout": {
       "filePath": "_pathlessLayout/_nested-layout.tsx",
