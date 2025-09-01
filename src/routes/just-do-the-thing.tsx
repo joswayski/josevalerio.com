@@ -10,6 +10,10 @@ export const Route = createFileRoute("/just-do-the-thing")({
         title: JustDoTheThing.title,
         description: JustDoTheThing.previewText,
       },
+      {
+        name: "description",
+        content: JustDoTheThing.previewText,
+      },
     ],
   }),
 });

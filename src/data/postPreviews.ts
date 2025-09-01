@@ -9,4 +9,15 @@ export const JustDoTheThing: PoastPreviewProps = {
   link: "/just-do-the-thing",
 };
 
-export const postPreviews: PoastPreviewProps[] = [JustDoTheThing];
+export const RustJsonLogging: PoastPreviewProps = {
+  id: "2",
+  title: "How to log JSON in Rust",
+  previewText: "It shouldn't be this hard, but alas.",
+  date: "September 1, 2025",
+  link: "/rust-json-logging",
+};
+
+export const postPreviews: PoastPreviewProps[] = [
+  RustJsonLogging,
+  JustDoTheThing,
+];
