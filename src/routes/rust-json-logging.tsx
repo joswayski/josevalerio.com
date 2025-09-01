@@ -139,12 +139,23 @@ function RouteComponent() {
         </p>
         <img src="/rlog-7.png" />
 
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 my-6">
+          <p className="text-yellow-800">
+            <strong>Note:</strong> Enums are{" "}
+            <ExternalLink href="https://github.com/tokio-rs/tracing/issues/3051">
+              a little funky
+            </ExternalLink>{" "}
+            with the current implementation:
+          </p>
+          <img src="/rlog-8.png" className="mt-2" />
+        </div>
+
         <p>
-          I've setup{" "}
+          I've put together{" "}
           <ExternalLink href="https://github.com/joswayski/tracing-valuable-example">
-            a sample repo here
+            an example repo
           </ExternalLink>{" "}
-          if you'd like to take a look. I hope you found this helpful!
+          showing the valuable crate setup. I hope you found this helpful!
         </p>
       </div>
     </PoastLayout>
