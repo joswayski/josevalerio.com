@@ -29,7 +29,7 @@ export const Route = createRootRouteWithContext<{
       },
       ...seo({
         title: "Jose Valerio",
-        description: `Supply Chain Engineering at StockX. Memer. Don't sleep much.`,
+        description: `Supply Chain @ StockX. CTO @ averagedatabase.com`,
       }),
     ],
     links: [

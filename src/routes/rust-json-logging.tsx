@@ -3,19 +3,16 @@ import { PoastLayout } from "~/components/PoastLayout";
 import { RustJsonLogging } from "~/data/postPreviews";
 import { CodeSnippet } from "~/components/CodeSnippet";
 import { ExternalLink } from "~/components/ExternalLink";
+import { seo } from "~/utils/seo";
 
 export const Route = createFileRoute("/rust-json-logging")({
   component: RouteComponent,
   head: () => ({
     meta: [
-      {
+      ...seo({
         title: RustJsonLogging.title,
         description: RustJsonLogging.previewText,
-      },
-      {
-        name: "description",
-        content: RustJsonLogging.previewText,
-      },
+      }),
     ],
   }),
 });

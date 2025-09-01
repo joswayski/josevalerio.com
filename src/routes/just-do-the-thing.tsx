@@ -1,19 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PoastLayout } from "~/components/PoastLayout";
 import { JustDoTheThing } from "~/data/postPreviews";
+import { seo } from "~/utils/seo";
 
 export const Route = createFileRoute("/just-do-the-thing")({
   component: RouteComponent,
   head: () => ({
     meta: [
-      {
+      ...seo({
         title: JustDoTheThing.title,
         description: JustDoTheThing.previewText,
-      },
-      {
-        name: "description",
-        content: JustDoTheThing.previewText,
-      },
+      }),
     ],
   }),
 });
