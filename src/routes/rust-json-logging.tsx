@@ -118,9 +118,9 @@ function RouteComponent() {
         <p>
           Enable the <CodeSnippet>derive</CodeSnippet> feature flag on{" "}
           <CodeSnippet>valuable</CodeSnippet>, and the{" "}
-          <CodeSnippet>valuable</CodeSnippet> feature flags on{" "}
+          <CodeSnippet>valuable</CodeSnippet> feature flag on{" "}
           <CodeSnippet>tracing</CodeSnippet> and{" "}
-          <CodeSnippet>tracing-subscriber</CodeSnippet>.
+          <CodeSnippet>tracing-subscriber</CodeSnippet>:
         </p>
         <img src="/rlog-5.png" />
 
@@ -134,8 +134,8 @@ function RouteComponent() {
         <img src="/rlog-6.png" />
 
         <p>
-          Now add the Valuable trait to each struct, and call it using{" "}
-          <CodeSnippet>as_value()</CodeSnippet>
+          Now add <CodeSnippet>#[derive(Valuable)]</CodeSnippet> to each struct,
+          and call it using <CodeSnippet>as_value()</CodeSnippet>:
         </p>
         <img src="/rlog-7.png" />
 
