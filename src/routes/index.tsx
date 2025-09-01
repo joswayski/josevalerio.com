@@ -25,7 +25,7 @@ function Home() {
             duration: 1_500,
           });
         }}
-        className="mt-4 bg-white px-2 py-1 text-slate-700 hover:bg-slate-50 rounded-md"
+        className="mt-4 bg-white px-4 py-3 text-slate-700 hover:bg-slate-50 rounded-lg shadow-sm border border-slate-200"
       >
         {email}
       </button>

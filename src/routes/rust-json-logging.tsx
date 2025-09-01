@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PoastLayout } from "~/components/PoastLayout";
 import { RustJsonLogging } from "~/data/postPreviews";
+import { CodeSnippet } from "~/components/CodeSnippet";
+import { ExternalLink } from "~/components/ExternalLink";
 
 export const Route = createFileRoute("/rust-json-logging")({
   component: RouteComponent,
@@ -25,9 +27,9 @@ function RouteComponent() {
         <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-8">
           <p className="text-blue-800 font-medium">
             <strong>TLDR:</strong> Use the{" "}
-            <code className="bg-blue-100 text-blue-900 px-1 py-0.5 rounded text-sm font-mono">
+            <CodeSnippet className="bg-blue-100 text-blue-900 border-blue-200">
               valuable
-            </code>{" "}
+            </CodeSnippet>{" "}
             crate for proper JSON logging in Rust.{" "}
             <a
               href="#solution"
@@ -40,50 +42,26 @@ function RouteComponent() {
         <p className="">
           If you look around the Rust ecosystem on how to "do logging", you'll
           be recommended the{" "}
-          <a
-            href="https://github.com/tokio-rs/tracing"
-            target="_blank"
-            className="text-blue-600 hover:text-blue-800 transition-colors duration-100"
-          >
+          <ExternalLink href="https://github.com/tokio-rs/tracing">
             tracing crate
-          </a>{" "}
+          </ExternalLink>{" "}
           pretty much everywhere you go
           <sup>
-            <a
-              href="https://www.shuttle.dev/blog/2023/09/20/logging-in-rust"
-              target="_blank"
-              className="text-blue-600 hover:text-blue-800 transition-colors duration-100"
-            >
+            <ExternalLink href="https://www.shuttle.dev/blog/2023/09/20/logging-in-rust">
               [1]
-            </a>
-            <a
-              href="https://github.com/slog-rs/slog?tab=readme-ov-file#you-might-consider-using-tracing-instead"
-              target="_blank"
-              className="text-blue-600 hover:text-blue-800 transition-colors duration-100"
-            >
+            </ExternalLink>
+            <ExternalLink href="https://github.com/slog-rs/slog?tab=readme-ov-file#you-might-consider-using-tracing-instead">
               [2]
-            </a>
-            <a
-              href="https://www.reddit.com/r/rust/comments/1elgimo/how_do_you_log_your_applications/"
-              target="_blank"
-              className="text-blue-600 hover:text-blue-800 transition-colors duration-100"
-            >
+            </ExternalLink>
+            <ExternalLink href="https://www.reddit.com/r/rust/comments/1elgimo/how_do_you_log_your_applications/">
               [3]
-            </a>
-            <a
-              href="https://users.rust-lang.org/t/best-way-to-log-with-json/83385"
-              target="_blank"
-              className="text-blue-600 hover:text-blue-800 transition-colors duration-100"
-            >
+            </ExternalLink>
+            <ExternalLink href="https://users.rust-lang.org/t/best-way-to-log-with-json/83385">
               [4]
-            </a>
-            <a
-              href="https://www.youtube.com/watch?v=YHo_ab5S1bo"
-              target="_blank"
-              className="text-blue-600 hover:text-blue-800 transition-colors duration-100"
-            >
+            </ExternalLink>
+            <ExternalLink href="https://www.youtube.com/watch?v=YHo_ab5S1bo">
               [5]
-            </a>
+            </ExternalLink>
           </sup>
           . You look and the docs and it says something about events, spans, and
           OpenTelemetry, but you don't really have time for that you just want
@@ -91,7 +69,8 @@ function RouteComponent() {
         </p>
         <p>
           You setup the example given and and see that you can{" "}
-          <code>.json()</code> on the subscriber.. cool lets try that.
+          <CodeSnippet>.json()</CodeSnippet> on the subscriber.. cool lets try
+          that.
         </p>
         <img src="/rlog-1.png" />
 
@@ -99,26 +78,14 @@ function RouteComponent() {
         <img src="/rlog-2.png" />
         <p>Eww.. why does it look like that?</p>
         <p>
-          It's because we added the{" "}
-          <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm font-mono">
-            ?
-          </code>{" "}
-          sigil which tells the tracing subscriber to format it using it's
-          `Debug` implementation. We don't really want that so.. what can we do?
-          A lot of comments and LLMs might suggest to move the fields that you
-          want to the top or even convert it to a{" "}
-          <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm font-mono">
-            serde_json::Value
-          </code>{" "}
-          first, and use the{" "}
-          <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm font-mono">
-            %
-          </code>{" "}
-          sigil for the{" "}
-          <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm font-mono">
-            Display
-          </code>
-          implementation..
+          It's because we added the <CodeSnippet>?</CodeSnippet> sigil which
+          tells the tracing subscriber to format it using it's{" "}
+          <CodeSnippet>Debug</CodeSnippet> implementation. We don't really want
+          that so.. what can we do? A lot of comments and LLMs might suggest to
+          move the fields that you want to the top or even convert it to a{" "}
+          <CodeSnippet>serde_json::Value</CodeSnippet> first, and use the{" "}
+          <CodeSnippet>%</CodeSnippet> sigil for the{" "}
+          <CodeSnippet>Display</CodeSnippet> implementation..
         </p>
         <img src="/rlog-3.png" />
 
@@ -128,96 +95,55 @@ function RouteComponent() {
           problem on nested structs or arrays where they're still strings..
         </p>
 
-        <h3 id="solution" className="text-2xl font-bold">
+        <h3 id="solution" className="text-3xl font-bold">
           The Solution
         </h3>
         <p>
           The tracing crate has an{" "}
-          <a
-            href="https://github.com/tokio-rs/tracing/discussions/1906"
-            target="_blank"
-            className="text-blue-600 hover:text-blue-800 transition-colors duration-100"
-          >
+          <ExternalLink href="https://github.com/tokio-rs/tracing/discussions/1906">
             experimental feature flag since February 2022
-          </a>{" "}
+          </ExternalLink>{" "}
           which adds support for another crate called{" "}
-          <a
-            href="https://crates.io/crates/valuable"
-            target="_blank"
-            className="text-blue-600 hover:text-blue-800 transition-colors duration-100"
-          >
+          <ExternalLink href="https://crates.io/crates/valuable">
             valuable
-          </a>
+          </ExternalLink>
           . This crate + feature flag allows us to get the proper JSON formatted
           logs that we're looking for. Here is how to set it up:
         </p>
         <p>
           First, add the valuable crate with{" "}
-          <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm font-mono">
-            cargo add valuable
-          </code>
-          .
+          <CodeSnippet>cargo add valuable</CodeSnippet>.
         </p>
         <img src="./rlog-4.png" />
         <p>
-          Enable the{" "}
-          <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm font-mono">
-            derive
-          </code>{" "}
-          feature flag on{" "}
-          <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm font-mono">
-            valuable
-          </code>
-          , and the{" "}
-          <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm font-mono">
-            valuable
-          </code>{" "}
-          feature flags on{" "}
-          <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm font-mono">
-            tracing
-          </code>{" "}
-          and{" "}
-          <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm font-mono">
-            tracing-subscriber
-          </code>
-          ..
+          Enable the <CodeSnippet>derive</CodeSnippet> feature flag on{" "}
+          <CodeSnippet>valuable</CodeSnippet>, and the{" "}
+          <CodeSnippet>valuable</CodeSnippet> feature flags on{" "}
+          <CodeSnippet>tracing</CodeSnippet> and{" "}
+          <CodeSnippet>tracing-subscriber</CodeSnippet>..
         </p>
         <img src="./rlog-5.png" />
 
         <p>
-          During your{" "}
-          <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm font-mono">
-            cargo build
-          </code>
-          , enable unstable flags with{" "}
-          <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm font-mono">
-            RUSTFLAGS="--cfg tracing_unstable"
-          </code>{" "}
-          or, alternatively, create a{" "}
-          <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm font-mono">
-            .cargo/config.toml
-          </code>{" "}
+          During your <CodeSnippet>cargo build</CodeSnippet>, enable unstable
+          flags with{" "}
+          <CodeSnippet>RUSTFLAGS="--cfg tracing_unstable"</CodeSnippet> or,
+          alternatively, create a <CodeSnippet>.cargo/config.toml</CodeSnippet>{" "}
           file and add the Rust flags:
         </p>
         <img src="./rlog-6.png" />
 
         <p>
           Now add the Valuable trait to each struct, and call it using{" "}
-          <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm font-mono">
-            as_value()
-          </code>
+          <CodeSnippet>as_value()</CodeSnippet>
         </p>
         <img src="./rlog-7.png" />
 
         <p>
           I've setup{" "}
-          <a
-            href="https://github.com/joswayski/tracing-valuable-example"
-            target="_blank"
-            className="text-blue-600 hover:text-blue-800 transition-colors duration-100"
-          >
+          <ExternalLink href="https://github.com/joswayski/tracing-valuable-example">
             a sample repo here
-          </a>{" "}
+          </ExternalLink>{" "}
           if you'd like to take a look. I hope you found this helpful!
         </p>
       </div>
