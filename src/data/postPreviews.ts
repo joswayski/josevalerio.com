@@ -12,7 +12,8 @@ export const JustDoTheThing: PoastPreviewProps = {
 export const RustJsonLogging: PoastPreviewProps = {
   id: "2",
   title: "How to log structured JSON in Rust",
-  previewText: "Stop fighting with escaped strings and Debug formatting.",
+  previewText:
+    '{"message":"Stop fighting with escaped strings","solution":"[{\\"crate\\":\\"valuable\\"}]"}',
   date: "September 1, 2025",
   link: "/rust-json-logging",
 };

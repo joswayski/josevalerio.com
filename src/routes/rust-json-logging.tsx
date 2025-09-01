@@ -30,7 +30,7 @@ function RouteComponent() {
             <CodeSnippet className="bg-blue-100 text-blue-900 border-blue-200">
               valuable
             </CodeSnippet>{" "}
-            crate for proper JSON logging in Rust.{" "}
+            crate.{" "}
             <a
               href="#solution"
               className="text-blue-600 hover:text-blue-800 transition-colors duration-100 underline"
