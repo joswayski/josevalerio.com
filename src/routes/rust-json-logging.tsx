@@ -63,12 +63,12 @@ function RouteComponent() {
               [5]
             </ExternalLink>
           </sup>
-          . You look and the docs and it says something about events, spans, and
+          . You look at the docs and it says something about events, spans, and
           OpenTelemetry, but you don't really have time for that you just want
           to laaaaaaaawg.
         </p>
         <p>
-          You setup the example given and and see that you can{" "}
+          You setup the example given and see that you can{" "}
           <CodeSnippet>.json()</CodeSnippet> on the subscriber.. cool lets try
           that.
         </p>
@@ -91,8 +91,8 @@ function RouteComponent() {
 
         <p>
           Except... sometimes you don't know what those fields will be.. and
-          it's also extremely tedious... and you also end up with the same
-          problem on nested structs or arrays where they're still strings..
+          it's also extremely tedious. You also end up with the same problem on
+          nested structs or arrays where they're still strings..
         </p>
 
         <h3 id="solution" className="text-3xl font-bold">
@@ -114,7 +114,7 @@ function RouteComponent() {
           First, add the valuable crate with{" "}
           <CodeSnippet>cargo add valuable</CodeSnippet>.
         </p>
-        <img src="./rlog-4.png" />
+        <img src="/rlog-4.png" />
         <p>
           Enable the <CodeSnippet>derive</CodeSnippet> feature flag on{" "}
           <CodeSnippet>valuable</CodeSnippet>, and the{" "}
@@ -122,7 +122,7 @@ function RouteComponent() {
           <CodeSnippet>tracing</CodeSnippet> and{" "}
           <CodeSnippet>tracing-subscriber</CodeSnippet>..
         </p>
-        <img src="./rlog-5.png" />
+        <img src="/rlog-5.png" />
 
         <p>
           During your <CodeSnippet>cargo build</CodeSnippet>, enable unstable
@@ -131,13 +131,13 @@ function RouteComponent() {
           alternatively, create a <CodeSnippet>.cargo/config.toml</CodeSnippet>{" "}
           file and add the Rust flags:
         </p>
-        <img src="./rlog-6.png" />
+        <img src="/rlog-6.png" />
 
         <p>
           Now add the Valuable trait to each struct, and call it using{" "}
           <CodeSnippet>as_value()</CodeSnippet>
         </p>
-        <img src="./rlog-7.png" />
+        <img src="/rlog-7.png" />
 
         <p>
           I've setup{" "}
