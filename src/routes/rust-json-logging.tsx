@@ -69,7 +69,7 @@ function RouteComponent() {
         </p>
         <p>
           You setup the example given and see that you can{" "}
-          <CodeSnippet>.json()</CodeSnippet> on the subscriber.. cool lets try
+          <CodeSnippet>.json()</CodeSnippet> on the subscriber.. cool, lets try
           that.
         </p>
         <img src="/rlog-1.png" />
@@ -79,7 +79,7 @@ function RouteComponent() {
         <p>Eww.. why does it look like that?</p>
         <p>
           It's because we added the <CodeSnippet>?</CodeSnippet> sigil which
-          tells the tracing subscriber to format it using it's{" "}
+          tells the tracing subscriber to format it using its{" "}
           <CodeSnippet>Debug</CodeSnippet> implementation. We don't really want
           that so.. what can we do? A lot of comments and LLMs might suggest to
           move the fields that you want to the top or even convert it to a{" "}
@@ -90,9 +90,9 @@ function RouteComponent() {
         <img src="/rlog-3.png" />
 
         <p>
-          Except... sometimes you don't know what those fields will be.. and
+          Except... sometimes you don't know what those fields will be... and
           it's also extremely tedious. You also end up with the same problem on
-          nested structs or arrays where they're still strings..
+          nested structs or arrays where they're still strings...
         </p>
 
         <h3 id="solution" className="text-3xl font-bold">
@@ -120,7 +120,7 @@ function RouteComponent() {
           <CodeSnippet>valuable</CodeSnippet>, and the{" "}
           <CodeSnippet>valuable</CodeSnippet> feature flags on{" "}
           <CodeSnippet>tracing</CodeSnippet> and{" "}
-          <CodeSnippet>tracing-subscriber</CodeSnippet>..
+          <CodeSnippet>tracing-subscriber</CodeSnippet>.
         </p>
         <img src="/rlog-5.png" />
 
