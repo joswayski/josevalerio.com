@@ -1,15 +1,18 @@
 
-import { PoastLayout } from "../components/PoastLayout";
 import { RustJsonLogging } from "../data/postPreviews";
 import { CodeSnippet } from "../components/CodeSnippet";
 import { ExternalLink } from "../components/ExternalLink";
 
-
+export function meta() {
+  return [
+    { title: RustJsonLogging.title },
+    { name: "description", content: RustJsonLogging.previewText },
+  ];
+}
 
 export default function RustJSONLoggingPage() {
   return (
-    <PoastLayout postPreview={RustJsonLogging}>
-      <div className="text-lg text-slate-700 space-y-8">
+    <div className="text-lg text-slate-700  ">
         <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-8">
           <p className="text-blue-800 font-medium">
             <strong>TLDR:</strong> Use the{" "}
@@ -168,7 +171,6 @@ export default function RustJSONLoggingPage() {
           </ExternalLink>{" "}
           showing the valuable crate setup. I hope you found this helpful!
         </p>
-      </div>
-    </PoastLayout>
+    </div>
   );
 }

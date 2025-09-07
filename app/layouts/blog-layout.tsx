@@ -1,47 +1,47 @@
-import { useCanGoBack, useRouter } from "@tanstack/react-router";
-import { PoastPreviewProps } from "./PoastPreview";
-import { ArrowLeft, Home } from "lucide-react";
-import { redirect } from "@tanstack/react-router";
-import { useNavigate } from "@tanstack/react-router";
+import { Outlet, useNavigate, useLocation } from "react-router";
+import { Home } from "lucide-react";
 import { useClipboard } from "@mantine/hooks";
 import { toast } from "sonner";
-
-type PoastLayoutProps = {
-  children: React.ReactNode;
-  postPreview: PoastPreviewProps;
-};
+import { JustDoTheThing, RustJsonLogging } from "../data/postPreviews";
 
 const email = "contact@josevalerio.com";
 
-export function PoastLayout({
-  children,
-  postPreview: { title, date, link },
-}: PoastLayoutProps) {
-  const router = useRouter();
-  const canGoBack = useCanGoBack();
-  const navigate = useNavigate();
-  const clipboard = useClipboard({ timeout: 500 });
+// Map routes to their post data
+const routeToPostMap = {
+  "/just-do-the-thing": JustDoTheThing,
+  "/rust-json-logging": RustJsonLogging,
+} as const;
 
-  // Generate GitHub edit URL
-  const githubEditUrl = `https://github.com/joswayski/josevalerio.com/edit/main/src/routes${link}.tsx`;
+export default function BlogLayout() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const clipboard = useClipboard({ timeout: 500 });
+  
+  const currentPost = routeToPostMap[location.pathname as keyof typeof routeToPostMap];
+  
+  if (!currentPost) {
+    return <Outlet />;
+  }
+
+  const { title, date, link } = currentPost;
+  const githubEditUrl = `https://github.com/joswayski/josevalerio.com/edit/main/app/routes${link}.tsx`;
 
   return (
-    <div className="pb-28">
-      <div className="fixed top-0 left-0 right-0 z-10 bg-white border-b shadow-xl">
-        <div className="py-4 px-4 flex items-center ">
+    <div className="pb-14 ">
+      <div className="fixed top-0 left-0 right-0 z-10 flex justify-center">
+        <div className="bg-white border-x border-b rounded-b-lg shadow-xl max-w-5xl w-full mx-4 border-slate-200">
+          <div className="py-4 px-6 lg:px-8 flex items-center">
           <button
-            onClick={() =>
-              canGoBack ? router.history.back() : navigate({ to: "/" })
-            }
-            className="text-slate-700 flex items-center gap-2"
+            onClick={() => navigate("/")}
+            className="text-slate-700 flex items-center gap-2 cursor-pointer hover:text-slate-900 transition-colors"
           >
             <Home />
             Home
           </button>
+          </div>
         </div>
       </div>
-      {/* Add pt-16 to create space below the fixed navbar */}
-      <div className="flex justify-center flex-col mx-auto max-w-5xl px-6 lg:px-8 overflow-hidden pt-20 lg:pt-40">
+      <div className="flex justify-center flex-col mx-auto max-w-5xl px-6 lg:px-8 overflow-hidden pt-20 lg:pt-40  border-red-500">
         <h2 className="lg:text-6xl text-3xl font-bold mb-4 text-slate-900">
           {title}
         </h2>
@@ -56,7 +56,8 @@ export function PoastLayout({
             ✏️ Edit on GitHub
           </a>
         </div>
-        {children}
+        
+        <Outlet />
 
         {/* Footer with contact links */}
         <footer className="mt-16 pt-8 border-t border-slate-200">
@@ -73,7 +74,7 @@ export function PoastLayout({
                   duration: 1_500,
                 });
               }}
-              className="bg-white px-4 py-3 text-slate-700 hover:bg-slate-50 rounded-lg shadow-sm border border-slate-200 transition-colors"
+              className="bg-white px-4 py-3 text-slate-700 hover:bg-slate-50 rounded-lg shadow-sm border border-slate-200 transition-colors cursor-pointer"
             >
               {email}
             </button>

@@ -28,7 +28,7 @@ export default function Home() {
             duration: 1_500,
           });
         }}
-        className="mt-4 bg-white px-4 py-3 text-slate-700 hover:bg-slate-50 rounded-lg shadow-sm border border-slate-200"
+        className="mt-4 bg-white px-4 py-3 text-slate-700 hover:bg-slate-50 rounded-lg shadow-sm border border-slate-200 cursor-pointer"
       >
         {email}
       </button>

@@ -1,4 +1,3 @@
-import { PoastLayout } from "../components/PoastLayout";
 import { JustDoTheThing } from "../data/postPreviews";
 import type { Route } from "../+types/root";
 
@@ -12,8 +11,7 @@ export function meta({}: Route.MetaArgs) {
 
 export default function JustDoTheThingPage() {
   return (
-    <PoastLayout postPreview={JustDoTheThing}>
-      <div className="text-lg text-slate-700 space-y-8">
+    <div className="text-lg text-slate-700 ">
         <p className="">
           Sometimes you'll be working on a task and encounter some other part of
           the codebase that needs fixing, tech debt if you will. Other times,
@@ -42,7 +40,6 @@ export default function JustDoTheThingPage() {
           everyone from yet another conversation on how nobody has enough
           bandwidth this sprint to pick it up.
         </p>
-      </div>
-    </PoastLayout>
+    </div>
   );
 }
