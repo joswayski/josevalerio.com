@@ -42,7 +42,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return <Outlet />;
+  return <div>
+    <div className="m-4 bg-orange-100 border border-orange-400 text-orange-700 px-4 py-3 rounded relative max-w-4xl justify-center mx-auto" role="alert">
+      <strong className="font-bold">Hi!!!</strong>
+      <span className="block sm:inline">I'm currently migrating to on prem :) Sorry for any issues!</span>
+     
+    </div>
+    <Outlet />
+  </div>
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {

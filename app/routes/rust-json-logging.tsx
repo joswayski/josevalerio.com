@@ -1,23 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { PoastLayout } from "~/components/PoastLayout";
-import { RustJsonLogging } from "~/data/postPreviews";
-import { CodeSnippet } from "~/components/CodeSnippet";
-import { ExternalLink } from "~/components/ExternalLink";
-import { seo } from "~/utils/seo";
 
-export const Route = createFileRoute("/rust-json-logging")({
-  component: RouteComponent,
-  head: () => ({
-    meta: [
-      ...seo({
-        title: RustJsonLogging.title,
-        description: RustJsonLogging.previewText,
-      }),
-    ],
-  }),
-});
+import { PoastLayout } from "../components/PoastLayout";
+import { RustJsonLogging } from "../data/postPreviews";
+import { CodeSnippet } from "../components/CodeSnippet";
+import { ExternalLink } from "../components/ExternalLink";
 
-function RouteComponent() {
+
+
+export default function RustJSONLoggingPage() {
   return (
     <PoastLayout postPreview={RustJsonLogging}>
       <div className="text-lg text-slate-700 space-y-8">

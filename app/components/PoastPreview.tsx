@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link } from "react-router";
 
 export type PoastPreviewProps = {
   id: string;

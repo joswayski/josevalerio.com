@@ -1,4 +1,4 @@
-import { PoastPreviewProps } from "~/components/PoastPreview";
+import type { PoastPreviewProps } from "../components/PoastPreview";
 
 export const JustDoTheThing: PoastPreviewProps = {
   id: "1",
