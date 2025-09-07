@@ -6,8 +6,8 @@ import {
   Scripts,
   ScrollRestoration,
 } from "react-router";
-import { useState } from "react";
 import { Toaster } from "sonner";
+import { useLocalStorage } from "@mantine/hooks";
 
 import type { Route } from "./+types/root";
 import "./app.css";
@@ -45,9 +45,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const [showAlert, setShowAlert] = useState(true);
+  const [alertDismissed, setAlertDismissed] = useLocalStorage({
+    key: 'migration-alert-dismissed',
+    defaultValue: false,
+  });
 
-  if (!showAlert) {
+  if (alertDismissed) {
     return <Outlet />;
   }
 
@@ -59,8 +62,8 @@ export default function App() {
       <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center p-4">
         <div className="bg-orange-100 border border-orange-400 text-orange-700 px-4 py-3 rounded-lg shadow-2xl max-w-4xl w-full mx-4 relative" role="alert">
           <button
-            onClick={() => setShowAlert(false)}
-            className="absolute top-1/2 transform -translate-y-1/2 right-2 text-orange-700 hover:text-orange-900 hover:bg-orange-200 transition-colors cursor-pointer w-6 h-6 rounded-full flex items-center justify-center"
+            onClick={() => setAlertDismissed(true)}
+            className="absolute top-1/2 transform -translate-y-1/2 right-2 text-orange-700 hover:text-orange-900 hover:bg-orange-200 transition-colors cursor-pointer w-8 h-8 rounded-full flex items-center justify-center text-lg"
             aria-label="Close alert"
           >
             ✕
