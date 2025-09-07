@@ -24,9 +24,9 @@ export default function JustDoTheThingPage() {
             of your current task.
           </span>
         </p>
-        <p>
+        <p className="pt-8">
           "
-          <span className="italic">
+          <span className="italic ">
             But I have another more important thing to do!
           </span>
           " I hear you say "<span className="italic">It's out of scope!</span>".
