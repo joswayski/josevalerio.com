@@ -18,7 +18,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col items-center">
-      <h1 className="text-black text-6xl font-bold mt-8">Jose Valerio</h1>
+      <h1 className="text-black md:text-6xl text-3xl font-bold mt-8">Jose Valerio</h1>
       <button
         type="button"
         onClick={() => {
