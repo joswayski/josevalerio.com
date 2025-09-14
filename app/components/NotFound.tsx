@@ -16,6 +16,7 @@ export function NotFound({ children }: { children?: any }) {
         <Link
           to="/"
           className="bg-cyan-600 text-white px-2 py-1 rounded uppercase font-black text-sm"
+          prefetch="viewport"
         >
           Start Over
         </Link>
