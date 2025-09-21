@@ -1,6 +1,7 @@
 import { RustJsonLogging } from "../data/postPreviews";
 import { CodeSnippet } from "../components/CodeSnippet";
 import { ExternalLink } from "../components/ExternalLink";
+import { BlogShell } from "~/components/BlogShell";
 
 export function meta() {
   return [
@@ -11,7 +12,7 @@ export function meta() {
 
 export default function RustJSONLoggingPage() {
   return (
-    <div className="text-lg text-slate-700 space-y-6 ">
+    <BlogShell>
       <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-8">
         <p className="text-blue-800 font-medium">
           <strong>TLDR:</strong> Use the{" "}
@@ -170,6 +171,6 @@ export default function RustJSONLoggingPage() {
         </ExternalLink>{" "}
         showing the valuable crate setup. I hope you found this helpful!
       </p>
-    </div>
+    </BlogShell>
   );
 }

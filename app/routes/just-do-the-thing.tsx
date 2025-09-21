@@ -1,5 +1,6 @@
 import { JustDoTheThing } from "../data/postPreviews";
 import type { Route } from "../+types/root";
+import { BlogShell } from "~/components/BlogShell";
 
 
 export function meta({}: Route.MetaArgs) {
@@ -11,7 +12,7 @@ export function meta({}: Route.MetaArgs) {
 
 export default function JustDoTheThingPage() {
   return (
-    <div className="text-lg text-slate-700 ">
+          <BlogShell>
         <p className="">
           Sometimes you'll be working on a task and encounter some other part of
           the codebase that needs fixing, tech debt if you will. Other times,
@@ -40,6 +41,6 @@ export default function JustDoTheThingPage() {
           everyone from yet another conversation on how nobody has enough
           bandwidth this sprint to pick it up.
         </p>
-    </div>
+    </BlogShell>
   );
 }
