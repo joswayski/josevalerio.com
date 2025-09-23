@@ -46,7 +46,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const [alertDismissed, setAlertDismissed] = useLocalStorage({
-    key: 'migration-alert-dismissed',
+    key: "migration-alert-dismissed",
     defaultValue: false,
   });
 
@@ -57,7 +57,6 @@ export default function App() {
   return (
     <div>
       <Outlet />
-
     </div>
   );
 }

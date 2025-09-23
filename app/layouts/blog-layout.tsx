@@ -2,7 +2,11 @@ import { Outlet, useNavigate, useLocation } from "react-router";
 import { Home } from "lucide-react";
 import { useClipboard } from "@mantine/hooks";
 import { toast } from "sonner";
-import { JustDoTheThing, RustJsonLogging } from "../data/postPreviews";
+import {
+  JustDoTheThing,
+  RustJsonLogging,
+  HomelabInit,
+} from "../data/postPreviews";
 
 const email = "contact@josevalerio.com";
 
@@ -10,15 +14,17 @@ const email = "contact@josevalerio.com";
 const routeToPostMap = {
   "/just-do-the-thing": JustDoTheThing,
   "/rust-json-logging": RustJsonLogging,
+  "/homelab": HomelabInit,
 } as const;
 
 export default function BlogLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const clipboard = useClipboard({ timeout: 500 });
-  
-  const currentPost = routeToPostMap[location.pathname as keyof typeof routeToPostMap];
-  
+
+  const currentPost =
+    routeToPostMap[location.pathname as keyof typeof routeToPostMap];
+
   if (!currentPost) {
     return <Outlet />;
   }
@@ -31,13 +37,13 @@ export default function BlogLayout() {
       <div className="fixed top-0 left-0 right-0 z-10 flex justify-center">
         <div className="bg-white border-x border-b rounded-b-lg shadow-xl max-w-5xl w-full mx-4 border-slate-200">
           <div className="py-4 px-6 lg:px-8 flex items-center">
-          <button
-            onClick={() => navigate("/")}
-            className="text-slate-700 flex items-center gap-2 cursor-pointer hover:text-slate-900 transition-colors"
-          >
-            <Home />
-            Home
-          </button>
+            <button
+              onClick={() => navigate("/")}
+              className="text-slate-700 flex items-center gap-2 cursor-pointer hover:text-slate-900 transition-colors"
+            >
+              <Home />
+              Home
+            </button>
           </div>
         </div>
       </div>
@@ -56,7 +62,7 @@ export default function BlogLayout() {
             ✏️ Edit on GitHub
           </a>
         </div>
-        
+
         <Outlet />
 
         {/* Footer with contact links */}

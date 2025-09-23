@@ -20,9 +20,9 @@ export const RustJsonLogging: PoastPreviewProps = {
 
 export const HomelabInit: PoastPreviewProps = {
   id: "3",
-  title: "My Homelab",
+  title: "Homelab Init",
   previewText:
-    "Using K3S to host all of my apps and projects at home Or: How I spent $2,774.05 in order to save $10/month",
+    "Using K3S to host all of my apps and projects at home Or: How I spent $2,774.05 in order to save $10/month.",
   date: "September 25, 2025",
   link: "/homelab",
 };
