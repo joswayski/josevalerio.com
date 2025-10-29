@@ -18,21 +18,20 @@ export default function RustJSONLoggingPage() {
           <strong>TLDR:</strong> I ended up making my own crate because the
           previous solution (tracing + valuable) still has issues with enums and
           it's not flexible enough for my usecase. Check out{" "}
-          <CodeSnippet>sjl - Simple JSON Logger</CodeSnippet> on{" "}
+          <a
+            target="_blank"
+            href="https://github.com/joswayski/sjl"
+            className="text-blue-600 hover:text-blue-800 transition-colors duration-100 underline"
+          >
+            sjl - Simple JSON Logger on GitHub
+          </a>{" "}
+          or on{" "}
           <a
             target="_blank"
             href="https://crates.io/crates/sjl"
             className="text-blue-600 hover:text-blue-800 transition-colors duration-100 underline"
           >
             Crates.io
-          </a>{" "}
-          or on{" "}
-          <a
-            target="_blank"
-            href="https://github.com/joswayski/sjl"
-            className="text-blue-600 hover:text-blue-800 transition-colors duration-100 underline"
-          >
-            GitHub
           </a>
           !
         </p>
