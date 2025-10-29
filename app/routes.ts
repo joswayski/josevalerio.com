@@ -10,6 +10,5 @@ export default [
   layout("layouts/blog-layout.tsx", [
     route("/just-do-the-thing", "routes/just-do-the-thing.tsx"),
     route("/rust-json-logging", "routes/rust-json-logging.tsx"),
-    route("/homelab", "routes/homelab.tsx"),
   ]),
 ] satisfies RouteConfig;

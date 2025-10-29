@@ -15,17 +15,26 @@ export default function RustJSONLoggingPage() {
     <BlogShell>
       <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-8">
         <p className="text-blue-800 font-medium">
-          <strong>TLDR:</strong> Use the{" "}
-          <CodeSnippet className="bg-blue-100 text-blue-900 border-blue-200">
-            valuable
-          </CodeSnippet>{" "}
-          crate.{" "}
+          <strong>TLDR:</strong> I ended up making my own crate because the
+          previous solution (tracing + valuable) still has issues with enums and
+          it's not flexible enough for my usecase. Check out{" "}
+          <CodeSnippet>sjl - Simple JSON Logger</CodeSnippet> on{" "}
           <a
-            href="#solution"
+            target="_blank"
+            href="https://crates.io/crates/sjl"
             className="text-blue-600 hover:text-blue-800 transition-colors duration-100 underline"
           >
-            Jump to solution →
+            Crates.io
+          </a>{" "}
+          or on{" "}
+          <a
+            target="_blank"
+            href="https://github.com/joswayski/sjl"
+            className="text-blue-600 hover:text-blue-800 transition-colors duration-100 underline"
+          >
+            GitHub
           </a>
+          !
         </p>
       </div>
       <p className="">
@@ -164,13 +173,28 @@ export default function RustJSONLoggingPage() {
         />
       </div>
 
-      <p>
-        I've put together{" "}
-        <ExternalLink href="https://github.com/joswayski/tracing-valuable-example">
-          an example repo
-        </ExternalLink>{" "}
-        showing the valuable crate setup. I hope you found this helpful!
-      </p>
+      <div>
+        <p>
+          I've put together{" "}
+          <ExternalLink href="https://github.com/joswayski/tracing-valuable-example">
+            an example repo
+          </ExternalLink>{" "}
+          showing the valuable crate setup.
+        </p>
+
+        <p className="mb-4">
+          As I mentioned near the top, I've created my own crated called{" "}
+          <ExternalLink href="https://github.com/joswayski/sjl">
+            sjl
+          </ExternalLink>{" "}
+          which does what I want out of a logger and properly formats enums and
+          nested JSON. I hope you found this helpful!
+        </p>
+        <img
+          src="/rlog-9.png"
+          alt="Terminal output showing sjl crate logging properly formatted JSON"
+        />
+      </div>
     </BlogShell>
   );
 }
