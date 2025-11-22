@@ -81,7 +81,7 @@ export default function BlogLayout() {
             </button>
             <div className="flex justify-center space-x-8 underline text-slate-700">
               <a
-                href="https://x.com/notjoswayski"
+                href="https://x.com/josevalerio"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-blue-500 transition-colors"

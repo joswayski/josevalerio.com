@@ -18,7 +18,9 @@ export default function Home() {
 
   return (
     <div className="flex flex-col items-center">
-      <h1 className="text-black md:text-6xl text-3xl font-bold mt-8">Jose Valerio</h1>
+      <h1 className="text-black md:text-6xl text-3xl font-bold mt-8">
+        Jose Valerio
+      </h1>
       <button
         type="button"
         onClick={() => {
@@ -34,7 +36,7 @@ export default function Home() {
       </button>
       <div className="flex justify-center space-x-20 mt-4 underline text-slate-700 ">
         <a
-          href="https://x.com/notjoswayski"
+          href="https://x.com/josevalerio"
           target="_blank"
           rel="noopener noreferrer"
           className="hover:text-blue-500"
