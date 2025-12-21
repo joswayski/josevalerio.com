@@ -10,5 +10,7 @@ export default [
   layout("layouts/blog-layout.tsx", [
     route("/just-do-the-thing", "routes/just-do-the-thing.tsx"),
     route("/rust-json-logging", "routes/rust-json-logging.tsx"),
+    route("/no-fun-allowed", "routes/no-fun-allowed.tsx"),
+
   ]),
 ] satisfies RouteConfig;

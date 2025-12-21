@@ -18,7 +18,18 @@ export const RustJsonLogging: PoastPreviewProps = {
   link: "/rust-json-logging",
 };
 
+export const NoFunAllowed: PoastPreviewProps = {
+  id: "3",
+  title: "No Fun Allowed",
+  previewText:
+    'Old man yells at video games',
+  date: "December 21, 2025",
+  link: "/no-fun-allowed",
+};
+
+
 export const postPreviews: PoastPreviewProps[] = [
+  NoFunAllowed,
   RustJsonLogging,
   JustDoTheThing,
 ];

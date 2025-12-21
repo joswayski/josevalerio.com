@@ -2,7 +2,7 @@ import { Outlet, useNavigate, useLocation } from "react-router";
 import { Home } from "lucide-react";
 import { useClipboard } from "@mantine/hooks";
 import { toast } from "sonner";
-import { JustDoTheThing, RustJsonLogging } from "../data/postPreviews";
+import { JustDoTheThing, RustJsonLogging, NoFunAllowed } from "../data/postPreviews";
 
 const email = "contact@josevalerio.com";
 
@@ -10,6 +10,8 @@ const email = "contact@josevalerio.com";
 const routeToPostMap = {
   "/just-do-the-thing": JustDoTheThing,
   "/rust-json-logging": RustJsonLogging,
+  "/no-fun-allowed": NoFunAllowed,
+
 } as const;
 
 export default function BlogLayout() {
