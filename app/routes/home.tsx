@@ -48,8 +48,8 @@ export default function Home() {
         </section>
 
         <footer className="site-footer">
+          <CopyEmail compact />
           <div className="footer-links">
-            <CopyEmail compact />
             <a
               href="https://github.com/joswayski"
               target="_blank"

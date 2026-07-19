@@ -78,7 +78,6 @@ button {
 
 .site-panel {
   width: min(100%, 48rem);
-  min-height: calc(100vh - 3rem);
   margin-inline: auto;
   overflow: hidden;
   border: 1px solid var(--line-strong);
@@ -331,7 +330,7 @@ button {
 .site-footer {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 1.5rem;
   padding: 1rem 1.5rem;
   border-top: 1px solid var(--line);
@@ -562,9 +561,12 @@ button {
 
   .site-panel,
   .article-site {
-    min-height: 100vh;
     border: 0;
     box-shadow: none;
+  }
+
+  .article-site {
+    min-height: 100vh;
   }
 
   .site-header {
@@ -598,7 +600,6 @@ button {
     text-align: left;
   }
 
-  .site-footer,
   .article-footer {
     align-items: flex-start;
     flex-direction: column;
