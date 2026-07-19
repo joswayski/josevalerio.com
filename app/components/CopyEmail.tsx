@@ -25,6 +25,7 @@ export function CopyEmail({ compact = false }: CopyEmailProps) {
       onClick={handleCopy}
       className={`email-button${compact ? " email-button--compact" : ""}`}
       aria-label={`Copy ${email}`}
+      data-tooltip={compact ? (copied ? "Copied!" : "Copy email") : undefined}
     >
       <span aria-live={compact ? "polite" : undefined}>
         {compact && copied ? "Email copied" : email}
