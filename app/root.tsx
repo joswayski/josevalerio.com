@@ -61,7 +61,6 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
 
   return (
     <main className="error-page">
-      <span className="section-number">josevalerio.com</span>
       <h1>{message}</h1>
       <p>{details}</p>
       <a href="/">Return home →</a>

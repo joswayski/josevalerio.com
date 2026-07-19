@@ -1,7 +1,6 @@
 import { Link } from "react-router";
 
 export type PoastPreviewProps = {
-  id: string;
   title: string;
   previewText: string;
   date: string;
@@ -10,7 +9,6 @@ export type PoastPreviewProps = {
 };
 
 export function PoastPreview({
-  id,
   title,
   previewText,
   date,
@@ -24,7 +22,6 @@ export function PoastPreview({
       viewTransition
       className="post-row"
     >
-      <span className="post-number">{id.padStart(2, "0")}</span>
       <div className="post-copy">
         <h3>{title}</h3>
         <p>{previewText}</p>

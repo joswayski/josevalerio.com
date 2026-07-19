@@ -1,7 +1,6 @@
 import type { PoastPreviewProps } from "../components/PoastPreview";
 
 export const JustDoTheThing: PoastPreviewProps = {
-  id: "1",
   title: "Just do the thing",
   previewText:
     "Don't make a ticket, don't have a meeting, don't ask for permission, just do the thing.",
@@ -11,7 +10,6 @@ export const JustDoTheThing: PoastPreviewProps = {
 };
 
 export const RustJsonLogging: PoastPreviewProps = {
-  id: "2",
   title: "How to log structured JSON in Rust",
   previewText:
     '{"message":"Stop fighting with escaped strings","solution":"[{\\"crate\\":\\"sjl\\"}]"}',
@@ -21,7 +19,6 @@ export const RustJsonLogging: PoastPreviewProps = {
 };
 
 export const NoFunAllowed: PoastPreviewProps = {
-  id: "3",
   title: "No Fun Allowed",
   previewText:
     'Old man yells at video games',
