@@ -1,12 +1,17 @@
 import { NoFunAllowed } from "../data/postPreviews";
-import { CodeSnippet } from "../components/CodeSnippet";
 import { BlogShell } from "~/components/BlogShell";
 import { ExternalLink } from "~/components/ExternalLink";
+import { getSocialMeta } from "../data/siteMeta";
 
 export function meta() {
     return [
         { title: NoFunAllowed.title },
         { name: "description", content: NoFunAllowed.previewText },
+        { property: "og:title", content: NoFunAllowed.title },
+        { property: "og:description", content: NoFunAllowed.previewText },
+        { name: "twitter:title", content: NoFunAllowed.title },
+        { name: "twitter:description", content: NoFunAllowed.previewText },
+        ...getSocialMeta(),
     ];
 }
 

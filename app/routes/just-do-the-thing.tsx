@@ -1,11 +1,17 @@
 import { JustDoTheThing } from "../data/postPreviews";
 import type { Route } from "../+types/root";
 import { BlogShell } from "~/components/BlogShell";
+import { getSocialMeta } from "../data/siteMeta";
 
 export function meta({}: Route.MetaArgs) {
   return [
     { title: JustDoTheThing.title },
     { name: "description", content: JustDoTheThing.previewText },
+    { property: "og:title", content: JustDoTheThing.title },
+    { property: "og:description", content: JustDoTheThing.previewText },
+    { name: "twitter:title", content: JustDoTheThing.title },
+    { name: "twitter:description", content: JustDoTheThing.previewText },
+    ...getSocialMeta(),
   ];
 }
 
