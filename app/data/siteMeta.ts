@@ -6,11 +6,11 @@ export function getSocialMeta() {
       property: "og:image",
       content: "https://josevalerio.com/og.png",
     },
-    { property: "og:image:width", content: "1730" },
-    { property: "og:image:height", content: "909" },
+    { property: "og:image:width", content: "1728" },
+    { property: "og:image:height", content: "910" },
     {
       property: "og:image:alt",
-      content: "Jose Valerio with a vivid orange underline in a minimal typographic card",
+      content: "Jose Valerio beside a blood-orange red color field in a minimal typographic card",
     },
     { name: "twitter:card", content: "summary_large_image" },
     {
