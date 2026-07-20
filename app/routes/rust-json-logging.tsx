@@ -2,40 +2,48 @@ import { RustJsonLogging } from "../data/postPreviews";
 import { CodeSnippet } from "../components/CodeSnippet";
 import { ExternalLink } from "../components/ExternalLink";
 import { BlogShell } from "~/components/BlogShell";
+import { getSocialMeta } from "../data/siteMeta";
 
 export function meta() {
   return [
     { title: RustJsonLogging.title },
     { name: "description", content: RustJsonLogging.previewText },
+    { property: "og:title", content: RustJsonLogging.title },
+    { property: "og:description", content: RustJsonLogging.previewText },
+    { name: "twitter:title", content: RustJsonLogging.title },
+    { name: "twitter:description", content: RustJsonLogging.previewText },
+    ...getSocialMeta(),
   ];
 }
 
 export default function RustJSONLoggingPage() {
   return (
     <BlogShell>
-      <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-8">
-        <p className="text-blue-800 font-medium">
+      <aside className="article-callout">
+        <p>
           <strong>TLDR:</strong> I ended up making my own crate because the
           previous solution (tracing + valuable) still has issues with enums and
           it's not flexible enough for my usecase. Check out{" "}
           <a
             target="_blank"
+            rel="noopener noreferrer"
             href="https://github.com/joswayski/sjl"
-            className="text-blue-600 hover:text-blue-800 transition-colors duration-100 underline"
+            className="text-link"
           >
             sjl - Simple JSON Logger on GitHub
           </a>{" "}
           or on{" "}
           <a
             target="_blank"
+            rel="noopener noreferrer"
             href="https://crates.io/crates/sjl"
-            className="text-blue-600 hover:text-blue-800 transition-colors duration-100 underline"
+            className="text-link"
           >
             Crates.io
           </a>
           !
         </p>
-      </div>
+      </aside>
       <p className="">
         If you look around the Rust ecosystem on how to "do logging", you'll be
         recommended the{" "}
@@ -70,13 +78,21 @@ export default function RustJSONLoggingPage() {
         that.
       </p>
       <img
+        loading="lazy"
+        decoding="async"
         src="/rlog-1.png"
+        width="2176"
+        height="796"
         alt="Terminal output showing basic JSON logging with tracing crate - displays a simple 'Hi!' message with timestamp and level fields in JSON format"
       />
 
       <p>Yay! We have some logs! In JSON too! Let's add some data..</p>
       <img
+        loading="lazy"
+        decoding="async"
         src="/rlog-2.png"
+        width="2208"
+        height="1824"
         alt="Terminal output showing problematic JSON logging with Debug formatting - user data appears as escaped strings instead of proper JSON objects"
       />
       <p>Eww.. why does it look like that?</p>
@@ -91,7 +107,11 @@ export default function RustJSONLoggingPage() {
         <CodeSnippet>Display</CodeSnippet> implementation..
       </p>
       <img
+        loading="lazy"
+        decoding="async"
         src="/rlog-3.png"
+        width="2212"
+        height="752"
         alt="Code snippet showing workaround attempt using serde_json::Value and Display formatting with % sigil - still results in nested objects being stringified"
       />
 
@@ -101,7 +121,7 @@ export default function RustJSONLoggingPage() {
         structs or arrays where they're still strings...
       </p>
 
-      <h3 id="solution" className="text-3xl font-bold">
+      <h3 id="solution">
         The Solution
       </h3>
       <p>
@@ -121,7 +141,11 @@ export default function RustJSONLoggingPage() {
         <CodeSnippet>cargo add valuable</CodeSnippet>.
       </p>
       <img
+        loading="lazy"
+        decoding="async"
         src="/rlog-4.png"
+        width="1986"
+        height="348"
         alt="Terminal output from 'cargo add valuable' command showing the valuable crate being added to dependencies with version 0.1.1"
       />
       <p>
@@ -132,7 +156,11 @@ export default function RustJSONLoggingPage() {
         <CodeSnippet>tracing-subscriber</CodeSnippet>:
       </p>
       <img
+        loading="lazy"
+        decoding="async"
         src="/rlog-5.png"
+        width="2016"
+        height="322"
         alt="Cargo.toml file showing feature flag configuration - valuable crate with derive feature, and tracing/tracing-subscriber with valuable features enabled"
       />
 
@@ -144,7 +172,11 @@ export default function RustJSONLoggingPage() {
         flags:
       </p>
       <img
+        loading="lazy"
+        decoding="async"
         src="/rlog-6.png"
+        width="1648"
+        height="330"
         alt="Cargo config.toml file showing rustflags configuration with '--cfg tracing_unstable' flag to enable experimental valuable support"
       />
 
@@ -153,12 +185,16 @@ export default function RustJSONLoggingPage() {
         and call it using <CodeSnippet>as_value()</CodeSnippet>:
       </p>
       <img
+        loading="lazy"
+        decoding="async"
         src="/rlog-7.png"
+        width="2260"
+        height="2006"
         alt="Rust source code showing structs with #[derive(Debug, Serialize, Valuable)] attributes and logging call using user.as_value() method"
       />
 
-      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 my-6">
-        <p className="text-yellow-800">
+      <aside className="article-callout article-callout--warning">
+        <p>
           <strong>Note:</strong> Enums are{" "}
           <ExternalLink href="https://github.com/tokio-rs/tracing/issues/3051">
             a little funky
@@ -166,11 +202,15 @@ export default function RustJSONLoggingPage() {
           with the current implementation:
         </p>
         <img
+          loading="lazy"
+          decoding="async"
           src="/rlog-8.png"
+          width="1640"
+          height="1882"
           alt="Terminal output demonstrating enum serialization issue - shows how Transmission::Manual and Transmission::Automatic enums are represented in JSON logs"
-          className="mt-2"
+          className="article-callout-image"
         />
-      </div>
+      </aside>
 
       <div>
         <p>
@@ -190,7 +230,11 @@ export default function RustJSONLoggingPage() {
           nested JSON. I hope you found this helpful!
         </p>
         <img
+          loading="lazy"
+          decoding="async"
           src="/rlog-9.png"
+          width="3416"
+          height="1942"
           alt="Terminal output showing sjl crate logging properly formatted JSON"
         />
       </div>

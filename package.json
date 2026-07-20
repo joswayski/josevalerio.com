@@ -9,18 +9,15 @@
     "typecheck": "react-router typegen && tsc"
   },
   "dependencies": {
-    "@mantine/hooks": "^8.2.8",
     "@react-router/node": "^7.7.1",
     "@react-router/serve": "^7.7.1",
-    "@vitejs/plugin-rsc": "^0.5.5",
     "isbot": "^5.1.27",
-    "lucide-react": "^0.542.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "react-router": "^7.7.1",
-    "sonner": "^2.0.7"
+    "react-router": "^7.7.1"
   },
   "devDependencies": {
+    "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
     "@react-router/dev": "^7.7.1",
     "@tailwindcss/vite": "^4.1.4",
     "@types/node": "^20",

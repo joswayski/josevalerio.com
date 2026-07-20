@@ -1,62 +1,72 @@
 import type { Route } from "./+types/home";
-import { useClipboard } from "@mantine/hooks";
-import { toast } from "sonner";
+import { CopyEmail } from "../components/CopyEmail";
 import { PoastPreview } from "../components/PoastPreview";
 import { postPreviews } from "../data/postPreviews";
+import { getSocialMeta } from "../data/siteMeta";
 
 export function meta({}: Route.MetaArgs) {
   return [
     { title: "Jose Valerio" },
     { name: "description", content: "Jose Valerio's personal website" },
+    { property: "og:title", content: "Jose Valerio" },
+    {
+      property: "og:description",
+      content: "Jose Valerio's personal website",
+    },
+    { name: "twitter:title", content: "Jose Valerio" },
+    {
+      name: "twitter:description",
+      content: "Jose Valerio's personal website",
+    },
+    ...getSocialMeta(),
   ];
 }
 
-const email = "contact@josevalerio.com";
-
 export default function Home() {
-  const clipboard = useClipboard({ timeout: 500 });
-
   return (
-    <div className="flex flex-col items-center">
-      <h1 className="text-black md:text-6xl text-3xl font-bold mt-8">
-        Jose Valerio
-      </h1>
-      <button
-        type="button"
-        onClick={() => {
-          clipboard.copy(email);
-          toast.success("Email copied!", {
-            position: "top-center",
-            duration: 1_500,
-          });
-        }}
-        className="mt-4 bg-white px-4 py-3 text-slate-700 hover:bg-slate-50 rounded-lg shadow-sm border border-slate-200 cursor-pointer"
-      >
-        {email}
-      </button>
-      <div className="flex justify-center space-x-20 mt-4 underline text-slate-700 ">
-        <a
-          href="https://x.com/josevalerio"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-blue-500"
+    <main className="page-shell">
+      <div className="site-panel">
+        <section className="home-hero" aria-labelledby="home-title">
+          <h1 id="home-title" className="hero-name">Jose Valerio</h1>
+        </section>
+
+        {/* Future project entries can reuse this indexed section and row system. */}
+        <section
+          className="index-section"
+          id="writing"
+          aria-labelledby="writing-title"
         >
-          X
-        </a>
-        <a
-          href="https://github.com/joswayski"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-blue-500"
-        >
-          GitHub
-        </a>
+          <div className="section-heading">
+            <h2 id="writing-title">Writing</h2>
+          </div>
+
+          <div className="post-list">
+            {postPreviews.map((post) => (
+              <PoastPreview key={post.link} {...post} />
+            ))}
+          </div>
+        </section>
+
+        <footer className="site-footer">
+          <CopyEmail compact />
+          <div className="footer-links">
+            <a
+              href="https://github.com/joswayski"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub<span aria-hidden="true">↗</span>
+            </a>
+            <a
+              href="https://x.com/josevalerio"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              X<span aria-hidden="true">↗</span>
+            </a>
+          </div>
+        </footer>
       </div>
-      <div className="lg:p-8 px-4 py-8">
-        {postPreviews.map((p) => (
-          <PoastPreview key={p.id} {...p} />
-        ))}
-      </div>
-    </div>
+    </main>
   );
 }
