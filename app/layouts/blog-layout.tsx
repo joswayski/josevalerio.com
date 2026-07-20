@@ -40,14 +40,6 @@ export default function BlogLayout() {
               <time dateTime={dateTime}>{date}</time>
             </div>
             <h1>{title}</h1>
-            <a
-              href={githubEditUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="edit-link"
-            >
-              Edit on GitHub<span aria-hidden="true">↗</span>
-            </a>
           </header>
 
           <Outlet />
@@ -56,6 +48,14 @@ export default function BlogLayout() {
             <div>
               <span className="section-number">Questions or feedback?</span>
               <CopyEmail />
+              <a
+                href={githubEditUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="suggest-changes-link"
+              >
+                Suggest changes on GitHub<span aria-hidden="true">↗</span>
+              </a>
             </div>
             <Link to="/" prefetch="intent" viewTransition>
               More writing<span aria-hidden="true">→</span>
