@@ -266,7 +266,12 @@ button {
   align-items: start;
   padding: 1.15rem 0;
   border-bottom: 1px solid var(--line);
-  transition: background-color 120ms ease;
+  box-shadow:
+    0.75rem 0 0 transparent,
+    -0.75rem 0 0 transparent;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .post-row:last-child {
@@ -275,6 +280,9 @@ button {
 
 .post-row:hover {
   background: var(--surface-soft);
+  box-shadow:
+    0.75rem 0 0 var(--surface-soft),
+    -0.75rem 0 0 var(--surface-soft);
 }
 
 .post-copy {
