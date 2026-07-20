@@ -12,7 +12,18 @@ import "./app.css";
 import { getSocialMeta } from "./data/siteMeta";
 
 export const links: Route.LinksFunction = () => [
-  { rel: "icon", href: "/favicon.ico", sizes: "any" },
+  { rel: "icon", href: "/favicon.ico" },
+  {
+    rel: "icon",
+    href: "/favicon.svg",
+    type: "image/svg+xml",
+    sizes: "any",
+  },
+  {
+    rel: "apple-touch-icon",
+    href: "/apple-touch-icon.png",
+    sizes: "180x180",
+  },
   { rel: "manifest", href: "/site.webmanifest" },
 ];
 
