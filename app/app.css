@@ -19,7 +19,6 @@
   --line: #dfe2e7;
   --line-strong: #c7cbd2;
   --accent: oklch(64.6% 0.222 41.116);
-  --accent-ink: oklch(47% 0.17 41.116);
   --accent-soft: oklch(96.5% 0.035 41.116);
   --sans: "Atkinson Hyperlegible Next Variable", ui-sans-serif, system-ui,
     -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -129,7 +128,7 @@ button {
 .footer-links a:hover,
 .back-link:hover,
 .edit-link:hover {
-  color: var(--accent-ink);
+  color: var(--accent);
 }
 
 .home-hero {
@@ -178,7 +177,7 @@ button {
 }
 
 .email-button-status {
-  color: var(--accent-ink);
+  color: var(--accent);
   font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -223,7 +222,7 @@ button {
 
 .email-button--compact:hover {
   background: transparent;
-  color: var(--accent-ink);
+  color: var(--accent);
 }
 
 .index-section {
@@ -294,7 +293,7 @@ button {
 }
 
 .post-row:hover .post-copy h3 {
-  color: var(--accent-ink);
+  color: var(--accent);
 }
 
 .post-copy p {
@@ -448,9 +447,9 @@ button {
 }
 
 .text-link {
-  color: var(--accent-ink);
+  color: var(--accent);
   text-decoration: underline;
-  text-decoration-color: #ef9c88;
+  text-decoration-color: oklch(78% 0.13 41.116);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.16em;
 }
@@ -501,7 +500,7 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  color: var(--accent-ink);
+  color: var(--accent);
   font-size: 0.9rem;
   font-weight: 650;
 }
@@ -530,7 +529,7 @@ button {
 
 .error-page a {
   width: fit-content;
-  color: var(--accent-ink);
+  color: var(--accent);
   font-size: 0.8rem;
 }
 
