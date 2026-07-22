@@ -241,12 +241,105 @@ button {
 }
 
 .section-number,
-.post-meta {
+.post-meta,
+.project-status {
   color: var(--muted);
 }
 
-.post-list {
+.post-list,
+.project-list {
   border-bottom: 1px solid var(--line-strong);
+}
+
+.project-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.5rem;
+  align-items: start;
+  padding: 1.15rem 0;
+  border-bottom: 1px solid var(--line);
+  box-shadow:
+    0.75rem 0 0 transparent,
+    -0.75rem 0 0 transparent;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.project-row:last-child {
+  border-bottom: 0;
+}
+
+.project-row:hover {
+  background: var(--surface-soft);
+  box-shadow:
+    0.75rem 0 0 var(--surface-soft),
+    -0.75rem 0 0 var(--surface-soft);
+}
+
+.project-copy {
+  min-width: 0;
+}
+
+.project-title-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.project-copy h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.project-copy p {
+  max-width: 34rem;
+  margin: 0.45rem 0 0;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.project-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.38rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.project-links {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-top: 0.14rem;
+  font-size: 0.78rem;
+}
+
+.project-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: color 120ms ease;
+}
+
+.project-links a:hover {
+  color: var(--accent);
 }
 
 .post-row {
@@ -592,11 +685,13 @@ button {
     padding: 0 1.25rem 1.25rem;
   }
 
-  .post-row {
+  .post-row,
+  .project-row {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .post-meta {
+  .post-meta,
+  .project-links {
     justify-content: flex-start;
     padding-top: 0;
     text-align: left;

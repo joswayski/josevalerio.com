@@ -1,7 +1,9 @@
 import type { Route } from "./+types/home";
 import { CopyEmail } from "../components/CopyEmail";
 import { PoastPreview } from "../components/PoastPreview";
+import { ProjectPreview } from "../components/ProjectPreview";
 import { postPreviews } from "../data/postPreviews";
+import { projects } from "../data/projects";
 import { getSocialMeta } from "../data/siteMeta";
 
 export function meta({}: Route.MetaArgs) {
@@ -27,10 +29,27 @@ export default function Home() {
     <main className="page-shell">
       <div className="site-panel">
         <section className="home-hero" aria-labelledby="home-title">
-          <h1 id="home-title" className="hero-name">Jose Valerio</h1>
+          <h1 id="home-title" className="hero-name">
+            Jose Valerio
+          </h1>
         </section>
 
-        {/* Future project entries can reuse this indexed section and row system. */}
+        <section
+          className="index-section"
+          id="projects"
+          aria-labelledby="projects-title"
+        >
+          <div className="section-heading">
+            <h2 id="projects-title">Projects</h2>
+          </div>
+
+          <div className="project-list">
+            {projects.map((project) => (
+              <ProjectPreview key={project.title} {...project} />
+            ))}
+          </div>
+        </section>
+
         <section
           className="index-section"
           id="writing"
