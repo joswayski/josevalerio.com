@@ -106,6 +106,7 @@ button {
 .section-number,
 .section-heading,
 .post-meta,
+.project-meta,
 .email-button,
 .article-kicker,
 .suggest-changes-link {
@@ -250,7 +251,8 @@ button {
 }
 
 .section-number,
-.post-meta {
+.post-meta,
+.project-meta {
   color: var(--muted);
 }
 
@@ -295,6 +297,11 @@ button {
   font-weight: 650;
   letter-spacing: -0.02em;
   line-height: 1.3;
+  transition: color 120ms ease;
+}
+
+.project-row:hover .project-copy h3 {
+  color: var(--accent);
 }
 
 .project-copy p {
@@ -306,27 +313,13 @@ button {
   line-height: 1.5;
 }
 
-.project-links {
+.project-meta {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  padding-top: 0.14rem;
-  font-size: 0.78rem;
-}
-
-.project-links a {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.22rem;
-  color: var(--muted);
-  white-space: nowrap;
-  transition: color 120ms ease;
-}
-
-.project-links a:hover {
-  color: var(--accent);
+  gap: 0.65rem;
+  padding-top: 0.17rem;
+  text-align: right;
 }
 
 .post-row {
@@ -390,7 +383,8 @@ button {
   text-align: right;
 }
 
-.post-arrow {
+.post-arrow,
+.project-arrow {
   color: var(--accent);
   font-family: var(--sans);
   font-size: 1rem;
@@ -398,7 +392,8 @@ button {
   transition: transform 120ms ease;
 }
 
-.post-row:hover .post-arrow {
+.post-row:hover .post-arrow,
+.project-row:hover .project-arrow {
   transform: translateX(0.2rem);
 }
 
@@ -678,7 +673,7 @@ button {
   }
 
   .post-meta,
-  .project-links {
+  .project-meta {
     justify-content: flex-start;
     padding-top: 0;
     text-align: left;

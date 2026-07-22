@@ -4,25 +4,26 @@ export const projects: ProjectPreviewProps[] = [
   {
     title: "Captures",
     description: "WIP cross-platform screen capture utility.",
-    links: [
-      { label: "Website", href: "https://captur.es" },
-      { label: "GitHub", href: "https://github.com/joswayski/captures" },
-    ],
+    href: "https://captur.es",
+    destination: "captur.es",
   },
   {
     title: "Credit Card Horoscope",
     description: "What does your credit card say about you?",
-    links: [{ label: "Website", href: "https://creditcardhoroscope.com" }],
+    href: "https://creditcardhoroscope.com",
+    destination: "creditcardhoroscope.com",
   },
   {
     title: "sjl",
     description:
       "A simple JSON logger for Rust, built to avoid tracing's nested JSON limitations.",
-    links: [{ label: "crates.io", href: "https://crates.io/crates/sjl" }],
+    href: "https://crates.io/crates/sjl",
+    destination: "crates.io",
   },
   {
     title: "snv",
     description: "Simple NV, a simple .env loader for Rust.",
-    links: [{ label: "crates.io", href: "https://crates.io/crates/snv" }],
+    href: "https://crates.io/crates/snv",
+    destination: "crates.io",
   },
 ];
