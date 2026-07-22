@@ -1,7 +1,6 @@
 export type ProjectPreviewProps = {
   title: string;
   description: string;
-  status: string;
   links: Array<{
     label: string;
     href: string;
@@ -11,16 +10,12 @@ export type ProjectPreviewProps = {
 export function ProjectPreview({
   title,
   description,
-  status,
   links,
 }: ProjectPreviewProps) {
   return (
     <article className="project-row">
       <div className="project-copy">
-        <div className="project-title-line">
-          <h3>{title}</h3>
-          <span className="project-status">{status}</span>
-        </div>
+        <h3>{title}</h3>
         <p>{description}</p>
       </div>
 

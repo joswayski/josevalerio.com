@@ -3,9 +3,7 @@ import type { ProjectPreviewProps } from "../components/ProjectPreview";
 export const projects: ProjectPreviewProps[] = [
   {
     title: "Captures",
-    description:
-      "A work-in-progress, cross-platform screen capture utility built for quick captures and privacy by default.",
-    status: "Building",
+    description: "WIP cross-platform screen capture utility.",
     links: [
       { label: "Website", href: "https://captur.es" },
       { label: "GitHub", href: "https://github.com/joswayski/captures" },
@@ -13,28 +11,23 @@ export const projects: ProjectPreviewProps[] = [
   },
   {
     title: "DBM",
-    description:
-      "A local-first desktop database manager for macOS, Windows, and Linux.",
-    status: "Building",
+    description: "WIP desktop database manager for macOS, Windows, and Linux.",
     links: [{ label: "GitHub", href: "https://github.com/joswayski/dbm" }],
   },
   {
     title: "Credit Card Horoscope",
-    description: "A playful web app that reads your credit card like a horoscope.",
-    status: "Live",
+    description: "What does your credit card say about you?",
     links: [{ label: "Website", href: "https://creditcardhoroscope.com" }],
   },
   {
     title: "sjl",
     description:
-      "A simple JSON logger for Rust that emits structured JSON to stderr.",
-    status: "Rust crate",
+      "A simple JSON logger for Rust, built to avoid tracing's nested JSON limitations.",
     links: [{ label: "crates.io", href: "https://crates.io/crates/sjl" }],
   },
   {
     title: "snv",
-    description: "A small, straightforward .env loader for Rust development.",
-    status: "Rust crate",
+    description: "Simple NV, a simple .env loader for Rust.",
     links: [{ label: "crates.io", href: "https://crates.io/crates/snv" }],
   },
 ];
