@@ -1,5 +1,6 @@
 import type { Route } from "./+types/home";
 import { CopyEmail } from "../components/CopyEmail";
+import { ExternalLink } from "../components/ExternalLink";
 import { PoastPreview } from "../components/PoastPreview";
 import { ProjectPreview } from "../components/ProjectPreview";
 import { postPreviews } from "../data/postPreviews";
@@ -33,8 +34,9 @@ export default function Home() {
             Jose Valerio
           </h1>
           <p className="hero-blurb">
-            I&apos;m a senior software engineer at StockX. Sometimes I make
-            things.
+            I&apos;m a senior software engineer at{" "}
+            <ExternalLink href="https://stockx.com">StockX</ExternalLink>.
+            Sometimes I make things.
           </p>
         </section>
 
