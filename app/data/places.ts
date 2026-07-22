@@ -1,17 +1,28 @@
 export type PlacePhoto = {
-  objectKey: string;
+  objectKey?: string;
+  src?: string;
   alt: string;
   width: number;
   height: number;
 };
+
+export type PlaceTerrain = "city" | "coast" | "mountain";
 
 export type Place = {
   id: string;
   name: string;
   region: string;
   coordinates: [longitude: number, latitude: number];
+  terrain: PlaceTerrain;
   note?: string;
   photos: PlacePhoto[];
+};
+
+const placeholderPhoto: PlacePhoto = {
+  src: "/places/placeholder.svg",
+  alt: "Travel photo placeholder",
+  width: 1600,
+  height: 1000,
 };
 
 // This list is intentionally public and approximate. Keep raw location history,
@@ -22,90 +33,111 @@ export const places: Place[] = [
     name: "New York",
     region: "United States",
     coordinates: [-74.01, 40.71],
-    photos: [],
+    terrain: "city",
+    photos: [placeholderPhoto],
+  },
+  {
+    id: "new-jersey",
+    name: "New Jersey",
+    region: "United States",
+    coordinates: [-74.62, 40.15],
+    terrain: "coast",
+    photos: [placeholderPhoto],
   },
   {
     id: "chicago",
     name: "Chicago",
     region: "United States",
     coordinates: [-87.63, 41.88],
-    photos: [],
+    terrain: "city",
+    photos: [placeholderPhoto],
   },
   {
     id: "austin",
     name: "Austin",
     region: "United States",
     coordinates: [-97.74, 30.27],
-    photos: [],
+    terrain: "city",
+    photos: [placeholderPhoto],
   },
   {
     id: "central-florida",
     name: "Central Florida",
     region: "United States",
     coordinates: [-81.38, 28.54],
-    photos: [],
+    terrain: "coast",
+    photos: [placeholderPhoto],
   },
   {
     id: "dominican-republic",
     name: "Dominican Republic",
     region: "Caribbean",
     coordinates: [-70.69, 19.78],
-    photos: [],
+    terrain: "coast",
+    photos: [placeholderPhoto],
   },
   {
     id: "istanbul",
     name: "Istanbul",
     region: "Türkiye",
     coordinates: [28.98, 41.01],
-    photos: [],
+    terrain: "city",
+    photos: [placeholderPhoto],
   },
   {
     id: "ankara",
     name: "Ankara",
     region: "Türkiye",
     coordinates: [32.86, 39.93],
-    photos: [],
+    terrain: "city",
+    photos: [placeholderPhoto],
   },
   {
     id: "izmir",
     name: "Izmir",
     region: "Türkiye",
     coordinates: [27.14, 38.42],
-    photos: [],
+    terrain: "coast",
+    photos: [placeholderPhoto],
   },
   {
     id: "bodrum",
     name: "Bodrum",
     region: "Türkiye",
     coordinates: [27.43, 37.03],
-    photos: [],
+    terrain: "coast",
+    photos: [placeholderPhoto],
   },
   {
     id: "malatya",
     name: "Malatya",
     region: "Türkiye",
     coordinates: [38.31, 38.36],
-    photos: [],
+    terrain: "mountain",
+    photos: [placeholderPhoto],
   },
   {
     id: "seoul",
     name: "Seoul",
     region: "South Korea",
     coordinates: [126.98, 37.57],
-    photos: [],
+    terrain: "city",
+    photos: [placeholderPhoto],
   },
   {
     id: "tokyo",
     name: "Tokyo",
     region: "Japan",
     coordinates: [139.65, 35.68],
-    photos: [],
+    terrain: "city",
+    photos: [placeholderPhoto],
   },
   {
     id: "osaka",
     name: "Osaka",
     region: "Japan",
     coordinates: [135.5, 34.69],
-    photos: [],
+    terrain: "city",
+    photos: [placeholderPhoto],
   },
 ];
