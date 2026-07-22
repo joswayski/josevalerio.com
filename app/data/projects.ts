@@ -10,11 +10,6 @@ export const projects: ProjectPreviewProps[] = [
     ],
   },
   {
-    title: "DBM",
-    description: "WIP desktop database manager for macOS, Windows, and Linux.",
-    links: [{ label: "GitHub", href: "https://github.com/joswayski/dbm" }],
-  },
-  {
     title: "Credit Card Horoscope",
     description: "What does your credit card say about you?",
     links: [{ label: "Website", href: "https://creditcardhoroscope.com" }],

@@ -32,6 +32,10 @@ export default function Home() {
           <h1 id="home-title" className="hero-name">
             Jose Valerio
           </h1>
+          <p className="hero-blurb">
+            I&apos;m a senior software engineer at StockX. Sometimes I make
+            things.
+          </p>
         </section>
 
         <section

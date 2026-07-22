@@ -147,6 +147,14 @@ button {
   line-height: 1;
 }
 
+.hero-blurb {
+  max-width: 34rem;
+  margin: 1rem 0 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
 .email-button {
   display: inline-flex;
   min-height: 2.55rem;
