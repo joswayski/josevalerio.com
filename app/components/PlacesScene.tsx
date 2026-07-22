@@ -43,9 +43,15 @@ type PlacesSceneProps = {
   exploreInputRef: MutableRefObject<ExploreInput>;
   reduceMotion: boolean;
   onSelect: (placeId: string) => void;
+  onNearbyChange: (placeId: string | null) => void;
 };
 
-const PLANET_RADIUS = 2.15;
+const PLANET_RADIUS = 6;
+const WALK_SPEED = 0.32;
+const TURN_SPEED = 2.1;
+const START_DISTANCE = 0.24;
+const NEARBY_DISTANCE = Math.cos(0.075);
+const BROWSE_CAMERA_POSITION = new Vector3(0, 0.45, 18.8);
 const WORLD = worldAtlas as unknown as Topology<{
   countries: GeometryCollection;
   land: GeometryObject;
@@ -69,15 +75,23 @@ function latLonToVector3(
   [longitude, latitude]: [number, number],
   radius = 1,
 ) {
-  const polar = MathUtils.degToRad(90 - latitude);
-  const azimuth = MathUtils.degToRad(longitude + 180);
+  const latitudeRadians = MathUtils.degToRad(latitude);
+  const longitudeRadians = MathUtils.degToRad(longitude);
+  const ringRadius = radius * Math.cos(latitudeRadians);
 
   return new Vector3(
-    -radius * Math.sin(polar) * Math.cos(azimuth),
-    radius * Math.cos(polar),
-    radius * Math.sin(polar) * Math.sin(azimuth),
+    -ringRadius * Math.cos(longitudeRadians),
+    radius * Math.sin(latitudeRadians),
+    ringRadius * Math.sin(longitudeRadians),
   );
 }
+
+const PLACE_DIRECTIONS = new Map(
+  places.map((place) => [
+    place.id,
+    latLonToVector3(place.coordinates).normalize(),
+  ]),
+);
 
 function createGlobeTexture() {
   const canvas = document.createElement("canvas");
@@ -184,17 +198,19 @@ function MountainDiorama({ color }: { color: string }) {
 function DestinationWorld({
   place,
   selected,
+  exploreMode,
   onSelect,
 }: {
   place: Place;
   selected: boolean;
+  exploreMode: boolean;
   onSelect: (placeId: string) => void;
 }) {
   const groupRef = useRef<Group>(null);
   const [hovered, setHovered] = useState(false);
   const { gl } = useThree();
   const position = useMemo(
-    () => latLonToVector3(place.coordinates, PLANET_RADIUS + 0.015),
+    () => latLonToVector3(place.coordinates, PLANET_RADIUS + 0.025),
     [place.coordinates],
   );
   const orientation = useMemo(
@@ -212,7 +228,7 @@ function DestinationWorld({
       return;
     }
 
-    const targetScale = selected ? 1.34 : hovered ? 1.16 : 1;
+    const targetScale = selected ? 1.9 : hovered ? 1.65 : 1.48;
     const scale = MathUtils.damp(
       groupRef.current.scale.x,
       targetScale,
@@ -240,7 +256,7 @@ function DestinationWorld({
       }}
       onPointerOut={() => {
         setHovered(false);
-        gl.domElement.style.cursor = "grab";
+        gl.domElement.style.cursor = exploreMode ? "default" : "grab";
       }}
     >
       <mesh position={[0, 0.08, 0]}>
@@ -278,20 +294,21 @@ function DestinationWorld({
   );
 }
 
-function Traveler({ inputRef }: { inputRef: MutableRefObject<ExploreInput> }) {
+function Traveler({
+  inputRef,
+  playerUpRef,
+  playerForwardRef,
+}: {
+  inputRef: MutableRefObject<ExploreInput>;
+  playerUpRef: MutableRefObject<Vector3>;
+  playerForwardRef: MutableRefObject<Vector3>;
+}) {
   const groupRef = useRef<Group>(null);
-  const bodyRef = useRef<Group>(null);
   const leftLegRef = useRef<Mesh>(null);
   const rightLegRef = useRef<Mesh>(null);
   const phaseRef = useRef(0);
-  const basePosition = useMemo(
-    () => FOCUS_DIRECTION.clone().multiplyScalar(PLANET_RADIUS + 0.055),
-    [],
-  );
-  const orientation = useMemo(
-    () => new Quaternion().setFromUnitVectors(UP, FOCUS_DIRECTION),
-    [],
-  );
+  const positionRef = useRef(new Vector3());
+  const lookTargetRef = useRef(new Vector3());
 
   useFrame((_, delta) => {
     const moving =
@@ -299,7 +316,7 @@ function Traveler({ inputRef }: { inputRef: MutableRefObject<ExploreInput> }) {
         Math.abs(inputRef.current.vertical) >
       0;
 
-    if (!groupRef.current || !bodyRef.current) {
+    if (!groupRef.current) {
       return;
     }
 
@@ -309,18 +326,18 @@ function Traveler({ inputRef }: { inputRef: MutableRefObject<ExploreInput> }) {
 
     const stride = moving ? Math.sin(phaseRef.current) : 0;
     const bob = moving ? Math.abs(Math.sin(phaseRef.current)) * 0.018 : 0;
-    groupRef.current.position
-      .copy(basePosition)
-      .addScaledVector(FOCUS_DIRECTION, bob);
-    bodyRef.current.rotation.y = MathUtils.damp(
-      bodyRef.current.rotation.y,
-      Math.atan2(
-        inputRef.current.horizontal,
-        Math.max(0.001, -inputRef.current.vertical),
-      ),
-      8,
-      delta,
-    );
+    const playerUp = playerUpRef.current;
+    const playerForward = playerForwardRef.current;
+    const position = positionRef.current
+      .copy(playerUp)
+      .multiplyScalar(PLANET_RADIUS + 0.055 + bob);
+    const lookTarget = lookTargetRef.current
+      .copy(position)
+      .add(playerForward);
+
+    groupRef.current.position.copy(position);
+    groupRef.current.up.copy(playerUp);
+    groupRef.current.lookAt(lookTarget);
 
     if (leftLegRef.current && rightLegRef.current) {
       leftLegRef.current.rotation.x = stride * 0.55;
@@ -329,8 +346,8 @@ function Traveler({ inputRef }: { inputRef: MutableRefObject<ExploreInput> }) {
   });
 
   return (
-    <group ref={groupRef} position={basePosition} quaternion={orientation}>
-      <group ref={bodyRef}>
+    <group ref={groupRef}>
+      <group>
         <mesh ref={leftLegRef} position={[-0.035, 0.055, 0]} castShadow>
           <boxGeometry args={[0.045, 0.12, 0.05]} />
           <meshStandardMaterial color="#2c3b40" flatShading />
@@ -362,6 +379,7 @@ function PlanetExperience({
   exploreInputRef,
   reduceMotion,
   onSelect,
+  onNearbyChange,
 }: PlacesSceneProps) {
   const globeRef = useRef<Group>(null);
   const dragRef = useRef<{
@@ -372,7 +390,15 @@ function PlanetExperience({
   const idleUntilRef = useRef(0);
   const arrivalCooldownRef = useRef(0);
   const targetQuaternionRef = useRef(new Quaternion());
+  const playerUpRef = useRef(new Vector3(0, 1, 0));
+  const playerForwardRef = useRef(new Vector3(0, 0, 1));
+  const wasExploreModeRef = useRef(false);
+  const nearbyPlaceIdRef = useRef<string | null>(null);
   const onSelectRef = useRef(onSelect);
+  const onNearbyChangeRef = useRef(onNearbyChange);
+  const movementAxisRef = useRef(new Vector3());
+  const desiredCameraRef = useRef(new Vector3());
+  const cameraTargetRef = useRef(new Vector3());
   const texture = useMemo(createGlobeTexture, []);
   const { camera, gl } = useThree();
 
@@ -380,25 +406,84 @@ function PlanetExperience({
     onSelectRef.current = onSelect;
   }, [onSelect]);
 
+  useEffect(() => {
+    onNearbyChangeRef.current = onNearbyChange;
+  }, [onNearbyChange]);
+
   useEffect(() => () => texture.dispose(), [texture]);
 
   useEffect(() => {
     const selectedPlace =
       places.find((place) => place.id === selectedPlaceId) ?? places[0];
-    const selectedDirection = latLonToVector3(
-      selectedPlace.coordinates,
-    ).normalize();
-    targetQuaternionRef.current.copy(
-      new Quaternion().setFromUnitVectors(
-        selectedDirection,
-        FOCUS_DIRECTION,
-      ),
-    );
-    idleUntilRef.current = performance.now() + (exploreMode ? 0 : 4200);
-  }, [exploreMode, selectedPlaceId]);
+    const selectedDirection = PLACE_DIRECTIONS.get(selectedPlace.id)?.clone();
+
+    if (!selectedDirection) {
+      return;
+    }
+
+    if (exploreMode && !wasExploreModeRef.current) {
+      const east = new Vector3().crossVectors(Y_AXIS, selectedDirection);
+
+      if (east.lengthSq() < 0.0001) {
+        east.crossVectors(new Vector3(0, 0, 1), selectedDirection);
+      }
+
+      east.normalize();
+      playerUpRef.current
+        .copy(selectedDirection)
+        .applyAxisAngle(east, START_DISTANCE)
+        .normalize();
+      playerForwardRef.current
+        .copy(selectedDirection)
+        .addScaledVector(
+          playerUpRef.current,
+          -selectedDirection.dot(playerUpRef.current),
+        )
+        .normalize();
+
+      targetQuaternionRef.current.identity();
+      globeRef.current?.quaternion.identity();
+      nearbyPlaceIdRef.current = null;
+      onNearbyChangeRef.current(null);
+
+      const playerUp = playerUpRef.current;
+      const playerForward = playerForwardRef.current;
+      const playerPosition = new Vector3()
+        .copy(playerUp)
+        .multiplyScalar(PLANET_RADIUS + 0.1);
+      const cameraTarget = new Vector3()
+        .copy(playerPosition)
+        .addScaledVector(playerUp, 0.24)
+        .addScaledVector(playerForward, 0.55);
+
+      camera.position
+        .copy(playerPosition)
+        .addScaledVector(playerUp, 0.72)
+        .addScaledVector(playerForward, -1.55);
+      camera.up.copy(playerUp);
+      camera.lookAt(cameraTarget);
+    } else if (!exploreMode) {
+      targetQuaternionRef.current.copy(
+        new Quaternion().setFromUnitVectors(
+          selectedDirection,
+          FOCUS_DIRECTION,
+        ),
+      );
+      globeRef.current?.quaternion.copy(targetQuaternionRef.current);
+      idleUntilRef.current = performance.now() + 4200;
+
+      if (nearbyPlaceIdRef.current !== null) {
+        nearbyPlaceIdRef.current = null;
+        onNearbyChangeRef.current(null);
+      }
+    }
+
+    wasExploreModeRef.current = exploreMode;
+  }, [camera, exploreMode, selectedPlaceId]);
 
   useEffect(() => {
     const canvas = gl.domElement;
+    canvas.style.cursor = exploreMode ? "default" : "grab";
 
     const handlePointerDown = (event: PointerEvent) => {
       if (event.button !== 0 || exploreMode) {
@@ -469,60 +554,64 @@ function PlanetExperience({
       return;
     }
 
+    const frameDelta = Math.min(delta, 0.05);
     const input = exploreInputRef.current;
-    const isWalking =
-      exploreMode &&
-      Math.abs(input.horizontal) + Math.abs(input.vertical) > 0;
 
-    if (isWalking) {
-      const yaw = new Quaternion().setFromAxisAngle(
-        Y_AXIS,
-        input.horizontal * delta * 0.78,
-      );
-      const pitch = new Quaternion().setFromAxisAngle(
-        X_AXIS,
-        input.vertical * delta * 0.78,
-      );
-      targetQuaternionRef.current
-        .premultiply(yaw)
-        .premultiply(pitch)
-        .normalize();
-    } else if (
-      !exploreMode &&
-      !reduceMotion &&
-      !dragRef.current &&
-      performance.now() >= idleUntilRef.current
-    ) {
-      const autoRotation = new Quaternion().setFromAxisAngle(
-        Y_AXIS,
-        delta * 0.055,
-      );
-      targetQuaternionRef.current.premultiply(autoRotation).normalize();
-    }
+    if (exploreMode) {
+      globe.quaternion.identity();
 
-    globe.quaternion.slerp(
-      targetQuaternionRef.current,
-      1 - Math.exp(-delta * (exploreMode ? 8 : 5)),
-    );
+      const playerUp = playerUpRef.current;
+      const playerForward = playerForwardRef.current;
 
-    const targetCameraZ = exploreMode ? 6.3 : 6.95;
-    camera.position.z = MathUtils.damp(
-      camera.position.z,
-      targetCameraZ,
-      4,
-      delta,
-    );
-    camera.lookAt(0, -0.05, 0);
+      if (input.horizontal !== 0) {
+        playerForward
+          .applyAxisAngle(
+            playerUp,
+            -input.horizontal * TURN_SPEED * frameDelta,
+          )
+          .normalize();
+      }
 
-    if (isWalking && performance.now() >= arrivalCooldownRef.current) {
+      if (input.vertical !== 0) {
+        const movementAxis = movementAxisRef.current
+          .crossVectors(playerForward, playerUp)
+          .normalize();
+        const movementAngle = -input.vertical * WALK_SPEED * frameDelta;
+
+        playerUp.applyAxisAngle(movementAxis, movementAngle).normalize();
+        playerForward
+          .applyAxisAngle(movementAxis, movementAngle)
+          .addScaledVector(playerUp, -playerForward.dot(playerUp))
+          .normalize();
+      }
+
+      const cameraEase = 1 - Math.exp(-frameDelta * 7);
+      const desiredCamera = desiredCameraRef.current
+        .copy(playerUp)
+        .multiplyScalar(PLANET_RADIUS + 0.1)
+        .addScaledVector(playerUp, 0.72)
+        .addScaledVector(playerForward, -1.55);
+      const cameraTarget = cameraTargetRef.current
+        .copy(playerUp)
+        .multiplyScalar(PLANET_RADIUS + 0.1)
+        .addScaledVector(playerUp, 0.24)
+        .addScaledVector(playerForward, 0.55);
+
+      camera.position.lerp(desiredCamera, cameraEase);
+      camera.up.lerp(playerUp, cameraEase).normalize();
+      camera.lookAt(cameraTarget);
+
       let nearestPlace: Place | null = null;
       let nearestDot = -1;
 
       for (const place of places) {
-        const worldDirection = latLonToVector3(place.coordinates)
-          .normalize()
-          .applyQuaternion(globe.quaternion);
-        const dot = worldDirection.dot(FOCUS_DIRECTION);
+        const placeDirection = PLACE_DIRECTIONS.get(place.id);
+
+        if (!placeDirection) {
+          continue;
+        }
+
+        const dot = placeDirection.dot(playerUp);
 
         if (dot > nearestDot) {
           nearestDot = dot;
@@ -530,15 +619,48 @@ function PlanetExperience({
         }
       }
 
+      const nearbyPlace =
+        nearestPlace && nearestDot > NEARBY_DISTANCE ? nearestPlace : null;
+      const nearbyPlaceId = nearbyPlace?.id ?? null;
+
+      if (nearbyPlaceIdRef.current !== nearbyPlaceId) {
+        nearbyPlaceIdRef.current = nearbyPlaceId;
+        onNearbyChangeRef.current(nearbyPlaceId);
+      }
+
       if (
-        nearestPlace &&
-        nearestDot > 0.9975 &&
-        nearestPlace.id !== selectedPlaceId
+        nearbyPlace &&
+        nearbyPlace.id !== selectedPlaceId &&
+        performance.now() >= arrivalCooldownRef.current
       ) {
         arrivalCooldownRef.current = performance.now() + 900;
-        onSelectRef.current(nearestPlace.id);
+        onSelectRef.current(nearbyPlace.id);
       }
+
+      return;
     }
+
+    if (
+      !reduceMotion &&
+      !dragRef.current &&
+      performance.now() >= idleUntilRef.current
+    ) {
+      const autoRotation = new Quaternion().setFromAxisAngle(
+        Y_AXIS,
+        frameDelta * 0.055,
+      );
+      targetQuaternionRef.current.premultiply(autoRotation).normalize();
+    }
+
+    globe.quaternion.slerp(
+      targetQuaternionRef.current,
+      1 - Math.exp(-frameDelta * 5),
+    );
+
+    const cameraEase = 1 - Math.exp(-frameDelta * 4);
+    camera.position.lerp(BROWSE_CAMERA_POSITION, cameraEase);
+    camera.up.lerp(Y_AXIS, cameraEase).normalize();
+    camera.lookAt(0, -0.05, 0);
   });
 
   return (
@@ -570,12 +692,19 @@ function PlanetExperience({
             key={place.id}
             place={place}
             selected={place.id === selectedPlaceId}
+            exploreMode={exploreMode}
             onSelect={onSelect}
           />
         ))}
       </group>
 
-      {exploreMode ? <Traveler inputRef={exploreInputRef} /> : null}
+      {exploreMode ? (
+        <Traveler
+          inputRef={exploreInputRef}
+          playerUpRef={playerUpRef}
+          playerForwardRef={playerForwardRef}
+        />
+      ) : null}
 
       <mesh scale={1.075}>
         <icosahedronGeometry args={[PLANET_RADIUS, 4]} />
@@ -596,7 +725,7 @@ export function PlacesScene(props: PlacesSceneProps) {
     <Canvas
       className="places-canvas"
       aria-hidden="true"
-      camera={{ position: [0, 0.3, 6.95], fov: 40, near: 0.1, far: 50 }}
+      camera={{ position: [0, 0.45, 18.8], fov: 40, near: 0.05, far: 80 }}
       dpr={[1, 1.5]}
       gl={{
         alpha: true,
@@ -618,6 +747,10 @@ export function PlacesScene(props: PlacesSceneProps) {
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
+        shadow-camera-left={-10}
+        shadow-camera-right={10}
+        shadow-camera-top={10}
+        shadow-camera-bottom={-10}
       />
       <directionalLight position={[-5, -2, 3]} intensity={0.65} color="#b9d5d0" />
       <PlanetExperience {...props} />

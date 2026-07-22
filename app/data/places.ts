@@ -25,6 +25,13 @@ const placeholderPhoto: PlacePhoto = {
   height: 1000,
 };
 
+const osakaCastlePhoto: PlacePhoto = {
+  src: "https://media.josevalerio.com/places/osaka/Captures_2026-07-22_19-10-28_129.png",
+  alt: "Osaka Castle in Osaka, Japan",
+  width: 1370,
+  height: 1782,
+};
+
 // This list is intentionally public and approximate. Keep raw location history,
 // visit dates, routes, and precise coordinates out of the website repository.
 export const places: Place[] = [
@@ -138,6 +145,6 @@ export const places: Place[] = [
     region: "Japan",
     coordinates: [135.5, 34.69],
     terrain: "city",
-    photos: [placeholderPhoto],
+    photos: [osakaCastlePhoto],
   },
 ];

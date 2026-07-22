@@ -334,9 +334,7 @@ button {
 }
 
 .places-explorer {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(13.5rem, 0.75fr);
-  min-height: 27rem;
+  min-width: 0;
   border-bottom: 1px solid var(--line-strong);
   background: var(--surface-soft);
 }
@@ -344,14 +342,19 @@ button {
 .globe-stage {
   position: relative;
   min-width: 0;
-  min-height: 27rem;
+  min-height: clamp(32rem, 70vw, 42rem);
   overflow: hidden;
+  border-bottom: 1px solid var(--line);
   background: radial-gradient(
     circle at 50% 47%,
     var(--surface) 0,
     #edf1f0 52%,
     var(--surface-soft) 78%
   );
+}
+
+.places-explorer--explore .globe-stage {
+  min-height: min(76vh, 46rem);
 }
 
 .places-scene-shell,
@@ -376,7 +379,7 @@ button {
 
 .places-scene-fallback-planet {
   position: relative;
-  width: min(74%, 18rem);
+  width: min(74%, 32rem);
   aspect-ratio: 1;
   overflow: hidden;
   border: 1px solid var(--line-strong);
@@ -453,21 +456,21 @@ button {
 
 .explore-dpad {
   position: absolute;
-  bottom: 2.7rem;
+  bottom: 3rem;
   left: 0.75rem;
   z-index: 2;
   display: grid;
   grid-template-areas:
     ". up ."
     "left down right";
-  grid-template-columns: repeat(3, 1.85rem);
-  gap: 0.2rem;
+  grid-template-columns: repeat(3, 2.15rem);
+  gap: 0.25rem;
 }
 
 .explore-dpad button {
   display: grid;
-  width: 1.85rem;
-  height: 1.85rem;
+  width: 2.15rem;
+  height: 2.15rem;
   padding: 0;
   border: 1px solid var(--line-strong);
   border-radius: 0.2rem;
@@ -503,6 +506,49 @@ button {
   grid-area: right;
 }
 
+.explore-place-hud {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+  display: grid;
+  min-width: 9.5rem;
+  gap: 0.12rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.25rem;
+  background: color-mix(in oklch, var(--surface) 90%, transparent);
+  box-shadow: 0 1px 4px rgba(23, 25, 29, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.explore-place-hud span {
+  color: var(--accent);
+  font-family: var(--code);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.explore-place-hud strong {
+  font-size: 0.92rem;
+}
+
+.explore-place-hud button {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.explore-place-hud button:hover {
+  color: var(--accent);
+}
+
 .globe-instructions {
   position: absolute;
   bottom: 0.72rem;
@@ -517,13 +563,19 @@ button {
 }
 
 .place-card {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(12rem, 0.72fr) minmax(0, 1.28fr);
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: var(--surface);
+}
+
+.place-card-copy {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 1.15rem;
-  padding: 1.5rem 1.25rem 1.25rem;
-  border-left: 1px solid var(--line);
-  background: var(--surface);
 }
 
 .place-card-kicker {
@@ -541,6 +593,10 @@ button {
   font-weight: 700;
   letter-spacing: -0.035em;
   line-height: 1.05;
+}
+
+.place-card-heading {
+  min-width: 0;
 }
 
 .place-card-region {
@@ -563,24 +619,55 @@ button {
 .place-photos {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.4rem;
+  align-content: start;
+  gap: 0.55rem;
 }
 
-.place-photos img {
-  display: block;
-  width: 100%;
-  aspect-ratio: 8 / 5;
+.place-photo-button {
+  position: relative;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 0.2rem;
-  object-fit: cover;
+  background: var(--surface-soft);
+  cursor: zoom-in;
 }
 
-.place-photos img:only-child {
+.place-photo-button img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  transition: transform 160ms ease;
+}
+
+.place-photo-button:hover img {
+  transform: scale(1.015);
+}
+
+.place-photo-button span {
+  position: absolute;
+  right: 0.55rem;
+  bottom: 0.55rem;
+  padding: 0.25rem 0.42rem;
+  border-radius: 0.2rem;
+  background: color-mix(in oklch, var(--ink) 82%, transparent);
+  color: var(--surface);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.place-photo-button:only-child {
   grid-column: 1 / -1;
 }
 
-.place-photos img:first-child:nth-last-child(3) {
+.place-photo-button:first-child:nth-last-child(3) {
   grid-row: span 2;
+}
+
+.place-photo-button:first-child:nth-last-child(3) img {
   height: 100%;
 }
 
@@ -610,6 +697,60 @@ button {
   border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+.photo-lightbox {
+  width: min(92vw, 72rem);
+  max-width: none;
+  max-height: 92vh;
+  padding: 2.8rem 1rem 1rem;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.3rem;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1.5rem 5rem rgba(23, 25, 29, 0.24);
+}
+
+.photo-lightbox::backdrop {
+  background: rgba(23, 25, 29, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.photo-lightbox-close {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface-soft);
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+  place-items: center;
+}
+
+.photo-lightbox figure {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.photo-lightbox img {
+  display: block;
+  width: 100%;
+  max-height: calc(92vh - 6rem);
+  object-fit: contain;
+}
+
+.photo-lightbox figcaption {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-align: center;
 }
 
 .post-row {
@@ -962,17 +1103,27 @@ button {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .places-explorer {
-    grid-template-columns: minmax(0, 1fr);
+  .globe-stage {
+    min-height: 30rem;
   }
 
-  .globe-stage {
-    border-bottom: 1px solid var(--line);
+  .places-explorer--explore .globe-stage {
+    min-height: 70vh;
   }
 
   .place-card {
+    grid-template-columns: minmax(0, 1fr);
     min-height: 12rem;
-    border-left: 0;
+    gap: 1.25rem;
+    padding: 1.25rem;
+  }
+
+  .place-card-copy {
+    min-height: 12rem;
+  }
+
+  .explore-place-hud {
+    max-width: calc(100% - 8.5rem);
   }
 
   .post-meta,

@@ -14,6 +14,8 @@ import {
 import { places, type PlacePhoto } from "../data/places";
 import type { ExploreInput } from "./PlacesScene";
 
+type ResolvedPlacePhoto = PlacePhoto & { src: string };
+
 const LazyPlacesScene = lazy(() =>
   import("./PlacesScene").then(({ PlacesScene }) => ({ default: PlacesScene })),
 );
@@ -90,9 +92,13 @@ const movementKeys = new Set([
 
 export function PlacesGlobe() {
   const [selectedPlaceId, setSelectedPlaceId] = useState(places[0].id);
+  const [nearbyPlaceId, setNearbyPlaceId] = useState<string | null>(null);
+  const [expandedPhoto, setExpandedPhoto] =
+    useState<ResolvedPlacePhoto | null>(null);
   const [exploreMode, setExploreMode] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
+  const photoDialogRef = useRef<HTMLDialogElement>(null);
   const exploreInputRef = useRef<ExploreInput>({
     horizontal: 0,
     vertical: 0,
@@ -105,12 +111,21 @@ export function PlacesGlobe() {
     [selectedPlaceId],
   );
   const selectedPlaceIndex = places.indexOf(selectedPlace);
+  const nearbyPlace = useMemo(
+    () => places.find((place) => place.id === nearbyPlaceId) ?? null,
+    [nearbyPlaceId],
+  );
   // Set this to the public custom-domain root for the curated R2 photo bucket.
-  const mediaBaseUrl = (import.meta.env.VITE_PLACES_MEDIA_URL || "media.josevalerio.com")?.replace(/\/+$/, "");
+  const mediaBaseUrl = (
+    import.meta.env.VITE_PLACES_MEDIA_URL || "https://media.josevalerio.com"
+  ).replace(/\/+$/, "");
   const selectedPhotos = selectedPlace.photos.flatMap((photo) => {
     const src = resolvePhotoSrc(photo, mediaBaseUrl);
     return src ? [{ ...photo, src }] : [];
   });
+  const hasPublishedPhotos = selectedPhotos.some(
+    (photo) => photo.src !== "/places/placeholder.svg",
+  );
 
   useEffect(() => {
     setIsMounted(true);
@@ -123,6 +138,20 @@ export function PlacesGlobe() {
     return () =>
       motionQuery.removeEventListener("change", updateMotionPreference);
   }, []);
+
+  useEffect(() => {
+    const dialog = photoDialogRef.current;
+
+    if (!dialog) {
+      return;
+    }
+
+    if (expandedPhoto && !dialog.open) {
+      dialog.showModal();
+    } else if (!expandedPhoto && dialog.open) {
+      dialog.close();
+    }
+  }, [expandedPhoto]);
 
   useEffect(() => {
     if (!exploreMode) {
@@ -183,6 +212,10 @@ export function PlacesGlobe() {
     setSelectedPlaceId(placeId);
   }, []);
 
+  const handleNearbyChange = useCallback((placeId: string | null) => {
+    setNearbyPlaceId(placeId);
+  }, []);
+
   const selectRelativePlace = (offset: number) => {
     const nextIndex =
       (selectedPlaceIndex + offset + places.length) % places.length;
@@ -204,10 +237,31 @@ export function PlacesGlobe() {
     }
   };
 
+  const toggleExploreMode = () => {
+    setExploreMode((current) => {
+      if (current) {
+        setNearbyPlaceId(null);
+      }
+
+      return !current;
+    });
+  };
+
+  const showNearbyPhotos = () => {
+    document.getElementById("place-card")?.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "center",
+    });
+  };
+
   const sceneFallback = <SceneFallback />;
 
   return (
-    <div className="places-explorer">
+    <div
+      className={`places-explorer${
+        exploreMode ? " places-explorer--explore" : ""
+      }`}
+    >
       <div className="globe-stage">
         <div className="places-scene-shell">
           {isMounted ? (
@@ -219,6 +273,7 @@ export function PlacesGlobe() {
                   exploreInputRef={exploreInputRef}
                   reduceMotion={reduceMotion}
                   onSelect={selectPlace}
+                  onNearbyChange={handleNearbyChange}
                 />
               </Suspense>
             </SceneErrorBoundary>
@@ -232,7 +287,7 @@ export function PlacesGlobe() {
             type="button"
             className="explore-toggle"
             aria-pressed={exploreMode}
-            onClick={() => setExploreMode((current) => !current)}
+            onClick={toggleExploreMode}
           >
             <span aria-hidden="true">{exploreMode ? "×" : "◆"}</span>
             {exploreMode ? "Exit explore" : "Explore"}
@@ -240,11 +295,15 @@ export function PlacesGlobe() {
         </div>
 
         {exploreMode ? (
-          <div className="explore-dpad" aria-label="Traveler movement controls">
+          <div
+            className="explore-dpad"
+            role="group"
+            aria-label="Traveler movement controls"
+          >
             <button
               type="button"
               className="explore-dpad-up"
-              aria-label="Walk up"
+              aria-label="Walk forward"
               onPointerDown={startTouchMovement(0, 1)}
               onPointerUp={stopTouchMovement}
               onPointerCancel={stopTouchMovement}
@@ -254,7 +313,7 @@ export function PlacesGlobe() {
             <button
               type="button"
               className="explore-dpad-left"
-              aria-label="Walk left"
+              aria-label="Turn left"
               onPointerDown={startTouchMovement(-1, 0)}
               onPointerUp={stopTouchMovement}
               onPointerCancel={stopTouchMovement}
@@ -264,7 +323,7 @@ export function PlacesGlobe() {
             <button
               type="button"
               className="explore-dpad-down"
-              aria-label="Walk down"
+              aria-label="Walk backward"
               onPointerDown={startTouchMovement(0, -1)}
               onPointerUp={stopTouchMovement}
               onPointerCancel={stopTouchMovement}
@@ -274,7 +333,7 @@ export function PlacesGlobe() {
             <button
               type="button"
               className="explore-dpad-right"
-              aria-label="Walk right"
+              aria-label="Turn right"
               onPointerDown={startTouchMovement(1, 0)}
               onPointerUp={stopTouchMovement}
               onPointerCancel={stopTouchMovement}
@@ -284,9 +343,19 @@ export function PlacesGlobe() {
           </div>
         ) : null}
 
+        {exploreMode && nearbyPlace ? (
+          <div className="explore-place-hud" aria-live="polite">
+            <span>Nearby</span>
+            <strong>{nearbyPlace.name}</strong>
+            <button type="button" onClick={showNearbyPhotos}>
+              View photos ↓
+            </button>
+          </div>
+        ) : null}
+
         <p className="globe-instructions">
           {exploreMode
-            ? "WASD / arrows to walk · approach a world"
+            ? "W / S walk · A / D turn · arrows work too"
             : "Drag to spin · select a tiny world"}
         </p>
         <p className="sr-only">
@@ -296,54 +365,98 @@ export function PlacesGlobe() {
       </div>
 
       <article id="place-card" className="place-card" aria-live="polite">
-        <p className="place-card-kicker">
-          {String(selectedPlaceIndex + 1).padStart(2, "0")} / {places.length}
-        </p>
-        <div>
-          <h3>{selectedPlace.name}</h3>
-          <p className="place-card-region">{selectedPlace.region}</p>
+        <div className="place-card-copy">
+          <p className="place-card-kicker">
+            {String(selectedPlaceIndex + 1).padStart(2, "0")} / {places.length}
+          </p>
+          <div className="place-card-heading">
+            <h3>{selectedPlace.name}</h3>
+            <p className="place-card-region">{selectedPlace.region}</p>
+          </div>
+
+          {selectedPlace.note ? (
+            <p className="place-card-note">{selectedPlace.note}</p>
+          ) : (
+            <p className="place-card-note place-card-note--empty">
+              {hasPublishedPhotos
+                ? "A short note coming soon."
+                : "Photos and a short note coming soon."}
+            </p>
+          )}
+
+          <div className="place-card-controls">
+            <button
+              type="button"
+              aria-label="Show previous place"
+              onClick={() => selectRelativePlace(-1)}
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              aria-label="Show next place"
+              onClick={() => selectRelativePlace(1)}
+            >
+              →
+            </button>
+          </div>
         </div>
 
         {selectedPhotos.length > 0 ? (
           <div className="place-photos">
             {selectedPhotos.map((photo) => (
-              <img
+              <button
                 key={photo.objectKey ?? photo.src}
-                src={photo.src}
-                alt={photo.alt}
-                width={photo.width}
-                height={photo.height}
-                loading="lazy"
-              />
+                type="button"
+                className="place-photo-button"
+                aria-label={`Expand photo: ${photo.alt}`}
+                onClick={() => setExpandedPhoto(photo)}
+              >
+                <img
+                  src={photo.src}
+                  alt={photo.alt}
+                  width={photo.width}
+                  height={photo.height}
+                  loading="lazy"
+                />
+                <span aria-hidden="true">Expand ↗</span>
+              </button>
             ))}
           </div>
         ) : null}
-
-        {selectedPlace.note ? (
-          <p className="place-card-note">{selectedPlace.note}</p>
-        ) : (
-          <p className="place-card-note place-card-note--empty">
-            Photos and a short note coming soon.
-          </p>
-        )}
-
-        <div className="place-card-controls">
-          <button
-            type="button"
-            aria-label="Show previous place"
-            onClick={() => selectRelativePlace(-1)}
-          >
-            ←
-          </button>
-          <button
-            type="button"
-            aria-label="Show next place"
-            onClick={() => selectRelativePlace(1)}
-          >
-            →
-          </button>
-        </div>
       </article>
+
+      <dialog
+        ref={photoDialogRef}
+        className="photo-lightbox"
+        aria-label="Expanded travel photo"
+        onClose={() => setExpandedPhoto(null)}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) {
+            setExpandedPhoto(null);
+          }
+        }}
+      >
+        <button
+          type="button"
+          className="photo-lightbox-close"
+          aria-label="Close expanded photo"
+          onClick={() => setExpandedPhoto(null)}
+        >
+          ×
+        </button>
+        {expandedPhoto ? (
+          <figure>
+            <img
+              src={expandedPhoto.src}
+              alt={expandedPhoto.alt}
+              width={expandedPhoto.width}
+              height={expandedPhoto.height}
+            />
+            <figcaption>{expandedPhoto.alt}</figcaption>
+          </figure>
+        ) : null}
+      </dialog>
     </div>
   );
 }
