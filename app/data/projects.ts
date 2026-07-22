@@ -22,7 +22,7 @@ export const projects: ProjectPreviewProps[] = [
   },
   {
     title: "snv",
-    description: "Simple NV, a simple .env loader for Rust.",
+    description: "A simple .env loader for Rust.",
     href: "https://crates.io/crates/snv",
     destination: "crates.io",
   },
