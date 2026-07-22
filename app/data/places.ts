@@ -102,8 +102,8 @@ export const places: Place[] = [
     photos: [],
   },
   {
-    id: "kansai",
-    name: "Kansai",
+    id: "osaka",
+    name: "Osaka",
     region: "Japan",
     coordinates: [135.5, 34.69],
     photos: [],

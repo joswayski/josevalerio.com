@@ -250,17 +250,6 @@ button {
   line-height: 1.15;
 }
 
-.section-heading--with-note {
-  justify-content: space-between;
-}
-
-.section-heading--with-note p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.72rem;
-  letter-spacing: 0.015em;
-}
-
 .section-number,
 .post-meta,
 .project-meta {

@@ -62,9 +62,8 @@ export default function Home() {
           id="places"
           aria-labelledby="places-title"
         >
-          <div className="section-heading section-heading--with-note">
+          <div className="section-heading">
             <h2 id="places-title">Places I&apos;ve Been</h2>
-            <p>Deliberately imprecise.</p>
           </div>
 
           <PlacesGlobe />
