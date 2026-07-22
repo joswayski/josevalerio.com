@@ -250,6 +250,17 @@ button {
   line-height: 1.15;
 }
 
+.section-heading--with-note {
+  justify-content: space-between;
+}
+
+.section-heading--with-note p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.015em;
+}
+
 .section-number,
 .post-meta,
 .project-meta {
@@ -320,6 +331,227 @@ button {
   gap: 0.65rem;
   padding-top: 0.17rem;
   text-align: right;
+}
+
+.places-explorer {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(13.5rem, 0.75fr);
+  min-height: 22rem;
+  border-bottom: 1px solid var(--line-strong);
+  background: var(--surface-soft);
+}
+
+.globe-stage {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  place-items: center;
+  padding: 0.75rem 0.5rem 2.25rem;
+  overflow: hidden;
+  background: radial-gradient(
+    circle at 50% 45%,
+    var(--surface) 0,
+    var(--surface-soft) 67%
+  );
+}
+
+.places-globe {
+  display: block;
+  width: min(100%, 25rem);
+  height: auto;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.places-globe[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+.globe-sphere {
+  fill: var(--surface);
+  stroke: var(--line-strong);
+  stroke-width: 1.4;
+}
+
+.globe-graticule {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 0.55;
+}
+
+.globe-land {
+  fill: #d9dde3;
+  stroke: var(--surface);
+  stroke-width: 0.65;
+}
+
+.globe-borders {
+  fill: none;
+  stroke: var(--surface);
+  stroke-width: 0.55;
+}
+
+.globe-sphere,
+.globe-graticule,
+.globe-land,
+.globe-borders {
+  pointer-events: none;
+}
+
+.globe-marker {
+  color: var(--accent);
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+
+.globe-marker-ring {
+  fill: color-mix(in oklch, var(--accent) 13%, white);
+  stroke: currentColor;
+  stroke-width: 1;
+  transition:
+    fill 120ms ease,
+    r 120ms ease;
+}
+
+.globe-marker-dot {
+  fill: currentColor;
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+
+.globe-marker:hover .globe-marker-ring,
+.globe-marker:focus-visible .globe-marker-ring,
+.globe-marker--selected .globe-marker-ring {
+  r: 12px;
+  fill: color-mix(in oklch, var(--accent) 24%, white);
+}
+
+.globe-marker:focus-visible {
+  outline: none;
+}
+
+.globe-marker-label {
+  display: none;
+  fill: var(--ink);
+  stroke: var(--surface);
+  stroke-linejoin: round;
+  stroke-width: 4px;
+  paint-order: stroke;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.globe-marker:hover .globe-marker-label,
+.globe-marker:focus-visible .globe-marker-label,
+.globe-marker--selected .globe-marker-label {
+  display: block;
+}
+
+.globe-instructions {
+  position: absolute;
+  bottom: 0.8rem;
+  left: 0;
+  width: 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.025em;
+  text-align: center;
+}
+
+.place-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1.15rem;
+  padding: 1.5rem 1.25rem 1.25rem;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.place-card-kicker {
+  margin: 0;
+  color: var(--accent);
+  font-family: var(--code);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+}
+
+.place-card h3 {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+
+.place-card-region {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.place-card-note {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.place-card-note--empty {
+  color: var(--muted);
+}
+
+.place-photos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.place-photos img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: 0.2rem;
+  object-fit: cover;
+}
+
+.place-photos img:first-child:nth-last-child(3) {
+  grid-row: span 2;
+  height: 100%;
+}
+
+.place-card-controls {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: auto;
+}
+
+.place-card-controls button {
+  display: inline-grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.2rem;
+  background: var(--surface-soft);
+  cursor: pointer;
+  place-items: center;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.place-card-controls button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .post-row {
@@ -670,6 +902,19 @@ button {
   .post-row,
   .project-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .places-explorer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .globe-stage {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .place-card {
+    min-height: 12rem;
+    border-left: 0;
   }
 
   .post-meta,

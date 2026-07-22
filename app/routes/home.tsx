@@ -1,6 +1,7 @@
 import type { Route } from "./+types/home";
 import { CopyEmail } from "../components/CopyEmail";
 import { ExternalLink } from "../components/ExternalLink";
+import { PlacesGlobe } from "../components/PlacesGlobe";
 import { PoastPreview } from "../components/PoastPreview";
 import { ProjectPreview } from "../components/ProjectPreview";
 import { postPreviews } from "../data/postPreviews";
@@ -58,6 +59,19 @@ export default function Home() {
 
         <section
           className="index-section"
+          id="places"
+          aria-labelledby="places-title"
+        >
+          <div className="section-heading section-heading--with-note">
+            <h2 id="places-title">Places I&apos;ve Been</h2>
+            <p>Deliberately imprecise.</p>
+          </div>
+
+          <PlacesGlobe />
+        </section>
+
+        <section
+          className="index-section"
           id="writing"
           aria-labelledby="writing-title"
         >
@@ -71,6 +85,27 @@ export default function Home() {
             ))}
           </div>
         </section>
+
+        {/*
+        <section
+          className="index-section"
+          id="reviews"
+          aria-labelledby="reviews-title"
+        >
+          <div className="section-heading">
+            <h2 id="reviews-title">Reviews</h2>
+          </div>
+
+          <div className="review-categories">
+            <section>
+              <h3>Restaurants</h3>
+            </section>
+            <section>
+              <h3>Wine</h3>
+            </section>
+          </div>
+        </section>
+        */}
 
         <footer className="site-footer">
           <CopyEmail compact />
