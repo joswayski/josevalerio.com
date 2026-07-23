@@ -149,8 +149,6 @@ export function PlacesGlobe() {
     [mediaBaseUrl],
   );
   const selectedPhoto = photosByPlaceId[selectedPlaceId]?.[0] ?? null;
-  const projectionIsNearby =
-    exploreMode && selectedPlaceId === nearbyPlaceId;
   const expandedPhotos = expandedGallery
     ? photosByPlaceId[expandedGallery.placeId] ?? []
     : [];
@@ -584,7 +582,6 @@ export function PlacesGlobe() {
             type="button"
             className="place-photo-projection"
             aria-label={`Expand photo: ${selectedPhoto.alt}`}
-            disabled={projectionIsNearby}
             onClick={() => openPlaceGallery(selectedPlaceId)}
           >
             <img

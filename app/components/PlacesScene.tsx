@@ -268,10 +268,64 @@ function PhotoProjection({
       Math.abs(projectedPosition.y) < 1.2;
     const x = (projectedPosition.x * 0.5 + 0.5) * gl.domElement.clientWidth;
     const y = (-projectedPosition.y * 0.5 + 0.5) * gl.domElement.clientHeight;
+    const stageWidth = gl.domElement.clientWidth;
+    const stageHeight = gl.domElement.clientHeight;
+    const cardWidth = projection.offsetWidth;
+    const cardHeight = projection.offsetHeight;
+    const margin = 12;
+    const gap = 12;
+    let left = x - cardWidth / 2;
+    let top = y - cardHeight - gap;
+
+    if (top < margin) {
+      const roomOnRight = stageWidth - x - gap;
+      const roomOnLeft = x - gap;
+      left =
+        roomOnRight >= cardWidth || roomOnRight >= roomOnLeft
+          ? x + gap
+          : x - cardWidth - gap;
+      top = y - cardHeight / 2;
+    }
+
+    left = MathUtils.clamp(left, margin, stageWidth - cardWidth - margin);
+    top = MathUtils.clamp(top, margin, stageHeight - cardHeight - margin);
+
+    const stage = projection.parentElement;
+    const nearbyHud = stage?.querySelector<HTMLElement>(
+      ".explore-place-hud",
+    );
+
+    if (stage && nearbyHud) {
+      const stageRect = stage.getBoundingClientRect();
+      const hudRect = nearbyHud.getBoundingClientRect();
+      const hudLeft = hudRect.left - stageRect.left;
+      const hudTop = hudRect.top - stageRect.top;
+      const hudRight = hudRect.right - stageRect.left;
+      const hudBottom = hudRect.bottom - stageRect.top;
+      const overlapsHud =
+        left < hudRight + gap &&
+        left + cardWidth > hudLeft - gap &&
+        top < hudBottom + gap &&
+        top + cardHeight > hudTop - gap;
+
+      if (overlapsHud) {
+        const leftOfHud = hudLeft - cardWidth - gap;
+
+        if (leftOfHud >= margin) {
+          left = leftOfHud;
+        } else {
+          top = MathUtils.clamp(
+            hudBottom + gap,
+            margin,
+            stageHeight - cardHeight - margin,
+          );
+        }
+      }
+    }
 
     projection.style.opacity = visible ? "1" : "0";
     projection.style.pointerEvents = visible ? "auto" : "none";
-    projection.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, calc(-100% - 0.45rem))`;
+    projection.style.transform = `translate3d(${left}px, ${top}px, 0)`;
   });
 
   return (
