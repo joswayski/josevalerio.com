@@ -678,7 +678,7 @@ export function PlacesGlobe() {
 
         <p className="globe-instructions">
           {exploreMode
-            ? "W/S walk · Shift run · A/D turn · Q/E orbit · Space jump · F interact · J out · K in"
+            ? "Drag orbit · W/S walk · Shift run · A/D turn · Q/E orbit · Space jump · F interact · J out · K in"
             : "Drag to spin · select a tiny world"}
         </p>
         <p className="sr-only">

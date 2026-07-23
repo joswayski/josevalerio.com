@@ -366,6 +366,10 @@ button {
   touch-action: none;
 }
 
+.places-explorer--explore .places-scene-shell {
+  touch-action: pan-y;
+}
+
 .places-canvas {
   width: 100% !important;
   height: 100% !important;

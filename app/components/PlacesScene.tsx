@@ -81,6 +81,8 @@ const CAMERA_DISTANCE_RATE = 0.75;
 const CAMERA_ORBIT_SPEED = 0.85;
 const CAMERA_ORBIT_RESPONSE = 2.1;
 const CAMERA_ORBIT_RELEASE = 1.65;
+const CAMERA_ORBIT_DRAG_SENSITIVITY = 0.006;
+const CAMERA_ORBIT_ANGLE_RESPONSE = 8;
 const CAMERA_FOLLOW_RESPONSE = 4;
 const TRAVELER_RENDER_ORDER = 20;
 const HORIZON_CLIP_MARGIN = 0.035;
@@ -539,7 +541,7 @@ function DestinationWorld({
       }}
       onPointerOut={() => {
         setHovered(false);
-        gl.domElement.style.cursor = exploreMode ? "default" : "grab";
+        gl.domElement.style.cursor = "grab";
       }}
     >
       <mesh position={[0, 0.08, 0]}>
@@ -806,6 +808,7 @@ function PlanetExperience({
   const movementAxisRef = useRef(new Vector3());
   const movementVelocityRef = useRef(0);
   const cameraOrbitAngleRef = useRef(0);
+  const cameraOrbitTargetAngleRef = useRef(0);
   const cameraOrbitVelocityRef = useRef(0);
   const cameraOrbitDirectionRef = useRef(new Vector3());
   const cameraFramingDirectionRef = useRef(new Vector3());
@@ -855,6 +858,7 @@ function PlanetExperience({
       globeRef.current?.quaternion.identity();
       movementVelocityRef.current = 0;
       cameraOrbitAngleRef.current = 0;
+      cameraOrbitTargetAngleRef.current = 0;
       cameraOrbitVelocityRef.current = 0;
       cameraDistanceRef.current = DEFAULT_CAMERA_DISTANCE;
       cameraDistanceTargetRef.current = DEFAULT_CAMERA_DISTANCE;
@@ -915,10 +919,11 @@ function PlanetExperience({
 
   useEffect(() => {
     const canvas = gl.domElement;
-    canvas.style.cursor = exploreMode ? "default" : "grab";
+    canvas.style.cursor = "grab";
+    canvas.style.touchAction = exploreMode ? "pan-y" : "none";
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (event.button !== 0 || exploreMode) {
+      if (event.button !== 0) {
         return;
       }
 
@@ -929,7 +934,12 @@ function PlanetExperience({
       };
       canvas.setPointerCapture(event.pointerId);
       canvas.style.cursor = "grabbing";
-      idleUntilRef.current = Number.POSITIVE_INFINITY;
+
+      if (exploreMode) {
+        cameraOrbitVelocityRef.current = 0;
+      } else {
+        idleUntilRef.current = Number.POSITIVE_INFINITY;
+      }
     };
 
     const handlePointerMove = (event: PointerEvent) => {
@@ -943,6 +953,13 @@ function PlanetExperience({
       const deltaY = event.clientY - drag.y;
       drag.x = event.clientX;
       drag.y = event.clientY;
+
+      if (exploreMode) {
+        cameraOrbitTargetAngleRef.current -=
+          deltaX * CAMERA_ORBIT_DRAG_SENSITIVITY;
+        cameraOrbitVelocityRef.current = 0;
+        return;
+      }
 
       const yaw = new Quaternion().setFromAxisAngle(Y_AXIS, deltaX * 0.006);
       const pitch = new Quaternion().setFromAxisAngle(X_AXIS, deltaY * 0.006);
@@ -959,7 +976,10 @@ function PlanetExperience({
 
       dragRef.current = null;
       canvas.style.cursor = "grab";
-      idleUntilRef.current = performance.now() + 1800;
+
+      if (!exploreMode) {
+        idleUntilRef.current = performance.now() + 1800;
+      }
 
       if (canvas.hasPointerCapture(event.pointerId)) {
         canvas.releasePointerCapture(event.pointerId);
@@ -1084,8 +1104,14 @@ function PlanetExperience({
         cameraOrbitVelocityRef.current = 0;
       }
 
-      cameraOrbitAngleRef.current +=
+      cameraOrbitTargetAngleRef.current +=
         cameraOrbitVelocityRef.current * frameDelta;
+      cameraOrbitAngleRef.current = MathUtils.damp(
+        cameraOrbitAngleRef.current,
+        cameraOrbitTargetAngleRef.current,
+        reduceMotion ? 18 : CAMERA_ORBIT_ANGLE_RESPONSE,
+        frameDelta,
+      );
       const cameraOrbitDirection = cameraOrbitDirectionRef.current
         .copy(playerForward)
         .applyAxisAngle(playerUp, cameraOrbitAngleRef.current)
@@ -1172,6 +1198,7 @@ function PlanetExperience({
     camera.up.lerp(Y_AXIS, cameraEase).normalize();
     camera.lookAt(0, -0.05, 0);
     cameraOrbitAngleRef.current = 0;
+    cameraOrbitTargetAngleRef.current = 0;
     cameraOrbitVelocityRef.current = 0;
     cameraDistanceRef.current = DEFAULT_CAMERA_DISTANCE;
     cameraDistanceTargetRef.current = DEFAULT_CAMERA_DISTANCE;
