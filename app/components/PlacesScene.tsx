@@ -36,6 +36,7 @@ import { places, type Place, type PlaceTerrain } from "../data/places";
 export type ExploreInput = {
   horizontal: number;
   vertical: number;
+  cameraOrbit: number;
   running: boolean;
   zoom: number;
   jumpSequence: number;
@@ -68,6 +69,10 @@ const OVERVIEW_CAMERA_TRAIL = 6;
 const OVERVIEW_TARGET_HEIGHT = 0.5;
 const OVERVIEW_TARGET_LEAD = 3;
 const CAMERA_DISTANCE_RATE = 0.75;
+const CAMERA_ORBIT_SPEED = 0.85;
+const CAMERA_ORBIT_RESPONSE = 2.1;
+const CAMERA_ORBIT_RELEASE = 1.65;
+const CAMERA_FOLLOW_RESPONSE = 4;
 const TRAVELER_RENDER_ORDER = 20;
 const WORLD = worldAtlas as unknown as Topology<{
   countries: GeometryCollection;
@@ -555,26 +560,23 @@ function PlanetExperience({
     y: number;
   } | null>(null);
   const idleUntilRef = useRef(0);
-  const arrivalCooldownRef = useRef(0);
   const targetQuaternionRef = useRef(new Quaternion());
   const playerUpRef = useRef(new Vector3(0, 1, 0));
   const playerForwardRef = useRef(new Vector3(0, 0, 1));
   const wasExploreModeRef = useRef(false);
   const nearbyPlaceIdRef = useRef<string | null>(null);
-  const onSelectRef = useRef(onSelect);
   const onNearbyChangeRef = useRef(onNearbyChange);
   const movementAxisRef = useRef(new Vector3());
   const movementVelocityRef = useRef(0);
+  const cameraOrbitAngleRef = useRef(0);
+  const cameraOrbitVelocityRef = useRef(0);
+  const cameraOrbitDirectionRef = useRef(new Vector3());
   const desiredCameraRef = useRef(new Vector3());
   const cameraTargetRef = useRef(new Vector3());
   const cameraDistanceRef = useRef(0);
   const cameraDistanceTargetRef = useRef(0);
   const texture = useMemo(createGlobeTexture, []);
   const { camera, gl } = useThree();
-
-  useEffect(() => {
-    onSelectRef.current = onSelect;
-  }, [onSelect]);
 
   useEffect(() => {
     onNearbyChangeRef.current = onNearbyChange;
@@ -614,6 +616,8 @@ function PlanetExperience({
       targetQuaternionRef.current.identity();
       globeRef.current?.quaternion.identity();
       movementVelocityRef.current = 0;
+      cameraOrbitAngleRef.current = 0;
+      cameraOrbitVelocityRef.current = 0;
       cameraDistanceRef.current = 0;
       cameraDistanceTargetRef.current = 0;
       nearbyPlaceIdRef.current = null;
@@ -802,11 +806,42 @@ function PlanetExperience({
         cameraDistance,
       );
 
-      const cameraEase = 1 - Math.exp(-frameDelta * 7);
+      const targetOrbitVelocity = input.cameraOrbit * CAMERA_ORBIT_SPEED;
+      const orbitResponse = reduceMotion
+        ? 18
+        : input.cameraOrbit === 0
+          ? CAMERA_ORBIT_RELEASE
+          : CAMERA_ORBIT_RESPONSE;
+      cameraOrbitVelocityRef.current = MathUtils.damp(
+        cameraOrbitVelocityRef.current,
+        targetOrbitVelocity,
+        orbitResponse,
+        frameDelta,
+      );
+
+      if (
+        input.cameraOrbit === 0 &&
+        Math.abs(cameraOrbitVelocityRef.current) < 0.0005
+      ) {
+        cameraOrbitVelocityRef.current = 0;
+      }
+
+      cameraOrbitAngleRef.current +=
+        cameraOrbitVelocityRef.current * frameDelta;
+      const cameraOrbitDirection = cameraOrbitDirectionRef.current
+        .copy(playerForward)
+        .applyAxisAngle(playerUp, cameraOrbitAngleRef.current)
+        .normalize();
+
+      const cameraEase =
+        1 -
+        Math.exp(
+          -frameDelta * (reduceMotion ? 18 : CAMERA_FOLLOW_RESPONSE),
+        );
       const desiredCamera = desiredCameraRef.current
         .copy(playerUp)
         .multiplyScalar(cameraHeight)
-        .addScaledVector(playerForward, -cameraTrail);
+        .addScaledVector(cameraOrbitDirection, -cameraTrail);
       const cameraTarget = cameraTargetRef.current
         .copy(playerUp)
         .multiplyScalar(targetHeight)
@@ -843,15 +878,6 @@ function PlanetExperience({
         onNearbyChangeRef.current(nearbyPlaceId);
       }
 
-      if (
-        nearbyPlace &&
-        nearbyPlace.id !== selectedPlaceId &&
-        performance.now() >= arrivalCooldownRef.current
-      ) {
-        arrivalCooldownRef.current = performance.now() + 900;
-        onSelectRef.current(nearbyPlace.id);
-      }
-
       return;
     }
 
@@ -876,6 +902,8 @@ function PlanetExperience({
     camera.position.lerp(BROWSE_CAMERA_POSITION, cameraEase);
     camera.up.lerp(Y_AXIS, cameraEase).normalize();
     camera.lookAt(0, -0.05, 0);
+    cameraOrbitAngleRef.current = 0;
+    cameraOrbitVelocityRef.current = 0;
     cameraDistanceRef.current = 0;
     cameraDistanceTargetRef.current = 0;
   });

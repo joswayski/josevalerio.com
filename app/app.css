@@ -609,9 +609,12 @@ button {
 }
 
 .photo-lightbox {
-  width: min(92vw, 72rem);
+  position: fixed;
+  inset: 50% auto auto 50%;
+  width: min(calc(100vw - 2rem), 72rem);
   max-width: none;
   max-height: 92vh;
+  margin: 0;
   padding: 2.8rem 1rem 1rem;
   overflow: hidden;
   border: 1px solid var(--line-strong);
@@ -619,6 +622,7 @@ button {
   background: var(--surface);
   color: var(--ink);
   box-shadow: 0 1.5rem 5rem rgba(23, 25, 29, 0.24);
+  transform: translate(-50%, -50%);
 }
 
 .photo-lightbox::backdrop {

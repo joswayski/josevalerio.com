@@ -92,8 +92,10 @@ const movementKeys = new Set([
   "Shift",
   "a",
   "d",
+  "e",
   "j",
   "k",
+  "q",
   "s",
   "w",
 ]);
@@ -112,11 +114,15 @@ export function PlacesGlobe() {
   const exploreInputRef = useRef<ExploreInput>({
     horizontal: 0,
     vertical: 0,
+    cameraOrbit: 0,
     running: false,
     zoom: 0,
     jumpSequence: 0,
   });
   const pressedKeysRef = useRef(new Set<string>());
+  // Keep an explicitly clicked place selected until the traveler leaves the
+  // current cluster, so proximity updates cannot fight the user's choice.
+  const manualSelectionLockRef = useRef(false);
 
   const nearbyPlace = useMemo(
     () => places.find((place) => place.id === nearbyPlaceId) ?? null,
@@ -191,6 +197,7 @@ export function PlacesGlobe() {
       exploreInputRef.current = {
         horizontal: 0,
         vertical: 0,
+        cameraOrbit: 0,
         running: false,
         zoom: 0,
         jumpSequence: exploreInputRef.current.jumpSequence,
@@ -204,12 +211,15 @@ export function PlacesGlobe() {
       const right = keys.has("ArrowRight") || keys.has("d");
       const up = keys.has("ArrowUp") || keys.has("w");
       const down = keys.has("ArrowDown") || keys.has("s");
+      const orbitLeft = keys.has("q");
+      const orbitRight = keys.has("e");
       const zoomIn = keys.has("k");
       const zoomOut = keys.has("j");
 
       exploreInputRef.current = {
         horizontal: Number(right) - Number(left),
         vertical: Number(up) - Number(down),
+        cameraOrbit: Number(orbitRight) - Number(orbitLeft),
         running: keys.has("Shift"),
         zoom: Number(zoomIn) - Number(zoomOut),
         jumpSequence: exploreInputRef.current.jumpSequence,
@@ -256,6 +266,7 @@ export function PlacesGlobe() {
       exploreInputRef.current = {
         horizontal: 0,
         vertical: 0,
+        cameraOrbit: 0,
         running: false,
         zoom: 0,
         jumpSequence: exploreInputRef.current.jumpSequence,
@@ -263,12 +274,26 @@ export function PlacesGlobe() {
     };
   }, [exploreMode]);
 
-  const selectPlace = useCallback((placeId: string) => {
-    setSelectedPlaceId(placeId);
-  }, []);
+  const selectPlace = useCallback(
+    (placeId: string) => {
+      manualSelectionLockRef.current =
+        exploreMode && placeId !== nearbyPlaceId;
+      setSelectedPlaceId(placeId);
+    },
+    [exploreMode, nearbyPlaceId],
+  );
 
   const handleNearbyChange = useCallback((placeId: string | null) => {
     setNearbyPlaceId(placeId);
+
+    if (!placeId) {
+      manualSelectionLockRef.current = false;
+      return;
+    }
+
+    if (!manualSelectionLockRef.current) {
+      setSelectedPlaceId(placeId);
+    }
   }, []);
 
   const openPlaceGallery = useCallback(
@@ -346,12 +371,22 @@ export function PlacesGlobe() {
     }
 
     const handleActionKey = (event: KeyboardEvent) => {
-      if (event.repeat || photoDialogRef.current?.open) {
+      if (event.repeat) {
         return;
       }
 
       const normalizedKey =
         event.key.length === 1 ? event.key.toLowerCase() : event.key;
+
+      if (normalizedKey === "f" && photoDialogRef.current?.open) {
+        event.preventDefault();
+        setExpandedGallery(null);
+        return;
+      }
+
+      if (photoDialogRef.current?.open) {
+        return;
+      }
 
       if (event.code === "Space") {
         event.preventDefault();
@@ -393,6 +428,7 @@ export function PlacesGlobe() {
   };
 
   const toggleExploreMode = () => {
+    manualSelectionLockRef.current = false;
     setExploreMode((current) => {
       if (current) {
         setNearbyPlaceId(null);
@@ -534,7 +570,7 @@ export function PlacesGlobe() {
 
         <p className="globe-instructions">
           {exploreMode
-            ? "W/S walk · Shift run · A/D turn · Space jump · F interact · J out · K in"
+            ? "W/S walk · Shift run · A/D turn · Q/E orbit · Space jump · F interact · J out · K in"
             : "Drag to spin · select a tiny world"}
         </p>
         <p className="sr-only">
