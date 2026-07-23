@@ -23,6 +23,7 @@ import {
   Vector3,
   type Group,
   type Mesh,
+  type PerspectiveCamera,
 } from "three";
 import { feature, mesh } from "topojson-client";
 import type {
@@ -36,6 +37,8 @@ import { places, type Place, type PlaceTerrain } from "../data/places";
 export type ExploreInput = {
   horizontal: number;
   vertical: number;
+  running: boolean;
+  zoom: number;
   jumpSequence: number;
 };
 
@@ -51,15 +54,20 @@ type PlacesSceneProps = {
 
 const PLANET_RADIUS = 6;
 const WALK_SPEED = 0.32;
+const RUN_SPEED = 0.7;
 const TURN_SPEED = 2.1;
 const START_DISTANCE = 0.24;
 const NEARBY_DISTANCE = Math.cos(0.075);
 const JUMP_DURATION = 0.52;
 const BROWSE_CAMERA_POSITION = new Vector3(0, 0.45, 18.8);
-const EXPLORE_CAMERA_HEIGHT = 18;
-const EXPLORE_CAMERA_TRAIL = 14;
-const EXPLORE_TARGET_HEIGHT = 4.8;
-const EXPLORE_TARGET_LEAD = 0.8;
+const EXPLORE_CAMERA_HEIGHT = 21;
+const EXPLORE_CAMERA_TRAIL = 6;
+const EXPLORE_TARGET_HEIGHT = 0.5;
+const EXPLORE_TARGET_LEAD = 3;
+const MIN_CAMERA_ZOOM = 0.82;
+const MAX_CAMERA_ZOOM = 1.55;
+const CAMERA_ZOOM_RATE = 0.85;
+const TRAVELER_RENDER_ORDER = 20;
 const WORLD = worldAtlas as unknown as Topology<{
   countries: GeometryCollection;
   land: GeometryObject;
@@ -232,7 +240,7 @@ function PhotoProjection({
       return;
     }
 
-    anchor.position.y = 0.9 + Math.sin(clock.elapsedTime * 1.45) * 0.025;
+    anchor.position.y = 1.74 + Math.sin(clock.elapsedTime * 1.45) * 0.025;
     anchor.updateWorldMatrix(true, false);
 
     const projectedPosition = projectedPositionRef.current;
@@ -249,20 +257,20 @@ function PhotoProjection({
 
     projection.style.opacity = visible ? "1" : "0";
     projection.style.pointerEvents = visible ? "auto" : "none";
-    projection.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+    projection.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, calc(-100% - 0.45rem))`;
   });
 
   return (
     <group scale={0.5}>
-      <mesh position={[0, 0.48, 0]}>
-        <cylinderGeometry args={[0.008, 0.018, 0.66, 6]} />
+      <mesh position={[0, 0.86, 0]}>
+        <cylinderGeometry args={[0.008, 0.018, 1.55, 6]} />
         <meshBasicMaterial color="#d04842" transparent opacity={0.68} />
       </mesh>
-      <mesh position={[0, 0.82, 0]}>
+      <mesh position={[0, 1.65, 0]}>
         <sphereGeometry args={[0.026, 8, 6]} />
         <meshBasicMaterial color="#d04842" />
       </mesh>
-      <group ref={anchorRef} position={[0, 0.9, 0]} />
+      <group ref={anchorRef} position={[0, 1.74, 0]} />
     </group>
   );
 }
@@ -372,11 +380,13 @@ function DestinationWorld({
 
 function Traveler({
   inputRef,
+  movementVelocityRef,
   playerUpRef,
   playerForwardRef,
   reduceMotion,
 }: {
   inputRef: MutableRefObject<ExploreInput>;
+  movementVelocityRef: MutableRefObject<number>;
   playerUpRef: MutableRefObject<Vector3>;
   playerForwardRef: MutableRefObject<Vector3>;
   reduceMotion: boolean;
@@ -384,6 +394,8 @@ function Traveler({
   const groupRef = useRef<Group>(null);
   const leftLegRef = useRef<Mesh>(null);
   const rightLegRef = useRef<Mesh>(null);
+  const leftArmRef = useRef<Mesh>(null);
+  const rightArmRef = useRef<Mesh>(null);
   const phaseRef = useRef(0);
   const jumpElapsedRef = useRef(JUMP_DURATION);
   const lastJumpSequenceRef = useRef(inputRef.current.jumpSequence);
@@ -391,17 +403,21 @@ function Traveler({
   const lookTargetRef = useRef(new Vector3());
 
   useFrame((_, delta) => {
-    const moving =
-      Math.abs(inputRef.current.horizontal) +
-        Math.abs(inputRef.current.vertical) >
-      0;
+    const movementSpeed = Math.abs(movementVelocityRef.current);
+    const moving = movementSpeed > 0.002;
+    const movementBlend = MathUtils.clamp(movementSpeed / WALK_SPEED, 0, 1);
+    const runBlend = MathUtils.clamp(
+      (movementSpeed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED),
+      0,
+      1,
+    );
 
     if (!groupRef.current) {
       return;
     }
 
     if (moving) {
-      phaseRef.current += delta * 11;
+      phaseRef.current += delta * MathUtils.lerp(9.5, 16, runBlend);
     }
 
     if (inputRef.current.jumpSequence !== lastJumpSequenceRef.current) {
@@ -419,8 +435,16 @@ function Traveler({
     const jumpCurve = jumping ? Math.sin(jumpProgress * Math.PI) : 0;
     const jumpLift = jumpCurve * (reduceMotion ? 0.08 : 0.38);
 
-    const stride = moving ? Math.sin(phaseRef.current) : 0;
-    const bob = moving ? Math.abs(Math.sin(phaseRef.current)) * 0.018 : 0;
+    const stride = moving
+      ? Math.sin(phaseRef.current) *
+        MathUtils.lerp(0.5, 0.82, runBlend) *
+        movementBlend
+      : 0;
+    const bob = moving
+      ? Math.abs(Math.sin(phaseRef.current)) *
+        MathUtils.lerp(0.018, 0.034, runBlend) *
+        movementBlend
+      : 0;
     const playerUp = playerUpRef.current;
     const playerForward = playerForwardRef.current;
     const position = positionRef.current
@@ -438,28 +462,74 @@ function Traveler({
       leftLegRef.current.rotation.x = jumping ? -0.34 : stride * 0.55;
       rightLegRef.current.rotation.x = jumping ? -0.34 : -stride * 0.55;
     }
+
+    if (leftArmRef.current && rightArmRef.current) {
+      leftArmRef.current.rotation.x = jumping ? -0.5 : -stride * 0.72;
+      rightArmRef.current.rotation.x = jumping ? -0.5 : stride * 0.72;
+    }
   });
 
   return (
     <group ref={groupRef} scale={1.9}>
       <group>
-        <mesh ref={leftLegRef} position={[-0.035, 0.055, 0]} castShadow>
+        <mesh
+          ref={leftLegRef}
+          position={[-0.035, 0.055, 0]}
+          renderOrder={TRAVELER_RENDER_ORDER}
+          onBeforeRender={(renderer) => renderer.clearDepth()}
+          castShadow
+        >
           <boxGeometry args={[0.045, 0.12, 0.05]} />
           <meshStandardMaterial color="#2c3b40" flatShading />
         </mesh>
-        <mesh ref={rightLegRef} position={[0.035, 0.055, 0]} castShadow>
+        <mesh
+          ref={rightLegRef}
+          position={[0.035, 0.055, 0]}
+          renderOrder={TRAVELER_RENDER_ORDER}
+          castShadow
+        >
           <boxGeometry args={[0.045, 0.12, 0.05]} />
           <meshStandardMaterial color="#2c3b40" flatShading />
         </mesh>
-        <mesh position={[0, 0.17, 0]} castShadow>
+        <mesh
+          position={[0, 0.17, 0]}
+          renderOrder={TRAVELER_RENDER_ORDER}
+          castShadow
+        >
           <capsuleGeometry args={[0.065, 0.13, 4, 8]} />
           <meshStandardMaterial color="#d04842" flatShading />
         </mesh>
-        <mesh position={[0, 0.32, 0]} castShadow>
+        <mesh
+          ref={leftArmRef}
+          position={[-0.09, 0.19, 0]}
+          renderOrder={TRAVELER_RENDER_ORDER}
+          castShadow
+        >
+          <boxGeometry args={[0.035, 0.16, 0.04]} />
+          <meshStandardMaterial color="#e9c5a4" flatShading />
+        </mesh>
+        <mesh
+          ref={rightArmRef}
+          position={[0.09, 0.19, 0]}
+          renderOrder={TRAVELER_RENDER_ORDER}
+          castShadow
+        >
+          <boxGeometry args={[0.035, 0.16, 0.04]} />
+          <meshStandardMaterial color="#e9c5a4" flatShading />
+        </mesh>
+        <mesh
+          position={[0, 0.32, 0]}
+          renderOrder={TRAVELER_RENDER_ORDER}
+          castShadow
+        >
           <icosahedronGeometry args={[0.078, 1]} />
           <meshStandardMaterial color="#e9c5a4" flatShading />
         </mesh>
-        <mesh position={[0, 0.2, -0.065]} castShadow>
+        <mesh
+          position={[0, 0.2, -0.065]}
+          renderOrder={TRAVELER_RENDER_ORDER}
+          castShadow
+        >
           <boxGeometry args={[0.105, 0.13, 0.055]} />
           <meshStandardMaterial color="#d4a64c" flatShading />
         </mesh>
@@ -493,10 +563,13 @@ function PlanetExperience({
   const onSelectRef = useRef(onSelect);
   const onNearbyChangeRef = useRef(onNearbyChange);
   const movementAxisRef = useRef(new Vector3());
+  const movementVelocityRef = useRef(0);
   const desiredCameraRef = useRef(new Vector3());
   const cameraTargetRef = useRef(new Vector3());
+  const cameraZoomTargetRef = useRef(1);
   const texture = useMemo(createGlobeTexture, []);
-  const { camera, gl } = useThree();
+  const { camera: sceneCamera, gl } = useThree();
+  const camera = sceneCamera as PerspectiveCamera;
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -539,6 +612,10 @@ function PlanetExperience({
 
       targetQuaternionRef.current.identity();
       globeRef.current?.quaternion.identity();
+      movementVelocityRef.current = 0;
+      cameraZoomTargetRef.current = 1;
+      camera.zoom = 1;
+      camera.updateProjectionMatrix();
       nearbyPlaceIdRef.current = null;
       onNearbyChangeRef.current(null);
 
@@ -655,6 +732,19 @@ function PlanetExperience({
 
       const playerUp = playerUpRef.current;
       const playerForward = playerForwardRef.current;
+      const targetMovementVelocity =
+        input.vertical * (input.running ? RUN_SPEED : WALK_SPEED);
+      const movementResponse = targetMovementVelocity === 0 ? 5.5 : 7;
+      movementVelocityRef.current = MathUtils.damp(
+        movementVelocityRef.current,
+        targetMovementVelocity,
+        movementResponse,
+        frameDelta,
+      );
+
+      if (Math.abs(movementVelocityRef.current) < 0.0005) {
+        movementVelocityRef.current = 0;
+      }
 
       if (input.horizontal !== 0) {
         playerForward
@@ -665,17 +755,34 @@ function PlanetExperience({
           .normalize();
       }
 
-      if (input.vertical !== 0) {
+      if (movementVelocityRef.current !== 0) {
         const movementAxis = movementAxisRef.current
           .crossVectors(playerForward, playerUp)
           .normalize();
-        const movementAngle = -input.vertical * WALK_SPEED * frameDelta;
+        const movementAngle = -movementVelocityRef.current * frameDelta;
 
         playerUp.applyAxisAngle(movementAxis, movementAngle).normalize();
         playerForward
           .applyAxisAngle(movementAxis, movementAngle)
           .addScaledVector(playerUp, -playerForward.dot(playerUp))
           .normalize();
+      }
+
+      cameraZoomTargetRef.current = MathUtils.clamp(
+        cameraZoomTargetRef.current + input.zoom * CAMERA_ZOOM_RATE * frameDelta,
+        MIN_CAMERA_ZOOM,
+        MAX_CAMERA_ZOOM,
+      );
+      const nextZoom = MathUtils.damp(
+        camera.zoom,
+        cameraZoomTargetRef.current,
+        reduceMotion ? 18 : 6,
+        frameDelta,
+      );
+
+      if (Math.abs(nextZoom - camera.zoom) > 0.0001) {
+        camera.zoom = nextZoom;
+        camera.updateProjectionMatrix();
       }
 
       const cameraEase = 1 - Math.exp(-frameDelta * 7);
@@ -752,6 +859,13 @@ function PlanetExperience({
     camera.position.lerp(BROWSE_CAMERA_POSITION, cameraEase);
     camera.up.lerp(Y_AXIS, cameraEase).normalize();
     camera.lookAt(0, -0.05, 0);
+    cameraZoomTargetRef.current = 1;
+
+    const nextZoom = MathUtils.damp(camera.zoom, 1, 6, frameDelta);
+    if (Math.abs(nextZoom - camera.zoom) > 0.0001) {
+      camera.zoom = nextZoom;
+      camera.updateProjectionMatrix();
+    }
   });
 
   return (
@@ -793,6 +907,7 @@ function PlanetExperience({
       {exploreMode ? (
         <Traveler
           inputRef={exploreInputRef}
+          movementVelocityRef={movementVelocityRef}
           playerUpRef={playerUpRef}
           playerForwardRef={playerForwardRef}
           reduceMotion={reduceMotion}

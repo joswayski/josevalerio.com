@@ -89,8 +89,11 @@ const movementKeys = new Set([
   "ArrowRight",
   "ArrowUp",
   "ArrowDown",
+  "Shift",
   "a",
   "d",
+  "j",
+  "k",
   "s",
   "w",
 ]);
@@ -109,6 +112,8 @@ export function PlacesGlobe() {
   const exploreInputRef = useRef<ExploreInput>({
     horizontal: 0,
     vertical: 0,
+    running: false,
+    zoom: 0,
     jumpSequence: 0,
   });
   const pressedKeysRef = useRef(new Set<string>());
@@ -135,6 +140,8 @@ export function PlacesGlobe() {
     [mediaBaseUrl],
   );
   const selectedPhoto = photosByPlaceId[selectedPlaceId]?.[0] ?? null;
+  const projectionIsNearby =
+    exploreMode && selectedPlaceId === nearbyPlaceId;
   const expandedPhotos = expandedGallery
     ? photosByPlaceId[expandedGallery.placeId] ?? []
     : [];
@@ -184,6 +191,8 @@ export function PlacesGlobe() {
       exploreInputRef.current = {
         horizontal: 0,
         vertical: 0,
+        running: false,
+        zoom: 0,
         jumpSequence: exploreInputRef.current.jumpSequence,
       };
       return;
@@ -195,10 +204,14 @@ export function PlacesGlobe() {
       const right = keys.has("ArrowRight") || keys.has("d");
       const up = keys.has("ArrowUp") || keys.has("w");
       const down = keys.has("ArrowDown") || keys.has("s");
+      const zoomIn = keys.has("k");
+      const zoomOut = keys.has("j");
 
       exploreInputRef.current = {
         horizontal: Number(right) - Number(left),
         vertical: Number(up) - Number(down),
+        running: keys.has("Shift"),
+        zoom: Number(zoomIn) - Number(zoomOut),
         jumpSequence: exploreInputRef.current.jumpSequence,
       };
     };
@@ -243,6 +256,8 @@ export function PlacesGlobe() {
       exploreInputRef.current = {
         horizontal: 0,
         vertical: 0,
+        running: false,
+        zoom: 0,
         jumpSequence: exploreInputRef.current.jumpSequence,
       };
     };
@@ -344,7 +359,7 @@ export function PlacesGlobe() {
         return;
       }
 
-      if ((normalizedKey === "e" || normalizedKey === "f") && nearbyPlaceId) {
+      if (normalizedKey === "f" && nearbyPlaceId) {
         event.preventDefault();
         openPlaceGallery(nearbyPlaceId);
       }
@@ -422,6 +437,7 @@ export function PlacesGlobe() {
             type="button"
             className="place-photo-projection"
             aria-label={`Expand photo: ${selectedPhoto.alt}`}
+            disabled={projectionIsNearby}
             onClick={() => openPlaceGallery(selectedPlaceId)}
           >
             <img
@@ -511,14 +527,14 @@ export function PlacesGlobe() {
               type="button"
               onClick={() => openPlaceGallery(nearbyPlace.id)}
             >
-              E / F · View photos ↗
+              F · View photos ↗
             </button>
           </div>
         ) : null}
 
         <p className="globe-instructions">
           {exploreMode
-            ? "W / S walk · A / D turn · Space jump · E / F interact"
+            ? "W/S walk · Shift run · A/D turn · Space jump · F interact · J out · K in"
             : "Drag to spin · select a tiny world"}
         </p>
         <p className="sr-only">
