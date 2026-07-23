@@ -23,7 +23,6 @@ import {
   Vector3,
   type Group,
   type Mesh,
-  type PerspectiveCamera,
 } from "three";
 import { feature, mesh } from "topojson-client";
 import type {
@@ -60,13 +59,15 @@ const START_DISTANCE = 0.24;
 const NEARBY_DISTANCE = Math.cos(0.075);
 const JUMP_DURATION = 0.52;
 const BROWSE_CAMERA_POSITION = new Vector3(0, 0.45, 18.8);
-const EXPLORE_CAMERA_HEIGHT = 21;
-const EXPLORE_CAMERA_TRAIL = 6;
-const EXPLORE_TARGET_HEIGHT = 0.5;
-const EXPLORE_TARGET_LEAD = 3;
-const MIN_CAMERA_ZOOM = 0.82;
-const MAX_CAMERA_ZOOM = 1.55;
-const CAMERA_ZOOM_RATE = 0.85;
+const CLOSE_CAMERA_HEIGHT = 9.4;
+const CLOSE_CAMERA_TRAIL = 4.2;
+const CLOSE_TARGET_HEIGHT = 5;
+const CLOSE_TARGET_LEAD = 2.6;
+const OVERVIEW_CAMERA_HEIGHT = 21;
+const OVERVIEW_CAMERA_TRAIL = 6;
+const OVERVIEW_TARGET_HEIGHT = 0.5;
+const OVERVIEW_TARGET_LEAD = 3;
+const CAMERA_DISTANCE_RATE = 0.75;
 const TRAVELER_RENDER_ORDER = 20;
 const WORLD = worldAtlas as unknown as Topology<{
   countries: GeometryCollection;
@@ -566,10 +567,10 @@ function PlanetExperience({
   const movementVelocityRef = useRef(0);
   const desiredCameraRef = useRef(new Vector3());
   const cameraTargetRef = useRef(new Vector3());
-  const cameraZoomTargetRef = useRef(1);
+  const cameraDistanceRef = useRef(0);
+  const cameraDistanceTargetRef = useRef(0);
   const texture = useMemo(createGlobeTexture, []);
-  const { camera: sceneCamera, gl } = useThree();
-  const camera = sceneCamera as PerspectiveCamera;
+  const { camera, gl } = useThree();
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -613,9 +614,8 @@ function PlanetExperience({
       targetQuaternionRef.current.identity();
       globeRef.current?.quaternion.identity();
       movementVelocityRef.current = 0;
-      cameraZoomTargetRef.current = 1;
-      camera.zoom = 1;
-      camera.updateProjectionMatrix();
+      cameraDistanceRef.current = 0;
+      cameraDistanceTargetRef.current = 0;
       nearbyPlaceIdRef.current = null;
       onNearbyChangeRef.current(null);
 
@@ -623,13 +623,13 @@ function PlanetExperience({
       const playerForward = playerForwardRef.current;
       const cameraTarget = new Vector3()
         .copy(playerUp)
-        .multiplyScalar(EXPLORE_TARGET_HEIGHT)
-        .addScaledVector(playerForward, EXPLORE_TARGET_LEAD);
+        .multiplyScalar(CLOSE_TARGET_HEIGHT)
+        .addScaledVector(playerForward, CLOSE_TARGET_LEAD);
 
       camera.position
         .copy(playerUp)
-        .multiplyScalar(EXPLORE_CAMERA_HEIGHT)
-        .addScaledVector(playerForward, -EXPLORE_CAMERA_TRAIL);
+        .multiplyScalar(CLOSE_CAMERA_HEIGHT)
+        .addScaledVector(playerForward, -CLOSE_CAMERA_TRAIL);
       camera.up.copy(playerUp);
       camera.lookAt(cameraTarget);
     } else if (!exploreMode) {
@@ -768,32 +768,49 @@ function PlanetExperience({
           .normalize();
       }
 
-      cameraZoomTargetRef.current = MathUtils.clamp(
-        cameraZoomTargetRef.current + input.zoom * CAMERA_ZOOM_RATE * frameDelta,
-        MIN_CAMERA_ZOOM,
-        MAX_CAMERA_ZOOM,
+      cameraDistanceTargetRef.current = MathUtils.clamp(
+        cameraDistanceTargetRef.current -
+          input.zoom * CAMERA_DISTANCE_RATE * frameDelta,
+        0,
+        1,
       );
-      const nextZoom = MathUtils.damp(
-        camera.zoom,
-        cameraZoomTargetRef.current,
+      cameraDistanceRef.current = MathUtils.damp(
+        cameraDistanceRef.current,
+        cameraDistanceTargetRef.current,
         reduceMotion ? 18 : 6,
         frameDelta,
       );
-
-      if (Math.abs(nextZoom - camera.zoom) > 0.0001) {
-        camera.zoom = nextZoom;
-        camera.updateProjectionMatrix();
-      }
+      const cameraDistance = cameraDistanceRef.current;
+      const cameraHeight = MathUtils.lerp(
+        CLOSE_CAMERA_HEIGHT,
+        OVERVIEW_CAMERA_HEIGHT,
+        cameraDistance,
+      );
+      const cameraTrail = MathUtils.lerp(
+        CLOSE_CAMERA_TRAIL,
+        OVERVIEW_CAMERA_TRAIL,
+        cameraDistance,
+      );
+      const targetHeight = MathUtils.lerp(
+        CLOSE_TARGET_HEIGHT,
+        OVERVIEW_TARGET_HEIGHT,
+        cameraDistance,
+      );
+      const targetLead = MathUtils.lerp(
+        CLOSE_TARGET_LEAD,
+        OVERVIEW_TARGET_LEAD,
+        cameraDistance,
+      );
 
       const cameraEase = 1 - Math.exp(-frameDelta * 7);
       const desiredCamera = desiredCameraRef.current
         .copy(playerUp)
-        .multiplyScalar(EXPLORE_CAMERA_HEIGHT)
-        .addScaledVector(playerForward, -EXPLORE_CAMERA_TRAIL);
+        .multiplyScalar(cameraHeight)
+        .addScaledVector(playerForward, -cameraTrail);
       const cameraTarget = cameraTargetRef.current
         .copy(playerUp)
-        .multiplyScalar(EXPLORE_TARGET_HEIGHT)
-        .addScaledVector(playerForward, EXPLORE_TARGET_LEAD);
+        .multiplyScalar(targetHeight)
+        .addScaledVector(playerForward, targetLead);
 
       camera.position.lerp(desiredCamera, cameraEase);
       camera.up.lerp(playerUp, cameraEase).normalize();
@@ -859,13 +876,8 @@ function PlanetExperience({
     camera.position.lerp(BROWSE_CAMERA_POSITION, cameraEase);
     camera.up.lerp(Y_AXIS, cameraEase).normalize();
     camera.lookAt(0, -0.05, 0);
-    cameraZoomTargetRef.current = 1;
-
-    const nextZoom = MathUtils.damp(camera.zoom, 1, 6, frameDelta);
-    if (Math.abs(nextZoom - camera.zoom) > 0.0001) {
-      camera.zoom = nextZoom;
-      camera.updateProjectionMatrix();
-    }
+    cameraDistanceRef.current = 0;
+    cameraDistanceTargetRef.current = 0;
   });
 
   return (
