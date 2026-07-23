@@ -59,18 +59,6 @@ export default function Home() {
 
         <section
           className="index-section"
-          id="places"
-          aria-labelledby="places-title"
-        >
-          <div className="section-heading">
-            <h2 id="places-title">Places I&apos;ve Been</h2>
-          </div>
-
-          <PlacesGlobe />
-        </section>
-
-        <section
-          className="index-section"
           id="writing"
           aria-labelledby="writing-title"
         >
@@ -83,6 +71,18 @@ export default function Home() {
               <PoastPreview key={post.link} {...post} />
             ))}
           </div>
+        </section>
+
+        <section
+          className="index-section"
+          id="places"
+          aria-labelledby="places-title"
+        >
+          <div className="section-heading">
+            <h2 id="places-title">Places I&apos;ve Been</h2>
+          </div>
+
+          <PlacesGlobe />
         </section>
 
         {/*

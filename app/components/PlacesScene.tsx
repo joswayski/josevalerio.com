@@ -23,6 +23,7 @@ import {
   Vector3,
   type Group,
   type Mesh,
+  type Points,
 } from "three";
 import { feature, mesh } from "topojson-client";
 import type {
@@ -43,6 +44,8 @@ export type ExploreInput = {
   jumpSequence: number;
 };
 
+export type SkyPhase = "day" | "twilight" | "night";
+
 type PlacesSceneProps = {
   selectedPlaceId: string;
   exploreMode: boolean;
@@ -56,6 +59,8 @@ type PlacesSceneProps = {
     runBlend: number,
     stepIndex: number,
   ) => void;
+  skyPhase: SkyPhase;
+  solarDirection: [number, number, number];
 };
 
 const PLANET_RADIUS = 6;
@@ -104,6 +109,119 @@ const UP = new Vector3(0, 1, 0);
 const X_AXIS = new Vector3(1, 0, 0);
 const Y_AXIS = new Vector3(0, 1, 0);
 const FOCUS_DIRECTION = new Vector3(0, -0.24, 0.97).normalize();
+
+function createStarPositions(count: number) {
+  const positions = new Float32Array(count * 3);
+  let seed = 0x5f3759df;
+  const random = () => {
+    seed = (Math.imul(seed, 1_664_525) + 1_013_904_223) >>> 0;
+    return seed / 4_294_967_296;
+  };
+
+  for (let index = 0; index < count; index += 1) {
+    const longitude = random() * Math.PI * 2;
+    const vertical = random() * 2 - 1;
+    const horizontal = Math.sqrt(1 - vertical * vertical);
+    const radius = 32 + random() * 25;
+    const offset = index * 3;
+
+    positions[offset] = Math.cos(longitude) * horizontal * radius;
+    positions[offset + 1] = vertical * radius;
+    positions[offset + 2] = Math.sin(longitude) * horizontal * radius;
+  }
+
+  return positions;
+}
+
+function StarField({
+  skyPhase,
+  reduceMotion,
+}: {
+  skyPhase: SkyPhase;
+  reduceMotion: boolean;
+}) {
+  const pointsRef = useRef<Points>(null);
+  const positions = useMemo(() => createStarPositions(520), []);
+  const opacity =
+    skyPhase === "night" ? 0.88 : skyPhase === "twilight" ? 0.58 : 0.3;
+
+  useFrame((_, delta) => {
+    if (pointsRef.current && !reduceMotion) {
+      pointsRef.current.rotation.y += delta * 0.0025;
+    }
+  });
+
+  return (
+    <points ref={pointsRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial
+        color={skyPhase === "day" ? "#f7fbff" : "#ffffff"}
+        size={skyPhase === "night" ? 1.45 : 1.1}
+        sizeAttenuation={false}
+        transparent
+        opacity={opacity}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </points>
+  );
+}
+
+function DayNightShade({ solarDirection }: {
+  solarDirection: [number, number, number];
+}) {
+  const uniforms = useMemo(
+    () => ({
+      sunDirection: {
+        value: new Vector3(...solarDirection).normalize(),
+      },
+      nightOpacity: { value: 0.58 },
+    }),
+    [solarDirection],
+  );
+
+  return (
+    <mesh scale={1.004}>
+      <icosahedronGeometry args={[PLANET_RADIUS, 5]} />
+      <shaderMaterial
+        uniforms={uniforms}
+        vertexShader={`
+          varying vec3 vGlobeDirection;
+
+          void main() {
+            vGlobeDirection = normalize(position);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `}
+        fragmentShader={`
+          uniform vec3 sunDirection;
+          uniform float nightOpacity;
+          varying vec3 vGlobeDirection;
+
+          void main() {
+            float sunlight = dot(
+              normalize(vGlobeDirection),
+              normalize(sunDirection)
+            );
+            float night = 1.0 - smoothstep(-0.16, 0.2, sunlight);
+            float deepNight = 1.0 - smoothstep(-0.62, -0.08, sunlight);
+            vec3 nightColor = mix(
+              vec3(0.075, 0.1, 0.18),
+              vec3(0.025, 0.04, 0.095),
+              deepNight
+            );
+            gl_FragColor = vec4(nightColor, night * nightOpacity);
+          }
+        `}
+        transparent
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </mesh>
+  );
+}
 
 function latLonToVector3(
   [longitude, latitude]: [number, number],
@@ -791,6 +909,7 @@ function PlanetExperience({
   onSelect,
   onNearbyChange,
   onFootstep,
+  solarDirection,
 }: PlacesSceneProps) {
   const globeRef = useRef<Group>(null);
   const dragRef = useRef<{
@@ -1217,6 +1336,8 @@ function PlanetExperience({
           />
         </mesh>
 
+        <DayNightShade solarDirection={solarDirection} />
+
         <mesh scale={1.003}>
           <icosahedronGeometry args={[PLANET_RADIUS, 4]} />
           <meshBasicMaterial
@@ -1267,6 +1388,15 @@ function PlanetExperience({
 }
 
 export function PlacesScene(props: PlacesSceneProps) {
+  const sunlightPosition = useMemo(
+    () =>
+      new Vector3(...props.solarDirection)
+        .normalize()
+        .multiplyScalar(28)
+        .toArray() as [number, number, number],
+    [props.solarDirection],
+  );
+
   return (
     <Canvas
       className="places-canvas"
@@ -1285,11 +1415,15 @@ export function PlacesScene(props: PlacesSceneProps) {
         gl.domElement.style.touchAction = "none";
       }}
     >
-      <ambientLight intensity={1.7} />
-      <hemisphereLight args={["#fff7eb", "#55736d", 1.35]} />
+      <StarField
+        skyPhase={props.skyPhase}
+        reduceMotion={props.reduceMotion}
+      />
+      <ambientLight intensity={0.95} />
+      <hemisphereLight args={["#fff7eb", "#263c4f", 0.95]} />
       <directionalLight
-        position={[4, 6, 7]}
-        intensity={2.7}
+        position={sunlightPosition}
+        intensity={3.1}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
@@ -1298,7 +1432,11 @@ export function PlacesScene(props: PlacesSceneProps) {
         shadow-camera-top={10}
         shadow-camera-bottom={-10}
       />
-      <directionalLight position={[-5, -2, 3]} intensity={0.65} color="#b9d5d0" />
+      <directionalLight
+        position={[-5, -2, 3]}
+        intensity={0.28}
+        color="#b9d5d0"
+      />
       <PlanetExperience {...props} />
     </Canvas>
   );

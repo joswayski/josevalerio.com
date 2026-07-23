@@ -334,9 +334,30 @@ button {
 }
 
 .places-explorer {
+  --space-top: #658ba0;
+  --space-middle: #9cb7bf;
+  --space-bottom: #d9cfc2;
+  --space-glow: rgba(255, 238, 210, 0.34);
+  --space-ui-muted: #293b46;
   min-width: 0;
   border-bottom: 1px solid var(--line-strong);
-  background: var(--surface-soft);
+  background: var(--space-bottom);
+}
+
+.places-explorer--sky-twilight {
+  --space-top: #171b35;
+  --space-middle: #50445e;
+  --space-bottom: #b77d73;
+  --space-glow: rgba(255, 190, 142, 0.24);
+  --space-ui-muted: #f0e4df;
+}
+
+.places-explorer--sky-night {
+  --space-top: #050812;
+  --space-middle: #10182c;
+  --space-bottom: #222e46;
+  --space-glow: rgba(99, 122, 170, 0.18);
+  --space-ui-muted: #d1d9e7;
 }
 
 .globe-stage {
@@ -344,12 +365,18 @@ button {
   min-width: 0;
   min-height: clamp(32rem, 70vw, 42rem);
   overflow: hidden;
-  background: radial-gradient(
-    circle at 50% 47%,
-    var(--surface) 0,
-    #edf1f0 52%,
-    var(--surface-soft) 78%
-  );
+  background:
+    radial-gradient(
+      circle at 50% 57%,
+      var(--space-glow) 0,
+      transparent 48%
+    ),
+    linear-gradient(
+      180deg,
+      var(--space-top) 0,
+      var(--space-middle) 58%,
+      var(--space-bottom) 100%
+    );
 }
 
 .places-explorer--explore .globe-stage {
@@ -600,11 +627,12 @@ button {
   width: 100%;
   margin: 0;
   padding: 0 0.65rem;
-  color: var(--muted);
+  color: var(--space-ui-muted);
   font-size: 0.7rem;
   line-height: 1.35;
   letter-spacing: 0.025em;
   text-align: center;
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--space-top) 70%, transparent);
 }
 
 .photo-lightbox {

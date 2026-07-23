@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { places, type PlacePhoto } from "../data/places";
-import type { ExploreInput } from "./PlacesScene";
+import type { ExploreInput, SkyPhase } from "./PlacesScene";
 
 type ResolvedPlacePhoto = PlacePhoto & { src: string };
 
@@ -20,6 +20,58 @@ type ExpandedGallery = {
   placeId: string;
   photoIndex: number;
 };
+
+type CelestialState = {
+  skyPhase: SkyPhase;
+  solarDirection: [number, number, number];
+};
+
+const DAY_IN_MILLISECONDS = 86_400_000;
+const DEFAULT_CELESTIAL_STATE: CelestialState = {
+  skyPhase: "day",
+  solarDirection: [-1, 0, 0],
+};
+
+function getCelestialState(now: Date): CelestialState {
+  const localHour =
+    now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+  const skyPhase: SkyPhase =
+    localHour >= 7 && localHour < 17.5
+      ? "day"
+      : (localHour >= 5.25 && localHour < 7) ||
+          (localHour >= 17.5 && localHour < 20)
+        ? "twilight"
+        : "night";
+  // Approximate the current subsolar point from UTC so the globe can show a
+  // real day/night split without requesting the visitor's location.
+  const startOfYear = Date.UTC(now.getUTCFullYear(), 0, 0);
+  const currentDay = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  const dayOfYear = (currentDay - startOfYear) / DAY_IN_MILLISECONDS;
+  const declination =
+    (-23.44 *
+      Math.cos((Math.PI * 2 * (dayOfYear + 10)) / 365.2422) *
+      Math.PI) /
+    180;
+  const utcHour =
+    now.getUTCHours() +
+    now.getUTCMinutes() / 60 +
+    now.getUTCSeconds() / 3600;
+  const subsolarLongitude = ((180 - utcHour * 15) * Math.PI) / 180;
+  const ringRadius = Math.cos(declination);
+
+  return {
+    skyPhase,
+    solarDirection: [
+      -ringRadius * Math.cos(subsolarLongitude),
+      Math.sin(declination),
+      ringRadius * Math.sin(subsolarLongitude),
+    ],
+  };
+}
 
 const LazyPlacesScene = lazy(() =>
   import("./PlacesScene").then(({ PlacesScene }) => ({ default: PlacesScene })),
@@ -109,6 +161,9 @@ export function PlacesGlobe() {
   const [exploreMode, setExploreMode] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [celestialState, setCelestialState] = useState<CelestialState>(
+    DEFAULT_CELESTIAL_STATE,
+  );
   const photoDialogRef = useRef<HTMLDialogElement>(null);
   const projectionButtonRef = useRef<HTMLButtonElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -164,11 +219,20 @@ export function PlacesGlobe() {
 
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     const updateMotionPreference = () => setReduceMotion(motionQuery.matches);
+    const updateCelestialState = () =>
+      setCelestialState(getCelestialState(new Date()));
     updateMotionPreference();
+    updateCelestialState();
     motionQuery.addEventListener("change", updateMotionPreference);
+    const celestialInterval = window.setInterval(
+      updateCelestialState,
+      60_000,
+    );
 
-    return () =>
+    return () => {
       motionQuery.removeEventListener("change", updateMotionPreference);
+      window.clearInterval(celestialInterval);
+    };
   }, []);
 
   useEffect(
@@ -552,7 +616,7 @@ export function PlacesGlobe() {
     <div
       className={`places-explorer${
         exploreMode ? " places-explorer--explore" : ""
-      }`}
+      } places-explorer--sky-${celestialState.skyPhase}`}
     >
       <div className="globe-stage">
         <div className="places-scene-shell">
@@ -568,6 +632,8 @@ export function PlacesGlobe() {
                   onSelect={selectPlace}
                   onNearbyChange={handleNearbyChange}
                   onFootstep={playFootstepSound}
+                  skyPhase={celestialState.skyPhase}
+                  solarDirection={celestialState.solarDirection}
                 />
               </Suspense>
             </SceneErrorBoundary>
@@ -679,7 +745,7 @@ export function PlacesGlobe() {
         <p className="globe-instructions">
           {exploreMode
             ? "Drag orbit · W/S walk · Shift run · A/D turn · Q/E orbit · Space jump · F interact · J out · K in"
-            : "Drag to spin · select a tiny world"}
+            : "Drag to spin"}
         </p>
         <p className="sr-only">
           Walk toward a landmark to reveal its floating photo, then select the
