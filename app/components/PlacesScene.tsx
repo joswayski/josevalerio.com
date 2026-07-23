@@ -39,6 +39,7 @@ export type ExploreInput = {
   cameraOrbit: number;
   running: boolean;
   zoom: number;
+  jumpReady: boolean;
   jumpSequence: number;
 };
 
@@ -59,6 +60,8 @@ const TURN_SPEED = 2.1;
 const START_DISTANCE = 0.24;
 const NEARBY_DISTANCE = Math.cos(0.075);
 const JUMP_DURATION = 0.52;
+const JUMP_LANDING_DELAY = 0.22;
+const JUMP_CYCLE_DURATION = JUMP_DURATION + JUMP_LANDING_DELAY;
 const BROWSE_CAMERA_POSITION = new Vector3(0, 0.45, 18.8);
 const CLOSE_CAMERA_HEIGHT = 9.4;
 const CLOSE_CAMERA_TRAIL = 4.2;
@@ -403,7 +406,9 @@ function Traveler({
   const leftArmRef = useRef<Mesh>(null);
   const rightArmRef = useRef<Mesh>(null);
   const phaseRef = useRef(0);
-  const jumpElapsedRef = useRef(JUMP_DURATION);
+  const jumpElapsedRef = useRef(
+    inputRef.current.jumpReady ? JUMP_CYCLE_DURATION : 0,
+  );
   const lastJumpSequenceRef = useRef(inputRef.current.jumpSequence);
   const positionRef = useRef(new Vector3());
   const lookTargetRef = useRef(new Vector3());
@@ -429,15 +434,24 @@ function Traveler({
     if (inputRef.current.jumpSequence !== lastJumpSequenceRef.current) {
       lastJumpSequenceRef.current = inputRef.current.jumpSequence;
       jumpElapsedRef.current = 0;
+      inputRef.current.jumpReady = false;
     }
 
     jumpElapsedRef.current = Math.min(
-      JUMP_DURATION,
+      JUMP_CYCLE_DURATION,
       jumpElapsedRef.current + delta,
     );
 
-    const jumpProgress = jumpElapsedRef.current / JUMP_DURATION;
-    const jumping = jumpProgress < 1;
+    if (
+      !inputRef.current.jumpReady &&
+      jumpElapsedRef.current >= JUMP_CYCLE_DURATION
+    ) {
+      inputRef.current.jumpReady = true;
+    }
+
+    const jumpProgress =
+      Math.min(jumpElapsedRef.current, JUMP_DURATION) / JUMP_DURATION;
+    const jumping = jumpElapsedRef.current < JUMP_DURATION;
     const jumpCurve = jumping ? Math.sin(jumpProgress * Math.PI) : 0;
     const jumpLift = jumpCurve * (reduceMotion ? 0.08 : 0.38);
 

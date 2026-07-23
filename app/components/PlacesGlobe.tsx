@@ -117,6 +117,7 @@ export function PlacesGlobe() {
     cameraOrbit: 0,
     running: false,
     zoom: 0,
+    jumpReady: true,
     jumpSequence: 0,
   });
   const pressedKeysRef = useRef(new Set<string>());
@@ -200,6 +201,7 @@ export function PlacesGlobe() {
         cameraOrbit: 0,
         running: false,
         zoom: 0,
+        jumpReady: true,
         jumpSequence: exploreInputRef.current.jumpSequence,
       };
       return;
@@ -222,6 +224,7 @@ export function PlacesGlobe() {
         cameraOrbit: Number(orbitRight) - Number(orbitLeft),
         running: keys.has("Shift"),
         zoom: Number(zoomIn) - Number(zoomOut),
+        jumpReady: exploreInputRef.current.jumpReady,
         jumpSequence: exploreInputRef.current.jumpSequence,
       };
     };
@@ -269,6 +272,7 @@ export function PlacesGlobe() {
         cameraOrbit: 0,
         running: false,
         zoom: 0,
+        jumpReady: true,
         jumpSequence: exploreInputRef.current.jumpSequence,
       };
     };
@@ -358,8 +362,13 @@ export function PlacesGlobe() {
   }, []);
 
   const triggerJump = useCallback(() => {
+    if (!exploreInputRef.current.jumpReady) {
+      return;
+    }
+
     exploreInputRef.current = {
       ...exploreInputRef.current,
+      jumpReady: false,
       jumpSequence: exploreInputRef.current.jumpSequence + 1,
     };
     playJumpSound();
