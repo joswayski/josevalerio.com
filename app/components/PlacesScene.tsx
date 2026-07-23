@@ -76,6 +76,7 @@ const OVERVIEW_CAMERA_HEIGHT = 21;
 const OVERVIEW_CAMERA_TRAIL = 6;
 const OVERVIEW_TARGET_HEIGHT = 0.5;
 const OVERVIEW_TARGET_LEAD = 3;
+const DEFAULT_CAMERA_DISTANCE = 0.65;
 const CAMERA_DISTANCE_RATE = 0.75;
 const CAMERA_ORBIT_SPEED = 0.85;
 const CAMERA_ORBIT_RESPONSE = 2.1;
@@ -245,13 +246,18 @@ function MountainDiorama({ color }: { color: string }) {
 function PhotoProjection({
   projectionRef,
   horizonRef,
+  travelerDirectionRef,
+  exploreMode,
 }: {
   projectionRef: RefObject<HTMLButtonElement | null>;
   horizonRef: RefObject<Group | null>;
+  travelerDirectionRef: MutableRefObject<Vector3>;
+  exploreMode: boolean;
 }) {
   const anchorRef = useRef<Group>(null);
   const projectedPositionRef = useRef(new Vector3());
   const horizonPositionRef = useRef(new Vector3());
+  const travelerProjectedPositionRef = useRef(new Vector3());
   const { camera, gl } = useThree();
 
   useEffect(
@@ -355,6 +361,78 @@ function PhotoProjection({
       }
     }
 
+    if (exploreMode) {
+      const travelerProjectedPosition = travelerProjectedPositionRef.current
+        .copy(travelerDirectionRef.current)
+        .multiplyScalar(PLANET_RADIUS + 0.38)
+        .project(camera);
+      const travelerIsOnScreen =
+        travelerProjectedPosition.z > -1 &&
+        travelerProjectedPosition.z < 1 &&
+        Math.abs(travelerProjectedPosition.x) < 1.1 &&
+        Math.abs(travelerProjectedPosition.y) < 1.1;
+
+      if (travelerIsOnScreen) {
+        const travelerX =
+          (travelerProjectedPosition.x * 0.5 + 0.5) * stageWidth;
+        const travelerY =
+          (-travelerProjectedPosition.y * 0.5 + 0.5) * stageHeight;
+        const travelerHalfWidth = MathUtils.clamp(
+          stageWidth * 0.1,
+          44,
+          72,
+        );
+        const travelerHalfHeight = MathUtils.clamp(
+          stageHeight * 0.12,
+          58,
+          96,
+        );
+        const travelerLeft = travelerX - travelerHalfWidth;
+        const travelerRight = travelerX + travelerHalfWidth;
+        const travelerTop = travelerY - travelerHalfHeight;
+        const travelerBottom = travelerY + travelerHalfHeight;
+        const overlapsTraveler =
+          left < travelerRight + gap &&
+          left + cardWidth > travelerLeft - gap &&
+          top < travelerBottom + gap &&
+          top + cardHeight > travelerTop - gap;
+
+        if (overlapsTraveler) {
+          const leftOfTraveler = travelerLeft - cardWidth - gap;
+          const rightOfTraveler = travelerRight + gap;
+          const roomOnLeft = travelerLeft - gap - margin;
+          const roomOnRight = stageWidth - margin - rightOfTraveler;
+
+          if (roomOnLeft >= cardWidth || roomOnRight >= cardWidth) {
+            left =
+              roomOnLeft >= cardWidth && roomOnLeft >= roomOnRight
+                ? leftOfTraveler
+                : rightOfTraveler;
+          } else {
+            const aboveTraveler = travelerTop - cardHeight - gap;
+            const belowTraveler = travelerBottom + gap;
+            const roomAbove = travelerTop - gap - margin;
+            const roomBelow = stageHeight - margin - belowTraveler;
+            top =
+              roomAbove >= cardHeight && roomAbove >= roomBelow
+                ? aboveTraveler
+                : belowTraveler;
+          }
+
+          left = MathUtils.clamp(
+            left,
+            margin,
+            stageWidth - cardWidth - margin,
+          );
+          top = MathUtils.clamp(
+            top,
+            margin,
+            stageHeight - cardHeight - margin,
+          );
+        }
+      }
+    }
+
     projection.style.opacity = visible ? "1" : "0";
     projection.style.pointerEvents = visible ? "auto" : "none";
     projection.style.visibility = aboveHorizon ? "visible" : "hidden";
@@ -383,12 +461,14 @@ function DestinationWorld({
   selected,
   exploreMode,
   projectionRef,
+  travelerDirectionRef,
   onSelect,
 }: {
   place: Place;
   selected: boolean;
   exploreMode: boolean;
   projectionRef: RefObject<HTMLButtonElement | null>;
+  travelerDirectionRef: MutableRefObject<Vector3>;
   onSelect: (placeId: string) => void;
 }) {
   const groupRef = useRef<Group>(null);
@@ -498,6 +578,8 @@ function DestinationWorld({
         <PhotoProjection
           projectionRef={projectionRef}
           horizonRef={groupRef}
+          travelerDirectionRef={travelerDirectionRef}
+          exploreMode={exploreMode}
         />
       ) : null}
     </group>
@@ -726,10 +808,11 @@ function PlanetExperience({
   const cameraOrbitAngleRef = useRef(0);
   const cameraOrbitVelocityRef = useRef(0);
   const cameraOrbitDirectionRef = useRef(new Vector3());
+  const cameraFramingDirectionRef = useRef(new Vector3());
   const desiredCameraRef = useRef(new Vector3());
   const cameraTargetRef = useRef(new Vector3());
-  const cameraDistanceRef = useRef(0);
-  const cameraDistanceTargetRef = useRef(0);
+  const cameraDistanceRef = useRef(DEFAULT_CAMERA_DISTANCE);
+  const cameraDistanceTargetRef = useRef(DEFAULT_CAMERA_DISTANCE);
   const texture = useMemo(createGlobeTexture, []);
   const { camera, gl } = useThree();
 
@@ -773,22 +856,42 @@ function PlanetExperience({
       movementVelocityRef.current = 0;
       cameraOrbitAngleRef.current = 0;
       cameraOrbitVelocityRef.current = 0;
-      cameraDistanceRef.current = 0;
-      cameraDistanceTargetRef.current = 0;
+      cameraDistanceRef.current = DEFAULT_CAMERA_DISTANCE;
+      cameraDistanceTargetRef.current = DEFAULT_CAMERA_DISTANCE;
       nearbyPlaceIdRef.current = null;
       onNearbyChangeRef.current(null);
 
       const playerUp = playerUpRef.current;
       const playerForward = playerForwardRef.current;
+      const cameraHeight = MathUtils.lerp(
+        CLOSE_CAMERA_HEIGHT,
+        OVERVIEW_CAMERA_HEIGHT,
+        DEFAULT_CAMERA_DISTANCE,
+      );
+      const cameraTrail = MathUtils.lerp(
+        CLOSE_CAMERA_TRAIL,
+        OVERVIEW_CAMERA_TRAIL,
+        DEFAULT_CAMERA_DISTANCE,
+      );
+      const targetHeight = MathUtils.lerp(
+        CLOSE_TARGET_HEIGHT,
+        OVERVIEW_TARGET_HEIGHT,
+        DEFAULT_CAMERA_DISTANCE,
+      );
+      const targetLead = MathUtils.lerp(
+        CLOSE_TARGET_LEAD,
+        OVERVIEW_TARGET_LEAD,
+        DEFAULT_CAMERA_DISTANCE,
+      );
       const cameraTarget = new Vector3()
         .copy(playerUp)
-        .multiplyScalar(CLOSE_TARGET_HEIGHT)
-        .addScaledVector(playerForward, CLOSE_TARGET_LEAD);
+        .multiplyScalar(targetHeight)
+        .addScaledVector(playerForward, targetLead);
 
       camera.position
         .copy(playerUp)
-        .multiplyScalar(CLOSE_CAMERA_HEIGHT)
-        .addScaledVector(playerForward, -CLOSE_CAMERA_TRAIL);
+        .multiplyScalar(cameraHeight)
+        .addScaledVector(playerForward, -cameraTrail);
       camera.up.copy(playerUp);
       camera.lookAt(cameraTarget);
     } else if (!exploreMode) {
@@ -997,13 +1100,24 @@ function PlanetExperience({
         .copy(playerUp)
         .multiplyScalar(cameraHeight)
         .addScaledVector(cameraOrbitDirection, -cameraTrail);
-      const cameraTarget = cameraTargetRef.current
-        .copy(playerUp)
-        .multiplyScalar(targetHeight)
-        .addScaledVector(playerForward, targetLead);
 
       camera.position.lerp(desiredCamera, cameraEase);
       camera.up.lerp(playerUp, cameraEase).normalize();
+      const cameraFramingDirection = cameraFramingDirectionRef.current
+        .copy(camera.position)
+        .addScaledVector(playerUp, -camera.position.dot(playerUp))
+        .multiplyScalar(-1);
+
+      if (cameraFramingDirection.lengthSq() < 0.0001) {
+        cameraFramingDirection.copy(cameraOrbitDirection);
+      } else {
+        cameraFramingDirection.normalize();
+      }
+
+      const cameraTarget = cameraTargetRef.current
+        .copy(playerUp)
+        .multiplyScalar(targetHeight)
+        .addScaledVector(cameraFramingDirection, targetLead);
       camera.lookAt(cameraTarget);
 
       let nearestPlace: Place | null = null;
@@ -1059,8 +1173,8 @@ function PlanetExperience({
     camera.lookAt(0, -0.05, 0);
     cameraOrbitAngleRef.current = 0;
     cameraOrbitVelocityRef.current = 0;
-    cameraDistanceRef.current = 0;
-    cameraDistanceTargetRef.current = 0;
+    cameraDistanceRef.current = DEFAULT_CAMERA_DISTANCE;
+    cameraDistanceTargetRef.current = DEFAULT_CAMERA_DISTANCE;
   });
 
   return (
@@ -1094,6 +1208,7 @@ function PlanetExperience({
             selected={place.id === selectedPlaceId}
             exploreMode={exploreMode}
             projectionRef={projectionRef}
+            travelerDirectionRef={playerUpRef}
             onSelect={onSelect}
           />
         ))}
