@@ -488,6 +488,7 @@ button {
   top: 0.75rem;
   left: 0.75rem;
   z-index: 2;
+  cursor: pointer;
 }
 
 .explore-toggle {
@@ -509,6 +510,7 @@ button {
 
 .explore-toggle span {
   color: var(--accent);
+  cursor: pointer;
   font-size: 0.62rem;
 }
 
