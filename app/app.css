@@ -344,7 +344,6 @@ button {
   min-width: 0;
   min-height: clamp(32rem, 70vw, 42rem);
   overflow: hidden;
-  border-bottom: 1px solid var(--line);
   background: radial-gradient(
     circle at 50% 47%,
     var(--surface) 0,
@@ -354,7 +353,7 @@ button {
 }
 
 .places-explorer--explore .globe-stage {
-  min-height: min(76vh, 46rem);
+  min-height: min(78vh, 50rem);
 }
 
 .places-scene-shell,
@@ -370,6 +369,40 @@ button {
 .places-canvas {
   width: 100% !important;
   height: 100% !important;
+}
+
+.place-photo-projection {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: clamp(4.75rem, 12vw, 6.5rem);
+  padding: 0.28rem;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.16rem;
+  background: #fffaf1;
+  box-shadow: 0 0.3rem 0.85rem rgba(23, 25, 29, 0.16);
+  cursor: zoom-in;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease;
+  will-change: transform;
+}
+
+.place-photo-projection:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0.4rem 1rem rgba(23, 25, 29, 0.22);
+}
+
+.place-photo-projection img {
+  display: block;
+  width: 100%;
+  max-height: 7rem;
+  object-fit: contain;
 }
 
 .places-scene-fallback {
@@ -560,143 +593,6 @@ button {
   font-size: 0.7rem;
   letter-spacing: 0.025em;
   text-align: center;
-}
-
-.place-card {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: minmax(12rem, 0.72fr) minmax(0, 1.28fr);
-  gap: 1.5rem;
-  padding: 1.5rem;
-  background: var(--surface);
-}
-
-.place-card-copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 1.15rem;
-}
-
-.place-card-kicker {
-  margin: 0;
-  color: var(--accent);
-  font-family: var(--code);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.045em;
-}
-
-.place-card h3 {
-  margin: 0;
-  font-size: 1.55rem;
-  font-weight: 700;
-  letter-spacing: -0.035em;
-  line-height: 1.05;
-}
-
-.place-card-heading {
-  min-width: 0;
-}
-
-.place-card-region {
-  margin: 0.4rem 0 0;
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.place-card-note {
-  margin: 0;
-  color: var(--ink);
-  font-size: 0.82rem;
-  line-height: 1.5;
-}
-
-.place-card-note--empty {
-  color: var(--muted);
-}
-
-.place-photos {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-content: start;
-  gap: 0.55rem;
-}
-
-.place-photo-button {
-  position: relative;
-  min-width: 0;
-  padding: 0;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 0.2rem;
-  background: var(--surface-soft);
-  cursor: zoom-in;
-}
-
-.place-photo-button img {
-  display: block;
-  width: 100%;
-  height: auto;
-  object-fit: contain;
-  transition: transform 160ms ease;
-}
-
-.place-photo-button:hover img {
-  transform: scale(1.015);
-}
-
-.place-photo-button span {
-  position: absolute;
-  right: 0.55rem;
-  bottom: 0.55rem;
-  padding: 0.25rem 0.42rem;
-  border-radius: 0.2rem;
-  background: color-mix(in oklch, var(--ink) 82%, transparent);
-  color: var(--surface);
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.place-photo-button:only-child {
-  grid-column: 1 / -1;
-}
-
-.place-photo-button:first-child:nth-last-child(3) {
-  grid-row: span 2;
-}
-
-.place-photo-button:first-child:nth-last-child(3) img {
-  height: 100%;
-}
-
-.place-card-controls {
-  display: flex;
-  gap: 0.4rem;
-  margin-top: auto;
-}
-
-.place-card-controls button {
-  display: inline-grid;
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
-  border: 1px solid var(--line-strong);
-  border-radius: 0.2rem;
-  background: var(--surface-soft);
-  cursor: pointer;
-  place-items: center;
-  transition:
-    border-color 120ms ease,
-    background-color 120ms ease,
-    color 120ms ease;
-}
-
-.place-card-controls button:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
 }
 
 .photo-lightbox {
@@ -1109,17 +1005,6 @@ button {
 
   .places-explorer--explore .globe-stage {
     min-height: 70vh;
-  }
-
-  .place-card {
-    grid-template-columns: minmax(0, 1fr);
-    min-height: 12rem;
-    gap: 1.25rem;
-    padding: 1.25rem;
-  }
-
-  .place-card-copy {
-    min-height: 12rem;
   }
 
   .explore-place-hud {

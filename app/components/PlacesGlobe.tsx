@@ -95,22 +95,17 @@ export function PlacesGlobe() {
   const [nearbyPlaceId, setNearbyPlaceId] = useState<string | null>(null);
   const [expandedPhoto, setExpandedPhoto] =
     useState<ResolvedPlacePhoto | null>(null);
-  const [exploreMode, setExploreMode] = useState(false);
+  const [exploreMode, setExploreMode] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const photoDialogRef = useRef<HTMLDialogElement>(null);
+  const projectionButtonRef = useRef<HTMLButtonElement>(null);
   const exploreInputRef = useRef<ExploreInput>({
     horizontal: 0,
     vertical: 0,
   });
   const pressedKeysRef = useRef(new Set<string>());
 
-  const selectedPlace = useMemo(
-    () =>
-      places.find((place) => place.id === selectedPlaceId) ?? places[0],
-    [selectedPlaceId],
-  );
-  const selectedPlaceIndex = places.indexOf(selectedPlace);
   const nearbyPlace = useMemo(
     () => places.find((place) => place.id === nearbyPlaceId) ?? null,
     [nearbyPlaceId],
@@ -119,13 +114,20 @@ export function PlacesGlobe() {
   const mediaBaseUrl = (
     import.meta.env.VITE_PLACES_MEDIA_URL || "https://media.josevalerio.com"
   ).replace(/\/+$/, "");
-  const selectedPhotos = selectedPlace.photos.flatMap((photo) => {
-    const src = resolvePhotoSrc(photo, mediaBaseUrl);
-    return src ? [{ ...photo, src }] : [];
-  });
-  const hasPublishedPhotos = selectedPhotos.some(
-    (photo) => photo.src !== "/places/placeholder.svg",
+  const photosByPlaceId = useMemo(
+    () =>
+      Object.fromEntries(
+        places.map((place) => [
+          place.id,
+          place.photos.flatMap((photo) => {
+            const src = resolvePhotoSrc(photo, mediaBaseUrl);
+            return src ? [{ ...photo, src }] : [];
+          }),
+        ]),
+      ) as Record<string, ResolvedPlacePhoto[]>,
+    [mediaBaseUrl],
   );
+  const selectedPhoto = photosByPlaceId[selectedPlaceId]?.[0] ?? null;
 
   useEffect(() => {
     setIsMounted(true);
@@ -216,11 +218,16 @@ export function PlacesGlobe() {
     setNearbyPlaceId(placeId);
   }, []);
 
-  const selectRelativePlace = (offset: number) => {
-    const nextIndex =
-      (selectedPlaceIndex + offset + places.length) % places.length;
-    selectPlace(places[nextIndex].id);
-  };
+  const openPlacePhoto = useCallback(
+    (placeId: string) => {
+      const photo = photosByPlaceId[placeId]?.[0];
+
+      if (photo) {
+        setExpandedPhoto(photo);
+      }
+    },
+    [photosByPlaceId],
+  );
 
   const startTouchMovement =
     (horizontal: number, vertical: number) =>
@@ -247,13 +254,6 @@ export function PlacesGlobe() {
     });
   };
 
-  const showNearbyPhotos = () => {
-    document.getElementById("place-card")?.scrollIntoView({
-      behavior: reduceMotion ? "auto" : "smooth",
-      block: "center",
-    });
-  };
-
   const sceneFallback = <SceneFallback />;
 
   return (
@@ -272,6 +272,7 @@ export function PlacesGlobe() {
                   exploreMode={exploreMode}
                   exploreInputRef={exploreInputRef}
                   reduceMotion={reduceMotion}
+                  projectionRef={projectionButtonRef}
                   onSelect={selectPlace}
                   onNearbyChange={handleNearbyChange}
                 />
@@ -281,6 +282,23 @@ export function PlacesGlobe() {
             sceneFallback
           )}
         </div>
+
+        {selectedPhoto ? (
+          <button
+            ref={projectionButtonRef}
+            type="button"
+            className="place-photo-projection"
+            aria-label={`Expand photo: ${selectedPhoto.alt}`}
+            onClick={() => openPlacePhoto(selectedPlaceId)}
+          >
+            <img
+              src={selectedPhoto.src}
+              alt={selectedPhoto.alt}
+              width={selectedPhoto.width}
+              height={selectedPhoto.height}
+            />
+          </button>
+        ) : null}
 
         <div className="globe-toolbar">
           <button
@@ -347,8 +365,11 @@ export function PlacesGlobe() {
           <div className="explore-place-hud" aria-live="polite">
             <span>Nearby</span>
             <strong>{nearbyPlace.name}</strong>
-            <button type="button" onClick={showNearbyPhotos}>
-              View photos ↓
+            <button
+              type="button"
+              onClick={() => openPlacePhoto(nearbyPlace.id)}
+            >
+              Open photo ↗
             </button>
           </div>
         ) : null}
@@ -359,72 +380,10 @@ export function PlacesGlobe() {
             : "Drag to spin · select a tiny world"}
         </p>
         <p className="sr-only">
-          Use the previous and next buttons in the place card to browse every
-          destination without using the 3D globe.
+          Walk toward a landmark to reveal its floating photo, then select the
+          photo to expand it.
         </p>
       </div>
-
-      <article id="place-card" className="place-card" aria-live="polite">
-        <div className="place-card-copy">
-          <p className="place-card-kicker">
-            {String(selectedPlaceIndex + 1).padStart(2, "0")} / {places.length}
-          </p>
-          <div className="place-card-heading">
-            <h3>{selectedPlace.name}</h3>
-            <p className="place-card-region">{selectedPlace.region}</p>
-          </div>
-
-          {selectedPlace.note ? (
-            <p className="place-card-note">{selectedPlace.note}</p>
-          ) : (
-            <p className="place-card-note place-card-note--empty">
-              {hasPublishedPhotos
-                ? "A short note coming soon."
-                : "Photos and a short note coming soon."}
-            </p>
-          )}
-
-          <div className="place-card-controls">
-            <button
-              type="button"
-              aria-label="Show previous place"
-              onClick={() => selectRelativePlace(-1)}
-            >
-              ←
-            </button>
-            <button
-              type="button"
-              aria-label="Show next place"
-              onClick={() => selectRelativePlace(1)}
-            >
-              →
-            </button>
-          </div>
-        </div>
-
-        {selectedPhotos.length > 0 ? (
-          <div className="place-photos">
-            {selectedPhotos.map((photo) => (
-              <button
-                key={photo.objectKey ?? photo.src}
-                type="button"
-                className="place-photo-button"
-                aria-label={`Expand photo: ${photo.alt}`}
-                onClick={() => setExpandedPhoto(photo)}
-              >
-                <img
-                  src={photo.src}
-                  alt={photo.alt}
-                  width={photo.width}
-                  height={photo.height}
-                  loading="lazy"
-                />
-                <span aria-hidden="true">Expand ↗</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </article>
 
       <dialog
         ref={photoDialogRef}

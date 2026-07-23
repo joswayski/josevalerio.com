@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
   type MutableRefObject,
+  type RefObject,
 } from "react";
 import {
   BackSide,
@@ -42,6 +43,7 @@ type PlacesSceneProps = {
   exploreMode: boolean;
   exploreInputRef: MutableRefObject<ExploreInput>;
   reduceMotion: boolean;
+  projectionRef: RefObject<HTMLButtonElement | null>;
   onSelect: (placeId: string) => void;
   onNearbyChange: (placeId: string | null) => void;
 };
@@ -52,6 +54,10 @@ const TURN_SPEED = 2.1;
 const START_DISTANCE = 0.24;
 const NEARBY_DISTANCE = Math.cos(0.075);
 const BROWSE_CAMERA_POSITION = new Vector3(0, 0.45, 18.8);
+const EXPLORE_CAMERA_HEIGHT = 16.2;
+const EXPLORE_CAMERA_TRAIL = 12.4;
+const EXPLORE_TARGET_HEIGHT = 1.2;
+const EXPLORE_TARGET_LEAD = 0.8;
 const WORLD = worldAtlas as unknown as Topology<{
   countries: GeometryCollection;
   land: GeometryObject;
@@ -195,15 +201,81 @@ function MountainDiorama({ color }: { color: string }) {
   );
 }
 
+function PhotoProjection({
+  projectionRef,
+}: {
+  projectionRef: RefObject<HTMLButtonElement | null>;
+}) {
+  const anchorRef = useRef<Group>(null);
+  const projectedPositionRef = useRef(new Vector3());
+  const { camera, gl } = useThree();
+
+  useEffect(
+    () => () => {
+      const projection = projectionRef.current;
+
+      if (projection) {
+        projection.style.opacity = "0";
+        projection.style.pointerEvents = "none";
+      }
+    },
+    [projectionRef],
+  );
+
+  useFrame(({ clock }) => {
+    const anchor = anchorRef.current;
+    const projection = projectionRef.current;
+
+    if (!anchor || !projection) {
+      return;
+    }
+
+    anchor.position.y = 0.9 + Math.sin(clock.elapsedTime * 1.45) * 0.025;
+    anchor.updateWorldMatrix(true, false);
+
+    const projectedPosition = projectedPositionRef.current;
+    anchor.getWorldPosition(projectedPosition);
+    projectedPosition.project(camera);
+
+    const visible =
+      projectedPosition.z > -1 &&
+      projectedPosition.z < 1 &&
+      Math.abs(projectedPosition.x) < 1.2 &&
+      Math.abs(projectedPosition.y) < 1.2;
+    const x = (projectedPosition.x * 0.5 + 0.5) * gl.domElement.clientWidth;
+    const y = (-projectedPosition.y * 0.5 + 0.5) * gl.domElement.clientHeight;
+
+    projection.style.opacity = visible ? "1" : "0";
+    projection.style.pointerEvents = visible ? "auto" : "none";
+    projection.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+  });
+
+  return (
+    <group scale={0.5}>
+      <mesh position={[0, 0.48, 0]}>
+        <cylinderGeometry args={[0.008, 0.018, 0.66, 6]} />
+        <meshBasicMaterial color="#d04842" transparent opacity={0.68} />
+      </mesh>
+      <mesh position={[0, 0.82, 0]}>
+        <sphereGeometry args={[0.026, 8, 6]} />
+        <meshBasicMaterial color="#d04842" />
+      </mesh>
+      <group ref={anchorRef} position={[0, 0.9, 0]} />
+    </group>
+  );
+}
+
 function DestinationWorld({
   place,
   selected,
   exploreMode,
+  projectionRef,
   onSelect,
 }: {
   place: Place;
   selected: boolean;
   exploreMode: boolean;
+  projectionRef: RefObject<HTMLButtonElement | null>;
   onSelect: (placeId: string) => void;
 }) {
   const groupRef = useRef<Group>(null);
@@ -290,6 +362,8 @@ function DestinationWorld({
           </mesh>
         ) : null}
       </group>
+
+      {selected ? <PhotoProjection projectionRef={projectionRef} /> : null}
     </group>
   );
 }
@@ -346,7 +420,7 @@ function Traveler({
   });
 
   return (
-    <group ref={groupRef}>
+    <group ref={groupRef} scale={1.9}>
       <group>
         <mesh ref={leftLegRef} position={[-0.035, 0.055, 0]} castShadow>
           <boxGeometry args={[0.045, 0.12, 0.05]} />
@@ -378,6 +452,7 @@ function PlanetExperience({
   exploreMode,
   exploreInputRef,
   reduceMotion,
+  projectionRef,
   onSelect,
   onNearbyChange,
 }: PlacesSceneProps) {
@@ -448,18 +523,15 @@ function PlanetExperience({
 
       const playerUp = playerUpRef.current;
       const playerForward = playerForwardRef.current;
-      const playerPosition = new Vector3()
-        .copy(playerUp)
-        .multiplyScalar(PLANET_RADIUS + 0.1);
       const cameraTarget = new Vector3()
-        .copy(playerPosition)
-        .addScaledVector(playerUp, 0.24)
-        .addScaledVector(playerForward, 0.55);
+        .copy(playerUp)
+        .multiplyScalar(EXPLORE_TARGET_HEIGHT)
+        .addScaledVector(playerForward, EXPLORE_TARGET_LEAD);
 
       camera.position
-        .copy(playerPosition)
-        .addScaledVector(playerUp, 0.72)
-        .addScaledVector(playerForward, -1.55);
+        .copy(playerUp)
+        .multiplyScalar(EXPLORE_CAMERA_HEIGHT)
+        .addScaledVector(playerForward, -EXPLORE_CAMERA_TRAIL);
       camera.up.copy(playerUp);
       camera.lookAt(cameraTarget);
     } else if (!exploreMode) {
@@ -588,14 +660,12 @@ function PlanetExperience({
       const cameraEase = 1 - Math.exp(-frameDelta * 7);
       const desiredCamera = desiredCameraRef.current
         .copy(playerUp)
-        .multiplyScalar(PLANET_RADIUS + 0.1)
-        .addScaledVector(playerUp, 0.72)
-        .addScaledVector(playerForward, -1.55);
+        .multiplyScalar(EXPLORE_CAMERA_HEIGHT)
+        .addScaledVector(playerForward, -EXPLORE_CAMERA_TRAIL);
       const cameraTarget = cameraTargetRef.current
         .copy(playerUp)
-        .multiplyScalar(PLANET_RADIUS + 0.1)
-        .addScaledVector(playerUp, 0.24)
-        .addScaledVector(playerForward, 0.55);
+        .multiplyScalar(EXPLORE_TARGET_HEIGHT)
+        .addScaledVector(playerForward, EXPLORE_TARGET_LEAD);
 
       camera.position.lerp(desiredCamera, cameraEase);
       camera.up.lerp(playerUp, cameraEase).normalize();
@@ -693,6 +763,7 @@ function PlanetExperience({
             place={place}
             selected={place.id === selectedPlaceId}
             exploreMode={exploreMode}
+            projectionRef={projectionRef}
             onSelect={onSelect}
           />
         ))}
