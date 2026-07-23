@@ -89,6 +89,7 @@ const CAMERA_ORBIT_RELEASE = 1.65;
 const CAMERA_ORBIT_DRAG_SENSITIVITY = 0.006;
 const CAMERA_ORBIT_ANGLE_RESPONSE = 8;
 const CAMERA_FOLLOW_RESPONSE = 4;
+const TRAVELER_TURN_RESPONSE = 9;
 const TRAVELER_RENDER_ORDER = 20;
 const HORIZON_CLIP_MARGIN = 0.035;
 const WORLD = worldAtlas as unknown as Topology<{
@@ -838,11 +839,14 @@ function Traveler({
           ref={leftLegRef}
           position={[-0.035, 0.055, 0]}
           renderOrder={TRAVELER_RENDER_ORDER}
-          onBeforeRender={(renderer) => renderer.clearDepth()}
           castShadow
         >
           <boxGeometry args={[0.045, 0.12, 0.05]} />
-          <meshStandardMaterial color="#2c3b40" flatShading />
+          <meshStandardMaterial
+            color="#2c3b40"
+            depthTest={false}
+            flatShading
+          />
         </mesh>
         <mesh
           ref={rightLegRef}
@@ -851,7 +855,11 @@ function Traveler({
           castShadow
         >
           <boxGeometry args={[0.045, 0.12, 0.05]} />
-          <meshStandardMaterial color="#2c3b40" flatShading />
+          <meshStandardMaterial
+            color="#2c3b40"
+            depthTest={false}
+            flatShading
+          />
         </mesh>
         <mesh
           position={[0, 0.17, 0]}
@@ -859,7 +867,11 @@ function Traveler({
           castShadow
         >
           <capsuleGeometry args={[0.065, 0.13, 4, 8]} />
-          <meshStandardMaterial color="#d04842" flatShading />
+          <meshStandardMaterial
+            color="#d04842"
+            depthTest={false}
+            flatShading
+          />
         </mesh>
         <mesh
           ref={leftArmRef}
@@ -868,7 +880,11 @@ function Traveler({
           castShadow
         >
           <boxGeometry args={[0.035, 0.16, 0.04]} />
-          <meshStandardMaterial color="#e9c5a4" flatShading />
+          <meshStandardMaterial
+            color="#e9c5a4"
+            depthTest={false}
+            flatShading
+          />
         </mesh>
         <mesh
           ref={rightArmRef}
@@ -877,7 +893,11 @@ function Traveler({
           castShadow
         >
           <boxGeometry args={[0.035, 0.16, 0.04]} />
-          <meshStandardMaterial color="#e9c5a4" flatShading />
+          <meshStandardMaterial
+            color="#e9c5a4"
+            depthTest={false}
+            flatShading
+          />
         </mesh>
         <mesh
           position={[0, 0.32, 0]}
@@ -885,7 +905,11 @@ function Traveler({
           castShadow
         >
           <icosahedronGeometry args={[0.078, 1]} />
-          <meshStandardMaterial color="#e9c5a4" flatShading />
+          <meshStandardMaterial
+            color="#e9c5a4"
+            depthTest={false}
+            flatShading
+          />
         </mesh>
         <mesh
           position={[0, 0.2, -0.065]}
@@ -893,7 +917,11 @@ function Traveler({
           castShadow
         >
           <boxGeometry args={[0.105, 0.13, 0.055]} />
-          <meshStandardMaterial color="#d4a64c" flatShading />
+          <meshStandardMaterial
+            color="#d4a64c"
+            depthTest={false}
+            flatShading
+          />
         </mesh>
       </group>
     </group>
@@ -921,10 +949,13 @@ function PlanetExperience({
   const targetQuaternionRef = useRef(new Quaternion());
   const playerUpRef = useRef(new Vector3(0, 1, 0));
   const playerForwardRef = useRef(new Vector3(0, 0, 1));
+  const travelerForwardRef = useRef(new Vector3(0, 0, 1));
   const wasExploreModeRef = useRef(false);
   const nearbyPlaceIdRef = useRef<string | null>(null);
   const onNearbyChangeRef = useRef(onNearbyChange);
   const movementAxisRef = useRef(new Vector3());
+  const movementTargetDirectionRef = useRef(new Vector3(0, 0, 1));
+  const travelerTurnCrossRef = useRef(new Vector3());
   const movementVelocityRef = useRef(0);
   const cameraOrbitAngleRef = useRef(0);
   const cameraOrbitTargetAngleRef = useRef(0);
@@ -972,6 +1003,8 @@ function PlanetExperience({
           -selectedDirection.dot(playerUpRef.current),
         )
         .normalize();
+      travelerForwardRef.current.copy(playerForwardRef.current);
+      movementTargetDirectionRef.current.copy(playerForwardRef.current);
 
       targetQuaternionRef.current.identity();
       globeRef.current?.quaternion.identity();
@@ -1133,8 +1166,66 @@ function PlanetExperience({
 
       const playerUp = playerUpRef.current;
       const playerForward = playerForwardRef.current;
+      const travelerForward = travelerForwardRef.current;
+
+      if (input.horizontal !== 0) {
+        const turnAngle = -input.horizontal * TURN_SPEED * frameDelta;
+        playerForward.applyAxisAngle(playerUp, turnAngle).normalize();
+        travelerForward.applyAxisAngle(playerUp, turnAngle).normalize();
+      }
+
+      const movementTargetDirection = movementTargetDirectionRef.current;
+
+      if (input.vertical !== 0) {
+        movementTargetDirection
+          .copy(camera.position)
+          .addScaledVector(playerUp, -camera.position.dot(playerUp))
+          .multiplyScalar(-Math.sign(input.vertical));
+
+        if (movementTargetDirection.lengthSq() > 0.0001) {
+          movementTargetDirection.normalize();
+          const travelerTurnCross = travelerTurnCrossRef.current
+            .crossVectors(travelerForward, movementTargetDirection);
+          const travelerTurnAngle = Math.atan2(
+            travelerTurnCross.dot(playerUp),
+            MathUtils.clamp(
+              travelerForward.dot(movementTargetDirection),
+              -1,
+              1,
+            ),
+          );
+          const travelerTurnStep = reduceMotion
+            ? travelerTurnAngle
+            : MathUtils.damp(
+                0,
+                travelerTurnAngle,
+                TRAVELER_TURN_RESPONSE,
+                frameDelta,
+              );
+
+          travelerForward
+            .applyAxisAngle(playerUp, travelerTurnStep)
+            .normalize();
+        }
+      }
+
+      const movementAlignment =
+        input.vertical === 0
+          ? 0
+          : MathUtils.clamp(
+              travelerForward.dot(movementTargetDirection),
+              -1,
+              1,
+            );
+      const movementReadiness = MathUtils.smoothstep(
+        movementAlignment,
+        -0.1,
+        0.92,
+      );
       const targetMovementVelocity =
-        input.vertical * (input.running ? RUN_SPEED : WALK_SPEED);
+        Math.abs(input.vertical) *
+        (input.running ? RUN_SPEED : WALK_SPEED) *
+        movementReadiness;
       const movementResponse = targetMovementVelocity === 0 ? 5.5 : 7;
       movementVelocityRef.current = MathUtils.damp(
         movementVelocityRef.current,
@@ -1143,22 +1234,13 @@ function PlanetExperience({
         frameDelta,
       );
 
-      if (Math.abs(movementVelocityRef.current) < 0.0005) {
+      if (movementVelocityRef.current < 0.0005) {
         movementVelocityRef.current = 0;
-      }
-
-      if (input.horizontal !== 0) {
-        playerForward
-          .applyAxisAngle(
-            playerUp,
-            -input.horizontal * TURN_SPEED * frameDelta,
-          )
-          .normalize();
       }
 
       if (movementVelocityRef.current !== 0) {
         const movementAxis = movementAxisRef.current
-          .crossVectors(playerForward, playerUp)
+          .crossVectors(travelerForward, playerUp)
           .normalize();
         const movementAngle = -movementVelocityRef.current * frameDelta;
 
@@ -1166,6 +1248,10 @@ function PlanetExperience({
         playerForward
           .applyAxisAngle(movementAxis, movementAngle)
           .addScaledVector(playerUp, -playerForward.dot(playerUp))
+          .normalize();
+        travelerForward
+          .applyAxisAngle(movementAxis, movementAngle)
+          .addScaledVector(playerUp, -travelerForward.dot(playerUp))
           .normalize();
       }
 
@@ -1367,7 +1453,7 @@ function PlanetExperience({
           inputRef={exploreInputRef}
           movementVelocityRef={movementVelocityRef}
           playerUpRef={playerUpRef}
-          playerForwardRef={playerForwardRef}
+          playerForwardRef={travelerForwardRef}
           reduceMotion={reduceMotion}
           onFootstep={onFootstep}
         />
