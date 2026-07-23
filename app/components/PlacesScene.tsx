@@ -82,6 +82,7 @@ const CAMERA_ORBIT_RESPONSE = 2.1;
 const CAMERA_ORBIT_RELEASE = 1.65;
 const CAMERA_FOLLOW_RESPONSE = 4;
 const TRAVELER_RENDER_ORDER = 20;
+const HORIZON_CLIP_MARGIN = 0.035;
 const WORLD = worldAtlas as unknown as Topology<{
   countries: GeometryCollection;
   land: GeometryObject;
@@ -114,6 +115,22 @@ function latLonToVector3(
     radius * Math.sin(latitudeRadians),
     ringRadius * Math.sin(longitudeRadians),
   );
+}
+
+function isAboveGlobeHorizon(
+  worldPosition: Vector3,
+  cameraPosition: Vector3,
+) {
+  const worldRadius = worldPosition.length();
+
+  if (worldRadius === 0 || cameraPosition.lengthSq() <= PLANET_RADIUS ** 2) {
+    return false;
+  }
+
+  const cameraFacingHeight =
+    worldPosition.dot(cameraPosition) / worldRadius;
+
+  return cameraFacingHeight > PLANET_RADIUS + HORIZON_CLIP_MARGIN;
 }
 
 const PLACE_DIRECTIONS = new Map(
@@ -227,11 +244,14 @@ function MountainDiorama({ color }: { color: string }) {
 
 function PhotoProjection({
   projectionRef,
+  horizonRef,
 }: {
   projectionRef: RefObject<HTMLButtonElement | null>;
+  horizonRef: RefObject<Group | null>;
 }) {
   const anchorRef = useRef<Group>(null);
   const projectedPositionRef = useRef(new Vector3());
+  const horizonPositionRef = useRef(new Vector3());
   const { camera, gl } = useThree();
 
   useEffect(
@@ -241,6 +261,9 @@ function PhotoProjection({
       if (projection) {
         projection.style.opacity = "0";
         projection.style.pointerEvents = "none";
+        projection.style.visibility = "hidden";
+        projection.tabIndex = -1;
+        projection.setAttribute("aria-hidden", "true");
       }
     },
     [projectionRef],
@@ -248,20 +271,29 @@ function PhotoProjection({
 
   useFrame(({ clock }) => {
     const anchor = anchorRef.current;
+    const horizon = horizonRef.current;
     const projection = projectionRef.current;
 
-    if (!anchor || !projection) {
+    if (!anchor || !horizon || !projection) {
       return;
     }
 
     anchor.position.y = 1.74 + Math.sin(clock.elapsedTime * 1.45) * 0.025;
     anchor.updateWorldMatrix(true, false);
 
+    const horizonPosition = horizonPositionRef.current;
+    horizon.getWorldPosition(horizonPosition);
+    const aboveHorizon = isAboveGlobeHorizon(
+      horizonPosition,
+      camera.position,
+    );
+
     const projectedPosition = projectedPositionRef.current;
     anchor.getWorldPosition(projectedPosition);
     projectedPosition.project(camera);
 
     const visible =
+      aboveHorizon &&
       projectedPosition.z > -1 &&
       projectedPosition.z < 1 &&
       Math.abs(projectedPosition.x) < 1.2 &&
@@ -325,6 +357,9 @@ function PhotoProjection({
 
     projection.style.opacity = visible ? "1" : "0";
     projection.style.pointerEvents = visible ? "auto" : "none";
+    projection.style.visibility = aboveHorizon ? "visible" : "hidden";
+    projection.tabIndex = visible ? 0 : -1;
+    projection.setAttribute("aria-hidden", visible ? "false" : "true");
     projection.style.transform = `translate3d(${left}px, ${top}px, 0)`;
   });
 
@@ -357,8 +392,10 @@ function DestinationWorld({
   onSelect: (placeId: string) => void;
 }) {
   const groupRef = useRef<Group>(null);
+  const worldPositionRef = useRef(new Vector3());
+  const aboveHorizonRef = useRef(true);
   const [hovered, setHovered] = useState(false);
-  const { gl } = useThree();
+  const { camera, gl } = useThree();
   const position = useMemo(
     () => latLonToVector3(place.coordinates, PLANET_RADIUS + 0.025),
     [place.coordinates],
@@ -378,6 +415,14 @@ function DestinationWorld({
       return;
     }
 
+    groupRef.current.updateWorldMatrix(true, false);
+    const aboveHorizon = isAboveGlobeHorizon(
+      groupRef.current.getWorldPosition(worldPositionRef.current),
+      camera.position,
+    );
+    aboveHorizonRef.current = aboveHorizon;
+    groupRef.current.visible = aboveHorizon;
+
     const targetScale = selected ? 1.9 : hovered ? 1.65 : 1.48;
     const scale = MathUtils.damp(
       groupRef.current.scale.x,
@@ -389,6 +434,10 @@ function DestinationWorld({
   });
 
   const handleClick = (event: ThreeEvent<MouseEvent>) => {
+    if (!aboveHorizonRef.current) {
+      return;
+    }
+
     event.stopPropagation();
     onSelect(place.id);
   };
@@ -400,6 +449,10 @@ function DestinationWorld({
       quaternion={orientation}
       onClick={handleClick}
       onPointerOver={(event) => {
+        if (!aboveHorizonRef.current) {
+          return;
+        }
+
         event.stopPropagation();
         setHovered(true);
         gl.domElement.style.cursor = "pointer";
@@ -441,7 +494,12 @@ function DestinationWorld({
         ) : null}
       </group>
 
-      {selected ? <PhotoProjection projectionRef={projectionRef} /> : null}
+      {selected ? (
+        <PhotoProjection
+          projectionRef={projectionRef}
+          horizonRef={groupRef}
+        />
+      ) : null}
     </group>
   );
 }
