@@ -2,8 +2,8 @@ export type PlacePhoto = {
   objectKey?: string;
   src?: string;
   alt: string;
-  width: number;
-  height: number;
+  width?: number;
+  height?: number;
 };
 
 export type PlaceTerrain = "city" | "coast" | "mountain";
@@ -26,7 +26,7 @@ const placeholderPhoto: PlacePhoto = {
 };
 
 const osakaCastlePhoto: PlacePhoto = {
-  src: "https://media.josevalerio.com/places/osaka/Captures_2026-07-22_19-10-28_129.png",
+  objectKey: "places/osaka/Captures_2026-07-22_19-10-28_129.png",
   alt: "Osaka Castle in Osaka, Japan",
   width: 1370,
   height: 1782,
@@ -34,6 +34,8 @@ const osakaCastlePhoto: PlacePhoto = {
 
 // This list is intentionally public and approximate. Keep raw location history,
 // visit dates, routes, and precise coordinates out of the website repository.
+// R2 custom domains do not expose folder listings, so add each curated object to
+// its place's photos array. Every entry becomes a slide in that place's gallery.
 export const places: Place[] = [
   {
     id: "new-york",

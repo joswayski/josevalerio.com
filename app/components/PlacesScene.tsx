@@ -36,6 +36,7 @@ import { places, type Place, type PlaceTerrain } from "../data/places";
 export type ExploreInput = {
   horizontal: number;
   vertical: number;
+  jumpSequence: number;
 };
 
 type PlacesSceneProps = {
@@ -53,10 +54,11 @@ const WALK_SPEED = 0.32;
 const TURN_SPEED = 2.1;
 const START_DISTANCE = 0.24;
 const NEARBY_DISTANCE = Math.cos(0.075);
+const JUMP_DURATION = 0.52;
 const BROWSE_CAMERA_POSITION = new Vector3(0, 0.45, 18.8);
-const EXPLORE_CAMERA_HEIGHT = 16.2;
-const EXPLORE_CAMERA_TRAIL = 12.4;
-const EXPLORE_TARGET_HEIGHT = 1.2;
+const EXPLORE_CAMERA_HEIGHT = 18;
+const EXPLORE_CAMERA_TRAIL = 14;
+const EXPLORE_TARGET_HEIGHT = 4.8;
 const EXPLORE_TARGET_LEAD = 0.8;
 const WORLD = worldAtlas as unknown as Topology<{
   countries: GeometryCollection;
@@ -372,15 +374,19 @@ function Traveler({
   inputRef,
   playerUpRef,
   playerForwardRef,
+  reduceMotion,
 }: {
   inputRef: MutableRefObject<ExploreInput>;
   playerUpRef: MutableRefObject<Vector3>;
   playerForwardRef: MutableRefObject<Vector3>;
+  reduceMotion: boolean;
 }) {
   const groupRef = useRef<Group>(null);
   const leftLegRef = useRef<Mesh>(null);
   const rightLegRef = useRef<Mesh>(null);
   const phaseRef = useRef(0);
+  const jumpElapsedRef = useRef(JUMP_DURATION);
+  const lastJumpSequenceRef = useRef(inputRef.current.jumpSequence);
   const positionRef = useRef(new Vector3());
   const lookTargetRef = useRef(new Vector3());
 
@@ -398,13 +404,28 @@ function Traveler({
       phaseRef.current += delta * 11;
     }
 
+    if (inputRef.current.jumpSequence !== lastJumpSequenceRef.current) {
+      lastJumpSequenceRef.current = inputRef.current.jumpSequence;
+      jumpElapsedRef.current = 0;
+    }
+
+    jumpElapsedRef.current = Math.min(
+      JUMP_DURATION,
+      jumpElapsedRef.current + delta,
+    );
+
+    const jumpProgress = jumpElapsedRef.current / JUMP_DURATION;
+    const jumping = jumpProgress < 1;
+    const jumpCurve = jumping ? Math.sin(jumpProgress * Math.PI) : 0;
+    const jumpLift = jumpCurve * (reduceMotion ? 0.08 : 0.38);
+
     const stride = moving ? Math.sin(phaseRef.current) : 0;
     const bob = moving ? Math.abs(Math.sin(phaseRef.current)) * 0.018 : 0;
     const playerUp = playerUpRef.current;
     const playerForward = playerForwardRef.current;
     const position = positionRef.current
       .copy(playerUp)
-      .multiplyScalar(PLANET_RADIUS + 0.055 + bob);
+      .multiplyScalar(PLANET_RADIUS + 0.055 + bob + jumpLift);
     const lookTarget = lookTargetRef.current
       .copy(position)
       .add(playerForward);
@@ -414,8 +435,8 @@ function Traveler({
     groupRef.current.lookAt(lookTarget);
 
     if (leftLegRef.current && rightLegRef.current) {
-      leftLegRef.current.rotation.x = stride * 0.55;
-      rightLegRef.current.rotation.x = -stride * 0.55;
+      leftLegRef.current.rotation.x = jumping ? -0.34 : stride * 0.55;
+      rightLegRef.current.rotation.x = jumping ? -0.34 : -stride * 0.55;
     }
   });
 
@@ -774,6 +795,7 @@ function PlanetExperience({
           inputRef={exploreInputRef}
           playerUpRef={playerUpRef}
           playerForwardRef={playerForwardRef}
+          reduceMotion={reduceMotion}
         />
       ) : null}
 

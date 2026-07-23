@@ -16,6 +16,11 @@ import type { ExploreInput } from "./PlacesScene";
 
 type ResolvedPlacePhoto = PlacePhoto & { src: string };
 
+type ExpandedGallery = {
+  placeId: string;
+  photoIndex: number;
+};
+
 const LazyPlacesScene = lazy(() =>
   import("./PlacesScene").then(({ PlacesScene }) => ({ default: PlacesScene })),
 );
@@ -93,16 +98,18 @@ const movementKeys = new Set([
 export function PlacesGlobe() {
   const [selectedPlaceId, setSelectedPlaceId] = useState(places[0].id);
   const [nearbyPlaceId, setNearbyPlaceId] = useState<string | null>(null);
-  const [expandedPhoto, setExpandedPhoto] =
-    useState<ResolvedPlacePhoto | null>(null);
+  const [expandedGallery, setExpandedGallery] =
+    useState<ExpandedGallery | null>(null);
   const [exploreMode, setExploreMode] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const photoDialogRef = useRef<HTMLDialogElement>(null);
   const projectionButtonRef = useRef<HTMLButtonElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const exploreInputRef = useRef<ExploreInput>({
     horizontal: 0,
     vertical: 0,
+    jumpSequence: 0,
   });
   const pressedKeysRef = useRef(new Set<string>());
 
@@ -128,6 +135,15 @@ export function PlacesGlobe() {
     [mediaBaseUrl],
   );
   const selectedPhoto = photosByPlaceId[selectedPlaceId]?.[0] ?? null;
+  const expandedPhotos = expandedGallery
+    ? photosByPlaceId[expandedGallery.placeId] ?? []
+    : [];
+  const expandedPhoto = expandedGallery
+    ? expandedPhotos[expandedGallery.photoIndex] ?? null
+    : null;
+  const expandedPlace = expandedGallery
+    ? places.find((place) => place.id === expandedGallery.placeId) ?? null
+    : null;
 
   useEffect(() => {
     setIsMounted(true);
@@ -140,6 +156,13 @@ export function PlacesGlobe() {
     return () =>
       motionQuery.removeEventListener("change", updateMotionPreference);
   }, []);
+
+  useEffect(
+    () => () => {
+      void audioContextRef.current?.close();
+    },
+    [],
+  );
 
   useEffect(() => {
     const dialog = photoDialogRef.current;
@@ -158,7 +181,11 @@ export function PlacesGlobe() {
   useEffect(() => {
     if (!exploreMode) {
       pressedKeysRef.current.clear();
-      exploreInputRef.current = { horizontal: 0, vertical: 0 };
+      exploreInputRef.current = {
+        horizontal: 0,
+        vertical: 0,
+        jumpSequence: exploreInputRef.current.jumpSequence,
+      };
       return;
     }
 
@@ -172,13 +199,19 @@ export function PlacesGlobe() {
       exploreInputRef.current = {
         horizontal: Number(right) - Number(left),
         vertical: Number(up) - Number(down),
+        jumpSequence: exploreInputRef.current.jumpSequence,
       };
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      const normalizedKey = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+      const normalizedKey =
+        event.key.length === 1 ? event.key.toLowerCase() : event.key;
 
       if (!movementKeys.has(normalizedKey)) {
+        return;
+      }
+
+      if (photoDialogRef.current?.open) {
         return;
       }
 
@@ -188,7 +221,8 @@ export function PlacesGlobe() {
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
-      const normalizedKey = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+      const normalizedKey =
+        event.key.length === 1 ? event.key.toLowerCase() : event.key;
 
       if (!movementKeys.has(normalizedKey)) {
         return;
@@ -206,7 +240,11 @@ export function PlacesGlobe() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       pressedKeysRef.current.clear();
-      exploreInputRef.current = { horizontal: 0, vertical: 0 };
+      exploreInputRef.current = {
+        horizontal: 0,
+        vertical: 0,
+        jumpSequence: exploreInputRef.current.jumpSequence,
+      };
     };
   }, [exploreMode]);
 
@@ -218,26 +256,121 @@ export function PlacesGlobe() {
     setNearbyPlaceId(placeId);
   }, []);
 
-  const openPlacePhoto = useCallback(
-    (placeId: string) => {
-      const photo = photosByPlaceId[placeId]?.[0];
+  const openPlaceGallery = useCallback(
+    (placeId: string, photoIndex = 0) => {
+      const photos = photosByPlaceId[placeId] ?? [];
 
-      if (photo) {
-        setExpandedPhoto(photo);
+      if (photos.length > 0) {
+        setExpandedGallery({
+          placeId,
+          photoIndex: Math.max(0, Math.min(photoIndex, photos.length - 1)),
+        });
       }
     },
     [photosByPlaceId],
   );
 
+  const showRelativePhoto = useCallback(
+    (offset: number) => {
+      setExpandedGallery((current) => {
+        if (!current) {
+          return current;
+        }
+
+        const photos = photosByPlaceId[current.placeId] ?? [];
+
+        if (photos.length === 0) {
+          return null;
+        }
+
+        return {
+          ...current,
+          photoIndex:
+            (current.photoIndex + offset + photos.length) % photos.length,
+        };
+      });
+    },
+    [photosByPlaceId],
+  );
+
+  const playJumpSound = useCallback(() => {
+    const context = audioContextRef.current ?? new AudioContext();
+    audioContextRef.current = context;
+    void context.resume();
+
+    const start = context.currentTime;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(190, start);
+    oscillator.frequency.exponentialRampToValueAtTime(380, start + 0.14);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.055, start + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.19);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(start);
+    oscillator.stop(start + 0.2);
+    oscillator.addEventListener("ended", () => {
+      oscillator.disconnect();
+      gain.disconnect();
+    });
+  }, []);
+
+  const triggerJump = useCallback(() => {
+    exploreInputRef.current = {
+      ...exploreInputRef.current,
+      jumpSequence: exploreInputRef.current.jumpSequence + 1,
+    };
+    playJumpSound();
+  }, [playJumpSound]);
+
+  useEffect(() => {
+    if (!exploreMode) {
+      return;
+    }
+
+    const handleActionKey = (event: KeyboardEvent) => {
+      if (event.repeat || photoDialogRef.current?.open) {
+        return;
+      }
+
+      const normalizedKey =
+        event.key.length === 1 ? event.key.toLowerCase() : event.key;
+
+      if (event.code === "Space") {
+        event.preventDefault();
+        triggerJump();
+        return;
+      }
+
+      if ((normalizedKey === "e" || normalizedKey === "f") && nearbyPlaceId) {
+        event.preventDefault();
+        openPlaceGallery(nearbyPlaceId);
+      }
+    };
+
+    window.addEventListener("keydown", handleActionKey);
+    return () => window.removeEventListener("keydown", handleActionKey);
+  }, [exploreMode, nearbyPlaceId, openPlaceGallery, triggerJump]);
+
   const startTouchMovement =
     (horizontal: number, vertical: number) =>
     (event: ReactPointerEvent<HTMLButtonElement>) => {
       event.currentTarget.setPointerCapture(event.pointerId);
-      exploreInputRef.current = { horizontal, vertical };
+      exploreInputRef.current = {
+        ...exploreInputRef.current,
+        horizontal,
+        vertical,
+      };
     };
 
   const stopTouchMovement = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    exploreInputRef.current = { horizontal: 0, vertical: 0 };
+    exploreInputRef.current = {
+      ...exploreInputRef.current,
+      horizontal: 0,
+      vertical: 0,
+    };
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -289,7 +422,7 @@ export function PlacesGlobe() {
             type="button"
             className="place-photo-projection"
             aria-label={`Expand photo: ${selectedPhoto.alt}`}
-            onClick={() => openPlacePhoto(selectedPlaceId)}
+            onClick={() => openPlaceGallery(selectedPlaceId)}
           >
             <img
               src={selectedPhoto.src}
@@ -358,6 +491,15 @@ export function PlacesGlobe() {
             >
               →
             </button>
+            <button
+              type="button"
+              className="explore-dpad-jump"
+              aria-label="Jump"
+              title="Jump"
+              onClick={triggerJump}
+            >
+              ↟
+            </button>
           </div>
         ) : null}
 
@@ -367,16 +509,16 @@ export function PlacesGlobe() {
             <strong>{nearbyPlace.name}</strong>
             <button
               type="button"
-              onClick={() => openPlacePhoto(nearbyPlace.id)}
+              onClick={() => openPlaceGallery(nearbyPlace.id)}
             >
-              Open photo ↗
+              E / F · View photos ↗
             </button>
           </div>
         ) : null}
 
         <p className="globe-instructions">
           {exploreMode
-            ? "W / S walk · A / D turn · arrows work too"
+            ? "W / S walk · A / D turn · Space jump · E / F interact"
             : "Drag to spin · select a tiny world"}
         </p>
         <p className="sr-only">
@@ -388,32 +530,70 @@ export function PlacesGlobe() {
       <dialog
         ref={photoDialogRef}
         className="photo-lightbox"
-        aria-label="Expanded travel photo"
-        onClose={() => setExpandedPhoto(null)}
+        aria-label={
+          expandedPlace ? `${expandedPlace.name} travel photos` : "Travel photos"
+        }
+        onClose={() => setExpandedGallery(null)}
         onClick={(event) => {
           if (event.target === event.currentTarget) {
-            setExpandedPhoto(null);
+            setExpandedGallery(null);
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            showRelativePhoto(-1);
+          } else if (event.key === "ArrowRight") {
+            event.preventDefault();
+            showRelativePhoto(1);
           }
         }}
       >
         <button
           type="button"
           className="photo-lightbox-close"
-          aria-label="Close expanded photo"
-          onClick={() => setExpandedPhoto(null)}
+          aria-label="Close photo gallery"
+          onClick={() => setExpandedGallery(null)}
         >
           ×
         </button>
+        {expandedPhotos.length > 1 ? (
+          <button
+            type="button"
+            className="photo-lightbox-nav photo-lightbox-nav--previous"
+            aria-label="Show previous photo"
+            onClick={() => showRelativePhoto(-1)}
+          >
+            ←
+          </button>
+        ) : null}
         {expandedPhoto ? (
-          <figure>
+          <figure key={expandedPhoto.src} aria-live="polite">
             <img
               src={expandedPhoto.src}
               alt={expandedPhoto.alt}
               width={expandedPhoto.width}
               height={expandedPhoto.height}
             />
-            <figcaption>{expandedPhoto.alt}</figcaption>
+            <figcaption>
+              <span>{expandedPhoto.alt}</span>
+              {expandedGallery && expandedPhotos.length > 1 ? (
+                <span className="photo-lightbox-count">
+                  {expandedGallery.photoIndex + 1} / {expandedPhotos.length}
+                </span>
+              ) : null}
+            </figcaption>
           </figure>
+        ) : null}
+        {expandedPhotos.length > 1 ? (
+          <button
+            type="button"
+            className="photo-lightbox-nav photo-lightbox-nav--next"
+            aria-label="Show next photo"
+            onClick={() => showRelativePhoto(1)}
+          >
+            →
+          </button>
         ) : null}
       </dialog>
     </div>
