@@ -51,6 +51,11 @@ type PlacesSceneProps = {
   projectionRef: RefObject<HTMLButtonElement | null>;
   onSelect: (placeId: string) => void;
   onNearbyChange: (placeId: string | null) => void;
+  onFootstep: (
+    movementBlend: number,
+    runBlend: number,
+    stepIndex: number,
+  ) => void;
 };
 
 const PLANET_RADIUS = 6;
@@ -393,12 +398,14 @@ function Traveler({
   playerUpRef,
   playerForwardRef,
   reduceMotion,
+  onFootstep,
 }: {
   inputRef: MutableRefObject<ExploreInput>;
   movementVelocityRef: MutableRefObject<number>;
   playerUpRef: MutableRefObject<Vector3>;
   playerForwardRef: MutableRefObject<Vector3>;
   reduceMotion: boolean;
+  onFootstep: PlacesSceneProps["onFootstep"];
 }) {
   const groupRef = useRef<Group>(null);
   const leftLegRef = useRef<Mesh>(null);
@@ -406,6 +413,9 @@ function Traveler({
   const leftArmRef = useRef<Mesh>(null);
   const rightArmRef = useRef<Mesh>(null);
   const phaseRef = useRef(0);
+  const nextFootstepPhaseRef = useRef(Math.PI * 0.55);
+  const footstepIndexRef = useRef(0);
+  const wasMovingRef = useRef(false);
   const jumpElapsedRef = useRef(
     inputRef.current.jumpReady ? JUMP_CYCLE_DURATION : 0,
   );
@@ -425,10 +435,6 @@ function Traveler({
 
     if (!groupRef.current) {
       return;
-    }
-
-    if (moving) {
-      phaseRef.current += delta * MathUtils.lerp(9.5, 16, runBlend);
     }
 
     if (inputRef.current.jumpSequence !== lastJumpSequenceRef.current) {
@@ -454,6 +460,28 @@ function Traveler({
     const jumping = jumpElapsedRef.current < JUMP_DURATION;
     const jumpCurve = jumping ? Math.sin(jumpProgress * Math.PI) : 0;
     const jumpLift = jumpCurve * (reduceMotion ? 0.08 : 0.38);
+
+    if (moving && !wasMovingRef.current) {
+      nextFootstepPhaseRef.current = phaseRef.current + Math.PI * 0.55;
+    }
+
+    if (moving) {
+      const easedMovement = MathUtils.smoothstep(movementBlend, 0, 1);
+      const fullGaitSpeed = MathUtils.lerp(9.5, 16, runBlend);
+      const gaitSpeed = MathUtils.lerp(3.8, fullGaitSpeed, easedMovement);
+      phaseRef.current += delta * gaitSpeed;
+
+      while (phaseRef.current >= nextFootstepPhaseRef.current) {
+        footstepIndexRef.current += 1;
+        nextFootstepPhaseRef.current += Math.PI;
+
+        if (!jumping && movementBlend >= 0.14) {
+          onFootstep(movementBlend, runBlend, footstepIndexRef.current);
+        }
+      }
+    }
+
+    wasMovingRef.current = moving;
 
     const stride = moving
       ? Math.sin(phaseRef.current) *
@@ -566,6 +594,7 @@ function PlanetExperience({
   projectionRef,
   onSelect,
   onNearbyChange,
+  onFootstep,
 }: PlacesSceneProps) {
   const globeRef = useRef<Group>(null);
   const dragRef = useRef<{
@@ -965,6 +994,7 @@ function PlanetExperience({
           playerUpRef={playerUpRef}
           playerForwardRef={playerForwardRef}
           reduceMotion={reduceMotion}
+          onFootstep={onFootstep}
         />
       ) : null}
 

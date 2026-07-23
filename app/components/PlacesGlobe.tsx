@@ -99,6 +99,7 @@ const movementKeys = new Set([
   "s",
   "w",
 ]);
+const footstepKeys = new Set(["ArrowUp", "ArrowDown", "Shift", "s", "w"]);
 
 export function PlacesGlobe() {
   const [selectedPlaceId, setSelectedPlaceId] = useState(places[0].id);
@@ -111,6 +112,7 @@ export function PlacesGlobe() {
   const photoDialogRef = useRef<HTMLDialogElement>(null);
   const projectionButtonRef = useRef<HTMLButtonElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const footstepBufferRef = useRef<AudioBuffer | null>(null);
   const exploreInputRef = useRef<ExploreInput>({
     horizontal: 0,
     vertical: 0,
@@ -173,10 +175,26 @@ export function PlacesGlobe() {
 
   useEffect(
     () => () => {
+      footstepBufferRef.current = null;
       void audioContextRef.current?.close();
     },
     [],
   );
+
+  const ensureAudioContext = useCallback(() => {
+    const currentContext = audioContextRef.current;
+
+    if (currentContext && currentContext.state !== "closed") {
+      void currentContext.resume();
+      return currentContext;
+    }
+
+    const context = new AudioContext();
+    audioContextRef.current = context;
+    footstepBufferRef.current = null;
+    void context.resume();
+    return context;
+  }, []);
 
   useEffect(() => {
     const dialog = photoDialogRef.current;
@@ -242,6 +260,9 @@ export function PlacesGlobe() {
       }
 
       event.preventDefault();
+      if (footstepKeys.has(normalizedKey)) {
+        ensureAudioContext();
+      }
       pressedKeysRef.current.add(normalizedKey);
       updateInput();
     };
@@ -276,7 +297,7 @@ export function PlacesGlobe() {
         jumpSequence: exploreInputRef.current.jumpSequence,
       };
     };
-  }, [exploreMode]);
+  }, [ensureAudioContext, exploreMode]);
 
   const selectPlace = useCallback(
     (placeId: string) => {
@@ -338,10 +359,7 @@ export function PlacesGlobe() {
   );
 
   const playJumpSound = useCallback(() => {
-    const context = audioContextRef.current ?? new AudioContext();
-    audioContextRef.current = context;
-    void context.resume();
-
+    const context = ensureAudioContext();
     const start = context.currentTime;
     const oscillator = context.createOscillator();
     const gain = context.createGain();
@@ -359,7 +377,87 @@ export function PlacesGlobe() {
       oscillator.disconnect();
       gain.disconnect();
     });
-  }, []);
+  }, [ensureAudioContext]);
+
+  const playFootstepSound = useCallback(
+    (movementBlend: number, runBlend: number, stepIndex: number) => {
+      const context = ensureAudioContext();
+      let buffer = footstepBufferRef.current;
+
+      if (!buffer) {
+        const duration = 0.07;
+        buffer = context.createBuffer(
+          1,
+          Math.ceil(context.sampleRate * duration),
+          context.sampleRate,
+        );
+        const samples = buffer.getChannelData(0);
+
+        for (let index = 0; index < samples.length; index += 1) {
+          const progress = index / samples.length;
+          samples[index] =
+            (Math.random() * 2 - 1) * Math.pow(1 - progress, 3.2);
+        }
+
+        footstepBufferRef.current = buffer;
+      }
+
+      const start = context.currentTime;
+      const easedMovement =
+        movementBlend * movementBlend * (3 - 2 * movementBlend);
+      const volume = (0.02 + runBlend * 0.012) * easedMovement;
+      const footOffset = stepIndex % 2 === 0 ? -0.09 : 0.09;
+      const noise = context.createBufferSource();
+      const noiseFilter = context.createBiquadFilter();
+      const noiseGain = context.createGain();
+      const thump = context.createOscillator();
+      const thumpGain = context.createGain();
+      const panner = context.createStereoPanner();
+
+      noise.buffer = buffer;
+      noise.playbackRate.setValueAtTime(
+        0.88 + runBlend * 0.38 + footOffset * 0.16,
+        start,
+      );
+      noiseFilter.type = "bandpass";
+      noiseFilter.frequency.setValueAtTime(420 + runBlend * 240, start);
+      noiseFilter.Q.setValueAtTime(0.72, start);
+      noiseGain.gain.setValueAtTime(0.0001, start);
+      noiseGain.gain.exponentialRampToValueAtTime(volume, start + 0.004);
+      noiseGain.gain.exponentialRampToValueAtTime(0.0001, start + 0.065);
+
+      thump.type = "sine";
+      thump.frequency.setValueAtTime(105 + runBlend * 32, start);
+      thump.frequency.exponentialRampToValueAtTime(68, start + 0.055);
+      thumpGain.gain.setValueAtTime(0.0001, start);
+      thumpGain.gain.exponentialRampToValueAtTime(
+        Math.max(0.0002, volume * 0.42),
+        start + 0.003,
+      );
+      thumpGain.gain.exponentialRampToValueAtTime(0.0001, start + 0.06);
+      panner.pan.setValueAtTime(footOffset, start);
+
+      noise.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(panner);
+      thump.connect(thumpGain);
+      thumpGain.connect(panner);
+      panner.connect(context.destination);
+      noise.start(start);
+      thump.start(start);
+      noise.stop(start + 0.075);
+      thump.stop(start + 0.07);
+      noise.addEventListener("ended", () => {
+        noise.disconnect();
+        noiseFilter.disconnect();
+        noiseGain.disconnect();
+        thump.disconnect();
+        thumpGain.disconnect();
+        panner.disconnect();
+      });
+    },
+    [ensureAudioContext],
+  );
 
   const triggerJump = useCallback(() => {
     if (!exploreInputRef.current.jumpReady) {
@@ -417,6 +515,9 @@ export function PlacesGlobe() {
     (horizontal: number, vertical: number) =>
     (event: ReactPointerEvent<HTMLButtonElement>) => {
       event.currentTarget.setPointerCapture(event.pointerId);
+      if (vertical !== 0) {
+        ensureAudioContext();
+      }
       exploreInputRef.current = {
         ...exploreInputRef.current,
         horizontal,
@@ -468,6 +569,7 @@ export function PlacesGlobe() {
                   projectionRef={projectionButtonRef}
                   onSelect={selectPlace}
                   onNearbyChange={handleNearbyChange}
+                  onFootstep={playFootstepSound}
                 />
               </Suspense>
             </SceneErrorBoundary>
