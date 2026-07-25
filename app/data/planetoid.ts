@@ -396,6 +396,59 @@ export const PLACE_DIRECTIONS = new Map(
   }),
 );
 
+const PLACE_SCENERY_OFFSETS: Record<
+  string,
+  { inward: number; side: number }
+> = {
+  "new-york": { inward: 0.07, side: -0.03 },
+  "new-jersey": { inward: 0.07, side: 0.03 },
+  "rhode-island": { inward: 0.07, side: 0.025 },
+  chicago: { inward: 0.07, side: -0.025 },
+  austin: { inward: 0.07, side: 0.03 },
+  "central-florida": { inward: 0.075, side: -0.02 },
+  malatya: { inward: 0.07, side: 0.025 },
+  osaka: { inward: 0.055, side: 0.05 },
+};
+
+export const PLACE_SCENERY_DIRECTIONS = new Map(
+  Object.entries(PLACE_SCENERY_OFFSETS).map(
+    ([placeId, offset]) => {
+      const place = places.find((candidate) => candidate.id === placeId);
+      const destinationDirection = PLACE_DIRECTIONS.get(placeId);
+      const biome = place
+        ? BIOME_BY_ID.get(place.countryId as BiomeKind)
+        : null;
+
+      if (!place || !destinationDirection || !biome) {
+        throw new Error(`Missing scenery layout dependencies for ${placeId}`);
+      }
+
+      const inward = biome.center
+        .clone()
+        .addScaledVector(
+          destinationDirection,
+          -biome.center.dot(destinationDirection),
+        )
+        .normalize();
+      const side = new Vector3()
+        .crossVectors(destinationDirection, inward)
+        .normalize();
+      const offsetDistance = Math.hypot(offset.inward, offset.side);
+      const offsetTangent = inward
+        .multiplyScalar(offset.inward)
+        .addScaledVector(side, offset.side)
+        .normalize();
+      const direction = destinationDirection
+        .clone()
+        .multiplyScalar(Math.cos(offsetDistance))
+        .addScaledVector(offsetTangent, Math.sin(offsetDistance))
+        .normalize();
+
+      return [placeId, direction] as const;
+    },
+  ),
+);
+
 export const WATER_FEATURES: WaterFeature[] = [
   {
     id: "great-lake",

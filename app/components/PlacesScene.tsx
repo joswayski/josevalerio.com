@@ -43,6 +43,7 @@ import { places, type Place, type PlaceTerrain } from "../data/places";
 import {
   OCEAN_SURFACE_RADIUS,
   PLACE_DIRECTIONS,
+  PLACE_SCENERY_DIRECTIONS,
   PLANET_RADIUS,
   isWaterDirection,
   sphericalDirection,
@@ -1803,19 +1804,64 @@ function terrainColor(terrain: PlaceTerrain) {
 }
 
 function CityDiorama({ color }: { color: string }) {
+  const buildings = [
+    { x: -0.09, z: 0.018, width: 0.045, depth: 0.05, height: 0.15 },
+    { x: -0.035, z: -0.012, width: 0.052, depth: 0.052, height: 0.22 },
+    { x: 0.03, z: 0.008, width: 0.058, depth: 0.055, height: 0.29 },
+    { x: 0.095, z: -0.008, width: 0.046, depth: 0.05, height: 0.18 },
+  ];
+
   return (
-    <group>
-      <mesh position={[-0.052, 0.105, 0.01]} castShadow>
-        <boxGeometry args={[0.065, 0.18, 0.06]} />
-        <meshStandardMaterial color={color} flatShading />
-      </mesh>
-      <mesh position={[0.022, 0.14, -0.015]} castShadow>
-        <boxGeometry args={[0.07, 0.25, 0.07]} />
-        <meshStandardMaterial color="#f2c876" flatShading />
-      </mesh>
-      <mesh position={[0.083, 0.08, 0.027]} castShadow>
-        <boxGeometry args={[0.052, 0.13, 0.052]} />
-        <meshStandardMaterial color="#6f8f89" flatShading />
+    <group rotation={[0, -0.15, 0]}>
+      {buildings.map((building, buildingIndex) => (
+        <group
+          key={building.x}
+          position={[
+            building.x,
+            building.height / 2 + 0.025,
+            building.z,
+          ]}
+        >
+          <mesh castShadow>
+            <boxGeometry
+              args={[
+                building.width,
+                building.height,
+                building.depth,
+              ]}
+            />
+            <meshStandardMaterial
+              color={
+                buildingIndex % 2 === 0 ? color : "#d8b665"
+              }
+              roughness={0.62}
+            />
+          </mesh>
+          {[0.34, 0.62, 0.84].map((heightFraction) => (
+            <mesh
+              key={heightFraction}
+              position={[
+                0,
+                (heightFraction - 0.5) * building.height,
+                building.depth / 2 + 0.0015,
+              ]}
+            >
+              <boxGeometry
+                args={[building.width * 0.68, 0.012, 0.003]}
+              />
+              <meshStandardMaterial
+                color="#cde2df"
+                emissive="#678c8a"
+                emissiveIntensity={0.16}
+                roughness={0.35}
+              />
+            </mesh>
+          ))}
+        </group>
+      ))}
+      <mesh position={[0.03, 0.355, 0.008]} castShadow>
+        <coneGeometry args={[0.019, 0.12, 12]} />
+        <meshStandardMaterial color="#d7c28a" roughness={0.52} />
       </mesh>
     </group>
   );
@@ -2061,198 +2107,541 @@ function PlaceLandmarkDiorama({
   }
 }
 
-function PlaceAccentDiorama({ placeId }: { placeId: string }) {
-  switch (placeId) {
-    case "new-york":
-      return (
-        <group position={[-0.15, 0.04, 0.055]} rotation={[0, 0.38, 0]}>
-          <mesh position={[0, 0.035, 0]} castShadow>
-            <boxGeometry args={[0.14, 0.045, 0.075]} />
-            <meshStandardMaterial color="#e9b83f" flatShading />
-          </mesh>
-          <mesh position={[0, 0.07, -0.004]} castShadow>
-            <boxGeometry args={[0.075, 0.04, 0.065]} />
-            <meshStandardMaterial color="#f2c84f" flatShading />
-          </mesh>
-          {[-0.045, 0.045].map((x) => (
+function TaxiScenery() {
+  const wheels = [
+    [-0.115, 0.105],
+    [0.115, 0.105],
+    [-0.115, -0.105],
+    [0.115, -0.105],
+  ] as const;
+
+  return (
+    <group rotation={[0, 0.22, 0]}>
+      <mesh position={[0, 0.075, 0]} castShadow>
+        <boxGeometry args={[0.22, 0.07, 0.32]} />
+        <meshStandardMaterial
+          color="#f0bd2e"
+          roughness={0.42}
+          metalness={0.08}
+        />
+      </mesh>
+      <mesh position={[0, 0.135, -0.018]} castShadow>
+        <boxGeometry args={[0.18, 0.075, 0.16]} />
+        <meshStandardMaterial color="#e7ab20" roughness={0.4} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <group key={side}>
+          {[-0.052, 0.028].map((z) => (
             <mesh
-              key={x}
-              position={[x, 0.018, 0.041]}
-              rotation={[Math.PI / 2, 0, 0]}
+              key={z}
+              position={[side * 0.091, 0.145, z]}
             >
-              <cylinderGeometry args={[0.018, 0.018, 0.012, 8]} />
-              <meshStandardMaterial color="#283238" flatShading />
+              <boxGeometry args={[0.006, 0.047, 0.06]} />
+              <meshStandardMaterial
+                color="#8cb5bd"
+                roughness={0.2}
+                metalness={0.12}
+              />
+            </mesh>
+          ))}
+          {[-0.075, -0.025, 0.025, 0.075].map((z, index) => (
+            <mesh
+              key={z}
+              position={[side * 0.112, 0.092, z]}
+            >
+              <boxGeometry args={[0.007, 0.018, 0.025]} />
+              <meshStandardMaterial
+                color={index % 2 === 0 ? "#20292d" : "#f4d968"}
+                roughness={0.55}
+              />
             </mesh>
           ))}
         </group>
-      );
-    case "new-jersey":
-      return (
-        <group position={[-0.145, 0.02, 0.045]} rotation={[0, -0.28, 0]}>
-          {[-0.04, 0.04].map((x) => (
-            <mesh
-              key={x}
-              position={[x, 0.075, 0]}
-              rotation={[0, 0, x * 2.6]}
-              castShadow
-            >
-              <boxGeometry args={[0.018, 0.15, 0.018]} />
-              <meshStandardMaterial color="#d7b47b" flatShading />
-            </mesh>
-          ))}
-          <mesh position={[0, 0.13, 0]} castShadow>
-            <boxGeometry args={[0.11, 0.022, 0.075]} />
-            <meshStandardMaterial color="#f0d29b" flatShading />
+      ))}
+      <mesh position={[0, 0.145, 0.066]} rotation={[0.55, 0, 0]}>
+        <boxGeometry args={[0.16, 0.055, 0.007]} />
+        <meshStandardMaterial color="#8cb5bd" roughness={0.2} />
+      </mesh>
+      <mesh position={[0, 0.145, -0.102]} rotation={[-0.5, 0, 0]}>
+        <boxGeometry args={[0.16, 0.052, 0.007]} />
+        <meshStandardMaterial color="#789ea8" roughness={0.22} />
+      </mesh>
+      <mesh position={[0, 0.198, -0.012]} castShadow>
+        <boxGeometry args={[0.08, 0.03, 0.055]} />
+        <meshStandardMaterial color="#f7df7a" roughness={0.45} />
+      </mesh>
+      <mesh position={[0, 0.199, 0.017]}>
+        <boxGeometry args={[0.055, 0.014, 0.004]} />
+        <meshStandardMaterial color="#222b2f" roughness={0.5} />
+      </mesh>
+      {wheels.map(([x, z]) => (
+        <group key={`${x}-${z}`} position={[x, 0.052, z]}>
+          <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+            <cylinderGeometry args={[0.035, 0.035, 0.024, 18]} />
+            <meshStandardMaterial color="#252b2d" roughness={0.8} />
           </mesh>
-          <mesh position={[0, 0.18, -0.028]} rotation={[0.18, 0, 0]}>
-            <boxGeometry args={[0.11, 0.085, 0.018]} />
-            <meshStandardMaterial color="#d85b51" flatShading />
-          </mesh>
-        </group>
-      );
-    case "rhode-island":
-      return (
-        <group position={[-0.145, 0.02, 0.04]}>
-          <mesh position={[0, 0.07, 0]} castShadow>
-            <cylinderGeometry args={[0.035, 0.055, 0.14, 8]} />
-            <meshStandardMaterial color="#d84d47" flatShading />
-          </mesh>
-          <mesh position={[0, 0.095, 0]}>
-            <cylinderGeometry args={[0.037, 0.047, 0.035, 8]} />
-            <meshStandardMaterial color="#f2eee2" flatShading />
-          </mesh>
-          <mesh position={[0, 0.17, 0]} castShadow>
-            <cylinderGeometry args={[0.008, 0.008, 0.09, 6]} />
-            <meshStandardMaterial color="#313a3d" flatShading />
-          </mesh>
-          <mesh position={[0, 0.225, 0]}>
-            <sphereGeometry args={[0.016, 8, 6]} />
-            <meshStandardMaterial color="#e9b83f" flatShading />
+          <mesh
+            position={[x < 0 ? -0.013 : 0.013, 0, 0]}
+            rotation={[0, 0, Math.PI / 2]}
+          >
+            <cylinderGeometry args={[0.016, 0.016, 0.026, 16]} />
+            <meshStandardMaterial
+              color="#b9bfc0"
+              roughness={0.28}
+              metalness={0.65}
+            />
           </mesh>
         </group>
-      );
-    case "chicago":
-      return (
-        <mesh
-          position={[-0.15, 0.065, 0.04]}
-          rotation={[0.08, 0.35, -0.05]}
-          scale={[1.35, 0.58, 0.88]}
-          castShadow
-        >
-          <icosahedronGeometry args={[0.068, 1]} />
+      ))}
+      {[-0.065, 0.065].map((x) => (
+        <mesh key={x} position={[x, 0.083, 0.162]}>
+          <sphereGeometry args={[0.018, 14, 9]} />
           <meshStandardMaterial
-            color="#b8c4c6"
-            roughness={0.28}
-            metalness={0.55}
-            flatShading
+            color="#fff3b0"
+            emissive="#f2c84f"
+            emissiveIntensity={0.24}
           />
         </mesh>
-      );
-    case "austin":
-      return (
-        <group
-          position={[-0.145, 0.105, 0.035]}
-          rotation={[0.1, 0.15, -0.42]}
+      ))}
+      <mesh position={[0, 0.05, 0.17]}>
+        <boxGeometry args={[0.17, 0.018, 0.015]} />
+        <meshStandardMaterial color="#d8d8d2" metalness={0.35} />
+      </mesh>
+    </group>
+  );
+}
+
+function BeachScenery() {
+  return (
+    <group>
+      {[-0.055, 0.055].map((x) => (
+        <mesh
+          key={x}
+          position={[x, 0.105, 0]}
+          rotation={[0, 0, x * 1.25]}
+          castShadow
         >
-          <mesh castShadow>
-            <dodecahedronGeometry args={[0.052, 0]} />
-            <meshStandardMaterial color="#b7673e" flatShading />
+          <cylinderGeometry args={[0.009, 0.012, 0.21, 10]} />
+          <meshStandardMaterial color="#c8955f" roughness={0.82} />
+        </mesh>
+      ))}
+      {[0.045, 0.09, 0.135].map((y) => (
+        <mesh key={y} position={[0, y, 0.001]} castShadow>
+          <boxGeometry args={[0.12, 0.015, 0.022]} />
+          <meshStandardMaterial color="#e1ba7c" roughness={0.72} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.185, 0]} castShadow>
+        <boxGeometry args={[0.14, 0.028, 0.1]} />
+        <meshStandardMaterial color="#f1cf91" roughness={0.68} />
+      </mesh>
+      <mesh
+        position={[0, 0.245, -0.038]}
+        rotation={[0.15, 0, 0]}
+        castShadow
+      >
+        <boxGeometry args={[0.14, 0.1, 0.02]} />
+        <meshStandardMaterial color="#d84f49" roughness={0.58} />
+      </mesh>
+      <mesh position={[-0.105, 0.175, 0]} castShadow>
+        <cylinderGeometry args={[0.009, 0.011, 0.34, 10]} />
+        <meshStandardMaterial color="#d8bd8a" roughness={0.7} />
+      </mesh>
+      <mesh
+        position={[-0.105, 0.34, 0]}
+        rotation={[0, Math.PI / 8, 0]}
+        castShadow
+      >
+        <coneGeometry args={[0.13, 0.06, 20]} />
+        <meshStandardMaterial color="#f2eee3" roughness={0.6} />
+      </mesh>
+      {[0, Math.PI / 2].map((rotation) => (
+        <mesh
+          key={rotation}
+          position={[-0.105, 0.341, 0]}
+          rotation={[0, rotation, 0]}
+        >
+          <boxGeometry args={[0.245, 0.006, 0.012]} />
+          <meshStandardMaterial color="#d84f49" roughness={0.52} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function BuoyScenery() {
+  return (
+    <group>
+      <mesh position={[0, 0.09, 0]} castShadow>
+        <cylinderGeometry args={[0.055, 0.075, 0.18, 20]} />
+        <meshStandardMaterial color="#d84d47" roughness={0.42} />
+      </mesh>
+      <mesh position={[0, 0.11, 0]}>
+        <cylinderGeometry args={[0.058, 0.068, 0.055, 20]} />
+        <meshStandardMaterial color="#f2eee2" roughness={0.48} />
+      </mesh>
+      <mesh position={[0, 0.205, 0]} castShadow>
+        <coneGeometry args={[0.053, 0.09, 20]} />
+        <meshStandardMaterial color="#d84d47" roughness={0.42} />
+      </mesh>
+      <mesh position={[0, 0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.092, 0.011, 10, 28]} />
+        <meshStandardMaterial color="#374145" metalness={0.48} />
+      </mesh>
+      {[-0.032, 0.032].map((x) => (
+        <mesh key={x} position={[x, 0.272, 0]} castShadow>
+          <cylinderGeometry args={[0.006, 0.007, 0.12, 10]} />
+          <meshStandardMaterial color="#3b4447" metalness={0.52} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.326, 0]} castShadow>
+        <cylinderGeometry args={[0.026, 0.03, 0.045, 14]} />
+        <meshStandardMaterial
+          color="#f2c84f"
+          emissive="#b86c24"
+          emissiveIntensity={0.28}
+        />
+      </mesh>
+      <mesh position={[0, 0.355, 0]} castShadow>
+        <coneGeometry args={[0.042, 0.035, 16]} />
+        <meshStandardMaterial color="#3b4447" metalness={0.5} />
+      </mesh>
+    </group>
+  );
+}
+
+function BeanScenery() {
+  return (
+    <group>
+      <mesh
+        position={[0, 0.105, 0]}
+        rotation={[0.05, 0.28, -0.03]}
+        scale={[1.5, 0.72, 1]}
+        castShadow
+      >
+        <sphereGeometry args={[0.13, 32, 20]} />
+        <meshPhysicalMaterial
+          color="#cbd2d3"
+          roughness={0.12}
+          metalness={0.92}
+          clearcoat={0.8}
+          clearcoatRoughness={0.14}
+        />
+      </mesh>
+      <mesh
+        position={[0, 0.064, 0.112]}
+        scale={[1.25, 0.62, 0.24]}
+      >
+        <sphereGeometry args={[0.065, 24, 14]} />
+        <meshStandardMaterial
+          color="#394246"
+          roughness={0.22}
+          metalness={0.55}
+        />
+      </mesh>
+      <mesh position={[0, 0.012, 0]} receiveShadow>
+        <cylinderGeometry args={[0.19, 0.2, 0.022, 32]} />
+        <meshStandardMaterial color="#b9b5ac" roughness={0.76} />
+      </mesh>
+    </group>
+  );
+}
+
+function GuitarScenery() {
+  const strings = [-0.012, -0.007, -0.002, 0.003, 0.008, 0.013];
+
+  return (
+    <group rotation={[0.06, 0.22, -0.26]}>
+      <mesh position={[0, 0.085, 0]} scale={[1, 1.05, 0.42]} castShadow>
+        <sphereGeometry args={[0.085, 24, 16]} />
+        <meshStandardMaterial color="#a95d34" roughness={0.46} />
+      </mesh>
+      <mesh position={[0, 0.145, 0]} scale={[0.76, 0.78, 0.4]} castShadow>
+        <sphereGeometry args={[0.075, 24, 16]} />
+        <meshStandardMaterial color="#bc7040" roughness={0.44} />
+      </mesh>
+      <mesh position={[0, 0.125, 0.037]}>
+        <cylinderGeometry args={[0.025, 0.025, 0.006, 20]} />
+        <meshStandardMaterial color="#302a25" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 0.27, 0]} castShadow>
+        <boxGeometry args={[0.034, 0.25, 0.025]} />
+        <meshStandardMaterial color="#6e4932" roughness={0.65} />
+      </mesh>
+      <mesh position={[0, 0.41, 0]} castShadow>
+        <boxGeometry args={[0.062, 0.075, 0.029]} />
+        <meshStandardMaterial color="#8f5835" roughness={0.58} />
+      </mesh>
+      {strings.map((x) => (
+        <mesh key={x} position={[x, 0.255, 0.016]}>
+          <cylinderGeometry args={[0.001, 0.001, 0.31, 6]} />
+          <meshStandardMaterial color="#ddd8c9" metalness={0.65} />
+        </mesh>
+      ))}
+      {[-1, 1].flatMap((side) =>
+        [0.385, 0.415, 0.445].map((y) => (
+          <mesh
+            key={`${side}-${y}`}
+            position={[side * 0.041, y, 0]}
+            rotation={[0, 0, Math.PI / 2]}
+          >
+            <cylinderGeometry args={[0.007, 0.007, 0.026, 10]} />
+            <meshStandardMaterial color="#d5cbb8" metalness={0.48} />
           </mesh>
-          <mesh position={[0, 0.095, 0]} castShadow>
-            <boxGeometry args={[0.022, 0.16, 0.024]} />
-            <meshStandardMaterial color="#76503a" flatShading />
+        )),
+      )}
+      <mesh position={[0, 0.065, 0.046]}>
+        <boxGeometry args={[0.055, 0.012, 0.012]} />
+        <meshStandardMaterial color="#5c3a29" roughness={0.68} />
+      </mesh>
+    </group>
+  );
+}
+
+function RocketScenery() {
+  return (
+    <group>
+      <mesh position={[0, 0.19, 0]} castShadow>
+        <cylinderGeometry args={[0.046, 0.054, 0.32, 24]} />
+        <meshStandardMaterial color="#eeeae1" roughness={0.35} />
+      </mesh>
+      <mesh position={[0, 0.385, 0]} castShadow>
+        <coneGeometry args={[0.047, 0.14, 24]} />
+        <meshStandardMaterial color="#d84d47" roughness={0.38} />
+      </mesh>
+      {[0.13, 0.27].map((y) => (
+        <mesh key={y} position={[0, y, 0]}>
+          <cylinderGeometry args={[0.055, 0.055, 0.027, 24]} />
+          <meshStandardMaterial color="#3e4a4d" metalness={0.28} />
+        </mesh>
+      ))}
+      {[-1, 1].map((side) => (
+        <group key={side}>
+          <mesh
+            position={[side * 0.065, 0.08, 0]}
+            rotation={[0, 0, side * -0.45]}
+            castShadow
+          >
+            <coneGeometry args={[0.052, 0.14, 4]} />
+            <meshStandardMaterial color="#d84d47" roughness={0.42} />
           </mesh>
-          <mesh position={[0, 0.18, 0]}>
-            <boxGeometry args={[0.04, 0.032, 0.025]} />
-            <meshStandardMaterial color="#d4a257" flatShading />
+          <mesh position={[side * 0.033, 0.28, 0.04]}>
+            <sphereGeometry args={[0.014, 14, 9]} />
+            <meshStandardMaterial
+              color="#84b4c2"
+              roughness={0.2}
+              metalness={0.18}
+            />
           </mesh>
         </group>
-      );
-    case "central-florida":
-      return (
-        <group position={[-0.145, 0.03, 0.035]}>
-          <mesh position={[0, 0.115, 0]} castShadow>
-            <cylinderGeometry args={[0.025, 0.038, 0.2, 8]} />
-            <meshStandardMaterial color="#efe9dc" flatShading />
-          </mesh>
-          <mesh position={[0, 0.235, 0]} castShadow>
-            <coneGeometry args={[0.038, 0.08, 8]} />
-            <meshStandardMaterial color="#d74d46" flatShading />
-          </mesh>
-          {[-1, 1].map((side) => (
+      ))}
+      <mesh position={[0, 0.018, 0]} castShadow>
+        <cylinderGeometry args={[0.1, 0.11, 0.028, 24]} />
+        <meshStandardMaterial color="#777d7b" roughness={0.62} />
+      </mesh>
+      <mesh position={[0, 0.052, 0]}>
+        <cylinderGeometry args={[0.035, 0.045, 0.06, 20]} />
+        <meshStandardMaterial color="#313a3d" metalness={0.38} />
+      </mesh>
+    </group>
+  );
+}
+
+function ApricotTreeScenery() {
+  const canopy = [
+    [-0.07, 0.29, 0],
+    [0.055, 0.31, 0.02],
+    [0, 0.36, -0.025],
+    [0.015, 0.27, 0.075],
+  ] as const;
+  const fruit = [
+    [-0.075, 0.305, 0.055],
+    [-0.02, 0.385, 0.035],
+    [0.055, 0.34, 0.07],
+    [0.09, 0.285, 0.025],
+    [0.01, 0.285, 0.1],
+    [-0.055, 0.34, -0.045],
+  ] as const;
+
+  return (
+    <group>
+      <mesh position={[0, 0.145, 0]} castShadow>
+        <cylinderGeometry args={[0.022, 0.034, 0.29, 14]} />
+        <meshStandardMaterial color="#76503a" roughness={0.86} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <mesh
+          key={side}
+          position={[side * 0.045, 0.235, 0]}
+          rotation={[0, 0, side * -0.62]}
+          castShadow
+        >
+          <cylinderGeometry args={[0.012, 0.018, 0.17, 12]} />
+          <meshStandardMaterial color="#76503a" roughness={0.84} />
+        </mesh>
+      ))}
+      {canopy.map(([x, y, z], index) => (
+        <mesh
+          key={index}
+          position={[x, y, z]}
+          scale={[1.08, 0.86, 1]}
+          castShadow
+        >
+          <sphereGeometry args={[0.095, 18, 12]} />
+          <meshStandardMaterial
+            color={index % 2 === 0 ? "#5f8e5c" : "#70a164"}
+            roughness={0.82}
+          />
+        </mesh>
+      ))}
+      {fruit.map(([x, y, z], index) => (
+        <mesh key={index} position={[x, y, z]} castShadow>
+          <sphereGeometry args={[0.023, 14, 9]} />
+          <meshStandardMaterial color="#e79a3e" roughness={0.52} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function OsakaCastleScenery() {
+  return (
+    <group>
+      <mesh position={[0, 0.035, 0]} castShadow>
+        <boxGeometry args={[0.29, 0.07, 0.24]} />
+        <meshStandardMaterial color="#77736b" roughness={0.8} />
+      </mesh>
+      {[0, 1, 2].map((tier) => {
+        const width = 0.24 - tier * 0.047;
+        const depth = 0.19 - tier * 0.037;
+        const baseY = 0.095 + tier * 0.105;
+
+        return (
+          <group key={tier} position={[0, baseY, 0]}>
+            <mesh castShadow>
+              <boxGeometry args={[width, 0.09, depth]} />
+              <meshStandardMaterial color="#eee7d7" roughness={0.5} />
+            </mesh>
             <mesh
-              key={side}
-              position={[side * 0.042, 0.04, 0]}
-              rotation={[0, 0, side * -0.42]}
+              position={[0, 0.064, 0]}
+              rotation={[0, Math.PI / 4, 0]}
+              castShadow
             >
-              <coneGeometry args={[0.034, 0.085, 4]} />
-              <meshStandardMaterial color="#d74d46" flatShading />
+              <coneGeometry
+                args={[width * 0.73, 0.07, 4]}
+              />
+              <meshStandardMaterial
+                color="#315f55"
+                roughness={0.5}
+              />
             </mesh>
-          ))}
-        </group>
-      );
+            {[-1, 0, 1].map((window) => (
+              <mesh
+                key={window}
+                position={[
+                  window * width * 0.25,
+                  0.008,
+                  depth / 2 + 0.003,
+                ]}
+              >
+                <boxGeometry args={[0.021, 0.035, 0.006]} />
+                <meshStandardMaterial color="#293f3d" roughness={0.45} />
+              </mesh>
+            ))}
+            <mesh position={[0, 0.088, 0]}>
+              <torusGeometry
+                args={[width * 0.34, 0.005, 6, 20, Math.PI]}
+              />
+              <meshStandardMaterial
+                color="#d5ae43"
+                metalness={0.48}
+                roughness={0.3}
+              />
+            </mesh>
+          </group>
+        );
+      })}
+      <mesh position={[0, 0.42, 0]} castShadow>
+        <coneGeometry args={[0.026, 0.105, 12]} />
+        <meshStandardMaterial
+          color="#d5ae43"
+          metalness={0.52}
+          roughness={0.3}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+function PlaceSceneryModel({ placeId }: { placeId: string }) {
+  switch (placeId) {
+    case "new-york":
+      return <TaxiScenery />;
+    case "new-jersey":
+      return <BeachScenery />;
+    case "rhode-island":
+      return <BuoyScenery />;
+    case "chicago":
+      return <BeanScenery />;
+    case "austin":
+      return <GuitarScenery />;
+    case "central-florida":
+      return <RocketScenery />;
     case "malatya":
-      return (
-        <group position={[-0.15, 0.03, 0.035]}>
-          <mesh position={[0, 0.08, 0]} castShadow>
-            <cylinderGeometry args={[0.018, 0.024, 0.15, 7]} />
-            <meshStandardMaterial color="#725344" flatShading />
-          </mesh>
-          <mesh position={[0, 0.18, 0]} scale={[1.15, 0.82, 1]} castShadow>
-            <icosahedronGeometry args={[0.075, 1]} />
-            <meshStandardMaterial color="#668b62" flatShading />
-          </mesh>
-          {[
-            [-0.04, 0.2, 0.045],
-            [0.035, 0.215, 0.035],
-            [0.012, 0.165, 0.068],
-          ].map(([x, y, z], index) => (
-            <mesh key={index} position={[x, y, z]}>
-              <dodecahedronGeometry args={[0.024, 0]} />
-              <meshStandardMaterial color="#e4973f" flatShading />
-            </mesh>
-          ))}
-        </group>
-      );
+      return <ApricotTreeScenery />;
     case "osaka":
-      return (
-        <group position={[-0.15, 0.02, 0.035]} scale={0.78}>
-          {[0, 1, 2].map((tier) => (
-            <group key={tier} position={[0, 0.055 + tier * 0.07, 0]}>
-              <mesh castShadow>
-                <boxGeometry
-                  args={[
-                    0.16 - tier * 0.035,
-                    0.06,
-                    0.12 - tier * 0.024,
-                  ]}
-                />
-                <meshStandardMaterial color="#eee7d7" flatShading />
-              </mesh>
-              <mesh position={[0, 0.045, 0]} rotation={[0, Math.PI / 4, 0]}>
-                <coneGeometry args={[0.13 - tier * 0.025, 0.045, 4]} />
-                <meshStandardMaterial color="#527268" flatShading />
-              </mesh>
-            </group>
-          ))}
-          <mesh position={[0, 0.29, 0]}>
-            <coneGeometry args={[0.025, 0.09, 5]} />
-            <meshStandardMaterial color="#d6a948" flatShading />
-          </mesh>
-        </group>
-      );
+      return <OsakaCastleScenery />;
     default:
       return null;
   }
 }
 
-function PlaceDiorama({ place, color }: { place: Place; color: string }) {
+const PLACE_SCENERY_LAYOUT: Partial<
+  Record<
+    string,
+    {
+      yaw: number;
+      scale: number;
+    }
+  >
+> = {
+  "new-york": { yaw: 0.25, scale: 1.2 },
+  "new-jersey": { yaw: -0.25, scale: 1.1 },
+  "rhode-island": { yaw: 0.1, scale: 1.08 },
+  chicago: { yaw: 0.3, scale: 1.1 },
+  austin: { yaw: -0.15, scale: 1.08 },
+  "central-florida": { yaw: 0.12, scale: 1.08 },
+  malatya: { yaw: -0.12, scale: 1.05 },
+  osaka: { yaw: 0.22, scale: 1.02 },
+};
+
+function PlaceSceneryWorld({ place }: { place: Place }) {
+  const layout = PLACE_SCENERY_LAYOUT[place.id];
+  const direction = PLACE_SCENERY_DIRECTIONS.get(place.id);
+
+  if (!layout || !direction) {
+    return null;
+  }
+
+  const position = direction
+    .clone()
+    .multiplyScalar(planetSurfaceRadiusAt(direction) + 0.018);
+  const orientation = new Quaternion().setFromUnitVectors(UP, direction);
+
   return (
-    <group>
-      <PlaceLandmarkDiorama place={place} color={color} />
-      <PlaceAccentDiorama placeId={place.id} />
+    <group position={position} quaternion={orientation}>
+      <group
+        rotation={[0, layout.yaw, 0]}
+        scale={layout.scale}
+      >
+        <PlaceSceneryModel placeId={place.id} />
+      </group>
     </group>
   );
+}
+
+function PlaceDiorama({ place, color }: { place: Place; color: string }) {
+  return <PlaceLandmarkDiorama place={place} color={color} />;
 }
 
 function PhotoProjection({
@@ -3912,6 +4301,13 @@ function PlanetExperience({
           reduceMotion={reduceMotion}
           skyPhase={skyPhase}
         />
+
+        {places.map((place) => (
+          <PlaceSceneryWorld
+            key={`${place.id}-scenery`}
+            place={place}
+          />
+        ))}
 
         {places.map((place) => (
           <DestinationWorld

@@ -2360,9 +2360,9 @@ function SwimmingFish({
   const directionRef = useRef(new Vector3());
   const positionRef = useRef(new Vector3());
   const tangentRef = useRef(new Vector3());
-  const awayTangentRef = useRef(new Vector3());
   const lookTargetRef = useRef(new Vector3());
   const travelAngleRef = useRef(definition.phase);
+  const tailPhaseRef = useRef(definition.bobPhase);
   const scurryStrengthRef = useRef(0);
   const scurryActiveRef = useRef(false);
 
@@ -2429,19 +2429,10 @@ function SwimmingFish({
         .copy(definition.direction)
         .applyAxisAngle(definition.orbitAxis, travelAngleRef.current)
         .normalize();
-    }
-
-    const travelerDot = direction.dot(travelerDirection);
-    const awayTangent = awayTangentRef.current
-      .copy(travelerDirection)
-      .addScaledVector(direction, -travelerDot)
-      .multiplyScalar(-1);
-
-    if (awayTangent.lengthSq() > 0.00001) {
-      awayTangent.normalize();
-      direction
-        .addScaledVector(awayTangent, scurryStrength * 0.07)
-        .normalize();
+      tailPhaseRef.current +=
+        frameDelta *
+        (definition.kind === "fish" ? 7.5 : 5.5) *
+        (1 + scurryStrength * 0.8);
     }
 
     group.visible = isOceanDirection(direction);
@@ -2460,8 +2451,6 @@ function SwimmingFish({
       .multiplyScalar(OCEAN_SURFACE_RADIUS - swimDepth);
     const tangent = tangentRef.current
       .crossVectors(definition.orbitAxis, direction)
-      .normalize()
-      .addScaledVector(awayTangent, scurryStrength * 1.1)
       .normalize();
 
     group.position.copy(position);
@@ -2474,11 +2463,7 @@ function SwimmingFish({
     if (tailRef.current) {
       tailRef.current.rotation.y = reduceMotion
         ? 0
-        : Math.sin(
-            elapsed *
-              (definition.kind === "fish" ? 7.5 : 5.5) +
-              definition.bobPhase,
-          ) *
+        : Math.sin(tailPhaseRef.current) *
           (0.2 + scurryStrength * 0.22);
     }
   });
