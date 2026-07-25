@@ -80,6 +80,7 @@ type LoosePropState = {
 
 type FishDefinition = {
   id: string;
+  kind: "fish" | "shark" | "dolphin";
   direction: Vector3;
   orbitAxis: Vector3;
   phase: number;
@@ -87,12 +88,15 @@ type FishDefinition = {
   bobPhase: number;
   scale: number;
   color: string;
+  reactsToTraveler: boolean;
 };
 
 const UP = new Vector3(0, 1, 0);
 const TERRAIN_SEGMENTS = 108;
 const TERRAIN_RINGS = 36;
 const VEGETATION_INTERACTION_ANGLE = 0.105;
+const FISH_SCURRY_ENTER_ANGLE = 0.115;
+const FISH_SCURRY_EXIT_ANGLE = 0.18;
 const MAX_OCEAN_TRAVEL_SPEED = 0.34;
 const FLAG_STAR = (() => {
   const shape = new Shape();
@@ -2082,8 +2086,16 @@ function createFishDefinitions() {
   const random = createSeededRandom(81_527);
   const colors = ["#e9b44c", "#e56b5d", "#63b7af", "#8ac0d0"];
   const definitions: FishDefinition[] = [];
+  const schoolKinds: FishDefinition["kind"][] = [
+    "fish",
+    "fish",
+    "fish",
+    "dolphin",
+    "shark",
+  ];
 
-  for (let school = 0; school < 4; school += 1) {
+  for (let school = 0; school < schoolKinds.length; school += 1) {
+    const kind = schoolKinds[school];
     const longitude = random() * Math.PI * 2;
     const vertical = random() * 1.5 - 0.75;
     const horizontal = Math.sqrt(1 - vertical * vertical);
@@ -2101,11 +2113,19 @@ function createFishDefinitions() {
     const orbitAxis = new Vector3()
       .crossVectors(center, travelDirection)
       .normalize();
-    const schoolSpeed = 0.018 + random() * 0.012;
+    const schoolSpeed =
+      kind === "fish"
+        ? 0.018 + random() * 0.012
+        : kind === "dolphin"
+          ? 0.015 + random() * 0.008
+          : 0.011 + random() * 0.006;
+    const schoolSize =
+      kind === "fish" ? 4 : kind === "dolphin" ? 3 : 2;
 
-    for (let fish = 0; fish < 4; fish += 1) {
+    for (let fish = 0; fish < schoolSize; fish += 1) {
       definitions.push({
         id: `fish-${school}-${fish}`,
+        kind,
         direction: directionFromOffset(
           center,
           (random() - 0.5) * 0.18,
@@ -2115,8 +2135,19 @@ function createFishDefinitions() {
         phase: (random() - 0.5) * 0.08,
         speed: schoolSpeed * (0.92 + random() * 0.16),
         bobPhase: random() * Math.PI * 2,
-        scale: 0.78 + random() * 0.42,
-        color: colors[(school + fish) % colors.length],
+        scale:
+          kind === "fish"
+            ? 0.78 + random() * 0.42
+            : kind === "dolphin"
+              ? 1.05 + random() * 0.2
+              : 1.18 + random() * 0.24,
+        color:
+          kind === "fish"
+            ? colors[(school + fish) % colors.length]
+            : kind === "dolphin"
+              ? "#7599a6"
+              : "#66757b",
+        reactsToTraveler: random() < 0.62,
       });
     }
   }
@@ -2124,77 +2155,30 @@ function createFishDefinitions() {
   return definitions;
 }
 
-function SwimmingFish({
+function SchoolFish({
   definition,
-  reduceMotion,
+  tailRef,
 }: {
   definition: FishDefinition;
-  reduceMotion: boolean;
+  tailRef: MutableRefObject<Group | null>;
 }) {
-  const groupRef = useRef<Group>(null);
-  const directionRef = useRef(new Vector3());
-  const positionRef = useRef(new Vector3());
-  const tangentRef = useRef(new Vector3());
-  const lookTargetRef = useRef(new Vector3());
-
-  useFrame(({ clock }) => {
-    const group = groupRef.current;
-
-    if (!group) {
-      return;
-    }
-
-    const elapsed = reduceMotion ? 0 : clock.elapsedTime;
-    const direction = directionRef.current
-      .copy(definition.direction)
-      .applyAxisAngle(
-        definition.orbitAxis,
-        definition.phase + elapsed * definition.speed,
-      )
-      .normalize();
-
-    group.visible = isOceanDirection(direction);
-
-    if (!group.visible) {
-      return;
-    }
-
-    const swimDepth = reduceMotion
-      ? 0.072
-      : 0.066 +
-        (Math.sin(elapsed * 1.35 + definition.bobPhase) * 0.5 + 0.5) *
-          0.018;
-    const position = positionRef.current
-      .copy(direction)
-      .multiplyScalar(OCEAN_SURFACE_RADIUS - swimDepth);
-    const tangent = tangentRef.current
-      .crossVectors(definition.orbitAxis, direction)
-      .normalize();
-
-    group.position.copy(position);
-    group.up.copy(direction);
-    group.lookAt(lookTargetRef.current.copy(position).add(tangent));
-    group.rotation.z = reduceMotion
-      ? 0
-      : Math.sin(elapsed * 3.2 + definition.bobPhase) * 0.08;
-  });
-
   return (
-    <group ref={groupRef} scale={definition.scale}>
+    <>
       <mesh scale={[0.055, 0.06, 0.15]} castShadow renderOrder={4}>
         <sphereGeometry args={[1, 10, 7]} />
         <meshToonMaterial color={definition.color} />
       </mesh>
-      <mesh
-        position={[0, 0, -0.16]}
-        rotation={[Math.PI / 2, 0, 0]}
-        scale={[0.075, 0.07, 0.045]}
-        castShadow
-        renderOrder={4}
-      >
-        <coneGeometry args={[1, 1, 3]} />
-        <meshToonMaterial color={definition.color} />
-      </mesh>
+      <group ref={tailRef} position={[0, 0, -0.16]}>
+        <mesh
+          rotation={[Math.PI / 2, 0, 0]}
+          scale={[0.075, 0.07, 0.045]}
+          castShadow
+          renderOrder={4}
+        >
+          <coneGeometry args={[1, 1, 3]} />
+          <meshToonMaterial color={definition.color} />
+        </mesh>
+      </group>
       <mesh
         position={[0, 0.055, -0.02]}
         rotation={[0, 0, Math.PI]}
@@ -2213,11 +2197,314 @@ function SwimmingFish({
         <sphereGeometry args={[0.012, 6, 5]} />
         <meshBasicMaterial color="#17232a" />
       </mesh>
+    </>
+  );
+}
+
+function Shark({
+  definition,
+  tailRef,
+}: {
+  definition: FishDefinition;
+  tailRef: MutableRefObject<Group | null>;
+}) {
+  return (
+    <>
+      <mesh scale={[0.075, 0.065, 0.24]} castShadow renderOrder={4}>
+        <sphereGeometry args={[1, 12, 7]} />
+        <meshToonMaterial color={definition.color} />
+      </mesh>
+      <mesh
+        position={[0, -0.035, 0.04]}
+        scale={[0.057, 0.018, 0.15]}
+        renderOrder={5}
+      >
+        <sphereGeometry args={[1, 10, 6]} />
+        <meshToonMaterial color="#c8d1d0" />
+      </mesh>
+      <mesh
+        position={[0, 0.09, -0.035]}
+        rotation={[0, 0, Math.PI]}
+        scale={[0.06, 0.1, 0.045]}
+        castShadow
+        renderOrder={4}
+      >
+        <coneGeometry args={[1, 1, 3]} />
+        <meshToonMaterial color={definition.color} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <mesh
+          key={side}
+          position={[side * 0.075, -0.01, -0.015]}
+          rotation={[0, 0, side * -1.05]}
+          scale={[0.085, 0.035, 0.055]}
+          castShadow
+          renderOrder={4}
+        >
+          <coneGeometry args={[1, 1, 3]} />
+          <meshToonMaterial color={definition.color} />
+        </mesh>
+      ))}
+      <group ref={tailRef} position={[0, 0, -0.25]}>
+        {[-1, 1].map((side) => (
+          <mesh
+            key={side}
+            position={[side * 0.035, 0, -0.035]}
+            rotation={[0, 0, side * -0.72]}
+            scale={[0.07, 0.12, 0.04]}
+            castShadow
+            renderOrder={4}
+          >
+            <coneGeometry args={[1, 1, 3]} />
+            <meshToonMaterial color={definition.color} />
+          </mesh>
+        ))}
+      </group>
+      <mesh position={[0.04, 0.018, 0.185]} renderOrder={5}>
+        <sphereGeometry args={[0.012, 6, 5]} />
+        <meshBasicMaterial color="#17232a" />
+      </mesh>
+      <mesh position={[-0.04, 0.018, 0.185]} renderOrder={5}>
+        <sphereGeometry args={[0.012, 6, 5]} />
+        <meshBasicMaterial color="#17232a" />
+      </mesh>
+    </>
+  );
+}
+
+function Dolphin({
+  definition,
+  tailRef,
+}: {
+  definition: FishDefinition;
+  tailRef: MutableRefObject<Group | null>;
+}) {
+  return (
+    <>
+      <mesh scale={[0.07, 0.06, 0.23]} castShadow renderOrder={4}>
+        <sphereGeometry args={[1, 12, 7]} />
+        <meshToonMaterial color={definition.color} />
+      </mesh>
+      <mesh
+        position={[0, -0.005, 0.245]}
+        rotation={[Math.PI / 2, 0, 0]}
+        castShadow
+        renderOrder={4}
+      >
+        <cylinderGeometry args={[0.018, 0.032, 0.13, 8]} />
+        <meshToonMaterial color="#829faa" />
+      </mesh>
+      <mesh
+        position={[0, 0.08, -0.045]}
+        rotation={[0, 0, Math.PI]}
+        scale={[0.052, 0.09, 0.04]}
+        castShadow
+        renderOrder={4}
+      >
+        <coneGeometry args={[1, 1, 3]} />
+        <meshToonMaterial color={definition.color} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <mesh
+          key={side}
+          position={[side * 0.067, -0.018, -0.01]}
+          rotation={[0, 0, side * -1.08]}
+          scale={[0.075, 0.028, 0.05]}
+          castShadow
+          renderOrder={4}
+        >
+          <coneGeometry args={[1, 1, 3]} />
+          <meshToonMaterial color={definition.color} />
+        </mesh>
+      ))}
+      <group ref={tailRef} position={[0, 0, -0.235]}>
+        {[-1, 1].map((side) => (
+          <mesh
+            key={side}
+            position={[side * 0.045, 0, -0.025]}
+            rotation={[0, 0, side * -0.92]}
+            scale={[0.085, 0.04, 0.035]}
+            castShadow
+            renderOrder={4}
+          >
+            <coneGeometry args={[1, 1, 3]} />
+            <meshToonMaterial color={definition.color} />
+          </mesh>
+        ))}
+      </group>
+      <mesh position={[0.033, 0.018, 0.175]} renderOrder={5}>
+        <sphereGeometry args={[0.011, 6, 5]} />
+        <meshBasicMaterial color="#17232a" />
+      </mesh>
+      <mesh position={[-0.033, 0.018, 0.175]} renderOrder={5}>
+        <sphereGeometry args={[0.011, 6, 5]} />
+        <meshBasicMaterial color="#17232a" />
+      </mesh>
+    </>
+  );
+}
+
+function SwimmingFish({
+  definition,
+  reduceMotion,
+  exploreMode,
+  travelerDirectionRef,
+}: {
+  definition: FishDefinition;
+  reduceMotion: boolean;
+  exploreMode: boolean;
+  travelerDirectionRef: MutableRefObject<Vector3>;
+}) {
+  const groupRef = useRef<Group>(null);
+  const tailRef = useRef<Group>(null);
+  const directionRef = useRef(new Vector3());
+  const positionRef = useRef(new Vector3());
+  const tangentRef = useRef(new Vector3());
+  const awayTangentRef = useRef(new Vector3());
+  const lookTargetRef = useRef(new Vector3());
+  const travelAngleRef = useRef(definition.phase);
+  const scurryStrengthRef = useRef(0);
+  const scurryActiveRef = useRef(false);
+
+  useFrame(({ clock }, delta) => {
+    const group = groupRef.current;
+
+    if (!group) {
+      return;
+    }
+
+    const frameDelta = Math.min(delta, 0.05);
+    const elapsed = reduceMotion ? 0 : clock.elapsedTime;
+    const direction = directionRef.current
+      .copy(definition.direction)
+      .applyAxisAngle(definition.orbitAxis, travelAngleRef.current)
+      .normalize();
+    const travelerDirection = travelerDirectionRef.current;
+    const travelerAngle = angularDistance(
+      direction,
+      travelerDirection,
+    );
+
+    if (
+      exploreMode &&
+      definition.reactsToTraveler &&
+      !reduceMotion
+    ) {
+      if (
+        !scurryActiveRef.current &&
+        travelerAngle < FISH_SCURRY_ENTER_ANGLE
+      ) {
+        scurryActiveRef.current = true;
+      } else if (
+        scurryActiveRef.current &&
+        travelerAngle > FISH_SCURRY_EXIT_ANGLE
+      ) {
+        scurryActiveRef.current = false;
+      }
+    } else {
+      scurryActiveRef.current = false;
+    }
+
+    const targetScurry = scurryActiveRef.current ? 1 : 0;
+    scurryStrengthRef.current = MathUtils.damp(
+      scurryStrengthRef.current,
+      targetScurry,
+      targetScurry > scurryStrengthRef.current ? 7.5 : 2.6,
+      frameDelta,
+    );
+    const scurryStrength = scurryStrengthRef.current;
+
+    if (!reduceMotion) {
+      const speciesBoost =
+        definition.kind === "fish"
+          ? 4.2
+          : definition.kind === "dolphin"
+            ? 3.4
+            : 2.5;
+      travelAngleRef.current +=
+        definition.speed *
+        (1 + scurryStrength * speciesBoost) *
+        frameDelta;
+      direction
+        .copy(definition.direction)
+        .applyAxisAngle(definition.orbitAxis, travelAngleRef.current)
+        .normalize();
+    }
+
+    const travelerDot = direction.dot(travelerDirection);
+    const awayTangent = awayTangentRef.current
+      .copy(travelerDirection)
+      .addScaledVector(direction, -travelerDot)
+      .multiplyScalar(-1);
+
+    if (awayTangent.lengthSq() > 0.00001) {
+      awayTangent.normalize();
+      direction
+        .addScaledVector(awayTangent, scurryStrength * 0.07)
+        .normalize();
+    }
+
+    group.visible = isOceanDirection(direction);
+
+    if (!group.visible) {
+      return;
+    }
+
+    const swimDepth = reduceMotion
+      ? 0.072
+      : 0.066 +
+        (Math.sin(elapsed * 1.35 + definition.bobPhase) * 0.5 + 0.5) *
+          0.018;
+    const position = positionRef.current
+      .copy(direction)
+      .multiplyScalar(OCEAN_SURFACE_RADIUS - swimDepth);
+    const tangent = tangentRef.current
+      .crossVectors(definition.orbitAxis, direction)
+      .normalize()
+      .addScaledVector(awayTangent, scurryStrength * 1.1)
+      .normalize();
+
+    group.position.copy(position);
+    group.up.copy(direction);
+    group.lookAt(lookTargetRef.current.copy(position).add(tangent));
+    group.rotation.z = reduceMotion
+      ? 0
+      : Math.sin(elapsed * 3.2 + definition.bobPhase) * 0.08;
+
+    if (tailRef.current) {
+      tailRef.current.rotation.y = reduceMotion
+        ? 0
+        : Math.sin(
+            elapsed *
+              (definition.kind === "fish" ? 7.5 : 5.5) +
+              definition.bobPhase,
+          ) *
+          (0.2 + scurryStrength * 0.22);
+    }
+  });
+
+  return (
+    <group ref={groupRef} scale={definition.scale}>
+      {definition.kind === "shark" ? (
+        <Shark definition={definition} tailRef={tailRef} />
+      ) : definition.kind === "dolphin" ? (
+        <Dolphin definition={definition} tailRef={tailRef} />
+      ) : (
+        <SchoolFish definition={definition} tailRef={tailRef} />
+      )}
     </group>
   );
 }
 
-function OceanLife({ reduceMotion }: { reduceMotion: boolean }) {
+function OceanLife({
+  reduceMotion,
+  exploreMode,
+  travelerDirectionRef,
+}: {
+  reduceMotion: boolean;
+  exploreMode: boolean;
+  travelerDirectionRef: MutableRefObject<Vector3>;
+}) {
   const fish = useMemo(createFishDefinitions, []);
 
   return (
@@ -2227,6 +2514,8 @@ function OceanLife({ reduceMotion }: { reduceMotion: boolean }) {
           key={definition.id}
           definition={definition}
           reduceMotion={reduceMotion}
+          exploreMode={exploreMode}
+          travelerDirectionRef={travelerDirectionRef}
         />
       ))}
     </group>
@@ -2250,7 +2539,11 @@ export function PlanetoidWorld({
         reduceMotion={reduceMotion}
         skyPhase={skyPhase}
       />
-      <OceanLife reduceMotion={reduceMotion} />
+      <OceanLife
+        reduceMotion={reduceMotion}
+        exploreMode={exploreMode}
+        travelerDirectionRef={travelerDirectionRef}
+      />
 
       {BIOMES.map((biome) => (
         <group key={biome.id}>

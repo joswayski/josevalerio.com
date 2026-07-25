@@ -316,8 +316,8 @@ const PLACE_LAYOUT: Record<string, PlaceLayout> = {
   },
   "rhode-island": {
     biomeId: "united-states",
-    east: 0.5,
-    north: 0.17,
+    east: 0.49,
+    north: 0.04,
   },
   chicago: {
     biomeId: "united-states",
@@ -326,13 +326,13 @@ const PLACE_LAYOUT: Record<string, PlaceLayout> = {
   },
   austin: {
     biomeId: "united-states",
-    east: -0.18,
-    north: -0.24,
+    east: -0.17,
+    north: -0.18,
   },
   "central-florida": {
     biomeId: "united-states",
-    east: 0.38,
-    north: -0.24,
+    east: 0.32,
+    north: -0.18,
   },
   "dominican-republic": {
     biomeId: "dominican-republic",
@@ -341,8 +341,8 @@ const PLACE_LAYOUT: Record<string, PlaceLayout> = {
   },
   istanbul: {
     biomeId: "turkiye",
-    east: -0.34,
-    north: 0.095,
+    east: -0.29,
+    north: 0.085,
   },
   ankara: {
     biomeId: "turkiye",
@@ -351,8 +351,8 @@ const PLACE_LAYOUT: Record<string, PlaceLayout> = {
   },
   izmir: {
     biomeId: "turkiye",
-    east: -0.33,
-    north: -0.07,
+    east: -0.28,
+    north: -0.06,
   },
   bodrum: {
     biomeId: "turkiye",
@@ -365,7 +365,7 @@ const PLACE_LAYOUT: Record<string, PlaceLayout> = {
     north: 0.02,
   },
   seoul: { biomeId: "south-korea", east: 0, north: 0.025 },
-  tokyo: { biomeId: "japan", east: 0.045, north: -0.135 },
+  tokyo: { biomeId: "japan", east: 0.035, north: -0.1 },
   osaka: { biomeId: "japan", east: -0.06, north: -0.02 },
 };
 
