@@ -130,6 +130,7 @@ const TRAVELER_TURN_RESPONSE = 9;
 const TRAVELER_RENDER_ORDER = 20;
 const TRAVELER_GROUND_CLEARANCE = 0.01;
 const HORIZON_CLIP_MARGIN = 0.035;
+const DESTINATION_HORIZON_REVEAL_HEIGHT = 1.25;
 const UP = new Vector3(0, 1, 0);
 const X_AXIS = new Vector3(1, 0, 0);
 const Y_AXIS = new Vector3(0, 1, 0);
@@ -201,6 +202,7 @@ const CELESTIAL_BODIES: CelestialBodyDefinition[] = [
 
 type CloudDefinition = {
   id: string;
+  kind: "cumulus" | "storm" | "stratus";
   coordinates: [longitude: number, latitude: number];
   seed: number;
   width: number;
@@ -224,17 +226,51 @@ type CloudPuff = {
 const CLOUD_INTERACTION_RADIUS = 1.75;
 
 function createSessionCloudDefinitions(): CloudDefinition[] {
-  const cloudCount = 8 + Math.floor(Math.random() * 3);
+  const cloudCount = 7 + Math.floor(Math.random() * 3);
 
-  return Array.from({ length: cloudCount }, (_, index) => ({
-    id: `session-cloud-${index}`,
-    coordinates: [Math.random() * 360 - 180, Math.random() * 116 - 58],
-    seed: Math.floor(Math.random() * 100_000) + index * 997,
-    width: 1.25 + Math.random() * 1.05,
-    puffCount: 48 + Math.floor(Math.random() * 32),
-    altitude: 0.92 + Math.random() * 0.38,
-    rain: Math.random() < 0.08,
-  }));
+  return Array.from({ length: cloudCount }, (_, index) => {
+    const roll = Math.random();
+    const kind: CloudDefinition["kind"] =
+      index === 0
+        ? "stratus"
+        : index === 1
+          ? "storm"
+          : roll < 0.2
+            ? "stratus"
+            : roll < 0.36
+              ? "storm"
+              : "cumulus";
+    const width =
+      kind === "stratus"
+        ? 3.8 + Math.random() * 1.8
+        : kind === "storm"
+          ? 2.8 + Math.random() * 1.25
+          : 1.6 + Math.random() * 1.15;
+    const puffCount =
+      kind === "stratus"
+        ? 88 + Math.floor(Math.random() * 26)
+        : kind === "storm"
+          ? 82 + Math.floor(Math.random() * 28)
+          : 54 + Math.floor(Math.random() * 28);
+    const altitude =
+      kind === "cumulus"
+        ? 1 + Math.random() * 0.42
+        : 0.72 + Math.random() * 0.3;
+
+    return {
+      id: `session-cloud-${index}`,
+      kind,
+      coordinates: [
+        Math.random() * 360 - 180,
+        Math.random() * 116 - 58,
+      ],
+      seed: Math.floor(Math.random() * 100_000) + index * 997,
+      width,
+      puffCount,
+      altitude,
+      rain: kind === "storm" && Math.random() < 0.3,
+    };
+  });
 }
 
 function createStarPositions(count: number) {
@@ -553,26 +589,74 @@ function createCloudPuffs(definition: CloudDefinition) {
   const surfaceRadius = traversalSurfaceRadiusAt(centerDirection);
   const puffs: CloudPuff[] = [];
   const coreCount = Math.floor(definition.puffCount * 0.72);
+  const surfaceOrientation = new Quaternion().setFromUnitVectors(
+    UP,
+    centerDirection,
+  );
 
   for (let index = 0; index < definition.puffCount; index += 1) {
     const isCore = index < coreCount;
-    const horizontalAngle = random() * Math.PI * 2;
-    const horizontalDistribution = isCore
-      ? Math.pow(random(), 0.82) * 0.72
-      : 0.62 + Math.pow(random(), 0.5) * 0.38;
-    const horizontalRadius = horizontalDistribution * definition.width * 0.52;
-    const eastOffset = Math.cos(horizontalAngle) * horizontalRadius;
-    const northOffset = Math.sin(horizontalAngle) * horizontalRadius * 0.82;
-    const verticalSpread = definition.width * (isCore ? 0.11 : 0.17);
-    const radialOffset =
-      definition.altitude + (random() + random() - 1) * verticalSpread;
+    let eastOffset: number;
+    let northOffset: number;
+    let radialOffset: number;
+    let radius: number;
+
+    if (definition.kind === "stratus") {
+      eastOffset = (random() - 0.5) * definition.width * 1.18;
+      northOffset =
+        (random() - 0.5) * definition.width * 0.34 +
+        Math.sin((eastOffset / definition.width) * Math.PI * 1.5) *
+          definition.width *
+          0.045;
+      radialOffset =
+        definition.altitude +
+        (random() + random() - 1) * definition.width * 0.04;
+      radius = 0.22 + random() * 0.18;
+    } else {
+      const horizontalAngle = random() * Math.PI * 2;
+      const horizontalDistribution = isCore
+        ? Math.pow(random(), 0.82) * 0.72
+        : 0.62 + Math.pow(random(), 0.5) * 0.38;
+      const horizontalRadius =
+        horizontalDistribution *
+        definition.width *
+        (definition.kind === "storm" ? 0.42 : 0.52);
+      eastOffset = Math.cos(horizontalAngle) * horizontalRadius;
+      northOffset =
+        Math.sin(horizontalAngle) *
+        horizontalRadius *
+        (definition.kind === "storm" ? 0.66 : 0.82);
+      const verticalSpread =
+        definition.width *
+        (definition.kind === "storm"
+          ? isCore
+            ? 0.22
+            : 0.3
+          : isCore
+            ? 0.11
+            : 0.17);
+      radialOffset =
+        definition.kind === "storm"
+          ? definition.altitude +
+            (Math.pow(random(), 0.7) - 0.22) * verticalSpread
+          : definition.altitude +
+            (random() + random() - 1) * verticalSpread;
+      radius =
+        definition.kind === "storm"
+          ? isCore
+            ? 0.3 + random() * 0.22
+            : 0.2 + random() * 0.2
+          : isCore
+            ? 0.25 + random() * 0.2
+            : 0.14 + random() * 0.17;
+    }
+
     const basePosition = centerDirection
       .clone()
       .multiplyScalar(surfaceRadius + radialOffset)
       .addScaledVector(east, eastOffset)
       .addScaledVector(north, northOffset);
     const scatterAngle = random() * Math.PI * 2;
-    const radius = isCore ? 0.25 + random() * 0.2 : 0.14 + random() * 0.17;
     const rotationAxis = new Vector3(
       random() - 0.5,
       random() - 0.5,
@@ -585,19 +669,57 @@ function createCloudPuffs(definition: CloudDefinition) {
       rotationAxis.normalize();
     }
 
+    const rotation =
+      definition.kind === "cumulus"
+        ? new Quaternion().setFromAxisAngle(
+            rotationAxis,
+            random() * Math.PI * 2,
+          )
+        : surfaceOrientation
+            .clone()
+            .multiply(
+              new Quaternion().setFromAxisAngle(
+                UP,
+                random() * Math.PI * 2,
+              ),
+            );
+    const baseScale =
+      definition.kind === "stratus"
+        ? new Vector3(
+            radius * (1.55 + random() * 0.6),
+            radius * (0.38 + random() * 0.2),
+            radius * (1.2 + random() * 0.55),
+          )
+        : definition.kind === "storm"
+          ? new Vector3(
+              radius * (1 + random() * 0.38),
+              radius * (1.15 + random() * 0.6),
+              radius * (1 + random() * 0.38),
+            )
+          : new Vector3(
+              radius * (1.05 + random() * 0.48),
+              radius * (0.7 + random() * 0.3),
+              radius * (1 + random() * 0.5),
+            );
+    const opacity =
+      definition.kind === "storm"
+        ? isCore
+          ? 0.42 + random() * 0.16
+          : 0.24 + random() * 0.15
+        : definition.kind === "stratus"
+          ? isCore
+            ? 0.28 + random() * 0.12
+            : 0.14 + random() * 0.11
+          : isCore
+            ? 0.36 + random() * 0.16
+            : 0.16 + random() * 0.14;
+
     puffs.push({
       basePosition,
       currentPosition: basePosition.clone(),
       velocity: new Vector3(),
-      baseScale: new Vector3(
-        radius * (1.05 + random() * 0.48),
-        radius * (0.7 + random() * 0.3),
-        radius * (1 + random() * 0.5),
-      ),
-      rotation: new Quaternion().setFromAxisAngle(
-        rotationAxis,
-        random() * Math.PI * 2,
-      ),
+      baseScale,
+      rotation,
       driftDirection: east
         .clone()
         .multiplyScalar(0.65 + random() * 0.35)
@@ -608,7 +730,7 @@ function createCloudPuffs(definition: CloudDefinition) {
         .multiplyScalar(Math.cos(scatterAngle))
         .addScaledVector(north, Math.sin(scatterAngle))
         .normalize(),
-      opacity: isCore ? 0.36 + random() * 0.16 : 0.16 + random() * 0.14,
+      opacity,
       phase: random() * Math.PI * 2,
     });
   }
@@ -734,10 +856,16 @@ function CloudCluster({
   const targetPositionRef = useRef(new Vector3());
   const separationRef = useRef(new Vector3());
   const lateralRef = useRef(new Vector3());
-  const cloudColor = definition.rain
+  const cloudColor = definition.kind === "storm"
     ? skyPhase === "night"
-      ? "#798994"
-      : "#c4cfd0"
+      ? "#6e7d88"
+      : "#b9c6c8"
+    : definition.kind === "stratus"
+      ? skyPhase === "night"
+        ? "#a8b4bd"
+        : skyPhase === "twilight"
+          ? "#d8dcda"
+          : "#e8ece8"
     : skyPhase === "night"
       ? "#b8c3ca"
       : skyPhase === "twilight"
@@ -1483,12 +1611,12 @@ function isAboveGlobeHorizon(
     return false;
   }
 
-  const cameraFacingHeight =
-    worldPosition.dot(cameraPosition) / worldRadius;
+  const occluderRadius =
+    OCEAN_SURFACE_RADIUS + HORIZON_CLIP_MARGIN;
 
   return (
-    cameraFacingHeight >
-    OCEAN_SURFACE_RADIUS + HORIZON_CLIP_MARGIN
+    worldPosition.dot(cameraPosition) >
+    occluderRadius * occluderRadius
   );
 }
 
@@ -1758,18 +1886,15 @@ function PlaceDiorama({ place, color }: { place: Place; color: string }) {
 
 function PhotoProjection({
   projectionRef,
-  horizonRef,
   travelerDirectionRef,
   exploreMode,
 }: {
   projectionRef: RefObject<HTMLButtonElement | null>;
-  horizonRef: RefObject<Group | null>;
   travelerDirectionRef: MutableRefObject<Vector3>;
   exploreMode: boolean;
 }) {
   const anchorRef = useRef<Group>(null);
   const projectedPositionRef = useRef(new Vector3());
-  const horizonPositionRef = useRef(new Vector3());
   const travelerProjectedPositionRef = useRef(new Vector3());
   const { camera, gl } = useThree();
 
@@ -1790,25 +1915,21 @@ function PhotoProjection({
 
   useFrame(({ clock }) => {
     const anchor = anchorRef.current;
-    const horizon = horizonRef.current;
     const projection = projectionRef.current;
 
-    if (!anchor || !horizon || !projection) {
+    if (!anchor || !projection) {
       return;
     }
 
     anchor.position.y = 1.42 + Math.sin(clock.elapsedTime * 1.45) * 0.025;
     anchor.updateWorldMatrix(true, false);
 
-    const horizonPosition = horizonPositionRef.current;
-    horizon.getWorldPosition(horizonPosition);
-    const aboveHorizon = isAboveGlobeHorizon(
-      horizonPosition,
-      camera.position,
-    );
-
     const projectedPosition = projectedPositionRef.current;
     anchor.getWorldPosition(projectedPosition);
+    const aboveHorizon = isAboveGlobeHorizon(
+      projectedPosition,
+      camera.position,
+    );
     projectedPosition.project(camera);
 
     const visible =
@@ -2104,6 +2225,7 @@ function DestinationWorld({
 }) {
   const groupRef = useRef<Group>(null);
   const worldPositionRef = useRef(new Vector3());
+  const visibilityProbeRef = useRef(new Vector3());
   const aboveHorizonRef = useRef(true);
   const [hovered, setHovered] = useState(false);
   const { camera, gl } = useThree();
@@ -2135,8 +2257,17 @@ function DestinationWorld({
     }
 
     groupRef.current.updateWorldMatrix(true, false);
+    const worldPosition = groupRef.current.getWorldPosition(
+      worldPositionRef.current,
+    );
+    const worldRadius = worldPosition.length();
+    const visibilityProbe = visibilityProbeRef.current
+      .copy(worldPosition)
+      .multiplyScalar(
+        (worldRadius + DESTINATION_HORIZON_REVEAL_HEIGHT) / worldRadius,
+      );
     const aboveHorizon = isAboveGlobeHorizon(
-      groupRef.current.getWorldPosition(worldPositionRef.current),
+      visibilityProbe,
       camera.position,
     );
     aboveHorizonRef.current = aboveHorizon;
@@ -2216,7 +2347,6 @@ function DestinationWorld({
       {selected ? (
         <PhotoProjection
           projectionRef={projectionRef}
-          horizonRef={groupRef}
           travelerDirectionRef={travelerDirectionRef}
           exploreMode={exploreMode}
         />

@@ -45,15 +45,13 @@ type WaterAudioGraph = {
 
 type AmbientMusicGraph = {
   context: AudioContext;
-  oscillators: OscillatorNode[];
-  voiceGains: GainNode[];
   filter: BiquadFilterNode;
+  delay: DelayNode;
+  feedback: GainNode;
   masterGain: GainNode;
-  lfo: OscillatorNode;
-  lfoGain: GainNode;
-  chordIndex: number;
-  chimeStep: number;
-  nextChimeAt: number;
+  phraseIndex: number;
+  nextPhraseAt: number;
+  randomState: number;
 };
 
 const DAY_IN_MILLISECONDS = 86_400_000;
@@ -62,16 +60,6 @@ const AMBIENT_CHORDS = [
   [123.47, 185, 293.66],
   [98, 146.83, 246.94],
   [110, 164.81, 293.66],
-] as const;
-const AMBIENT_MELODY = [
-  293.66,
-  369.99,
-  440,
-  329.63,
-  493.88,
-  369.99,
-  293.66,
-  440,
 ] as const;
 const DEFAULT_CELESTIAL_STATE: CelestialState = {
   skyPhase: "day",
@@ -182,58 +170,101 @@ function resolvePhotoSrc(
   return null;
 }
 
-function updateAmbientMusicGraph(graph: AmbientMusicGraph) {
-  const now = graph.context.currentTime;
-  const nextChordIndex =
-    Math.floor(now / 14) % AMBIENT_CHORDS.length;
+function nextAmbientRandom(graph: AmbientMusicGraph) {
+  graph.randomState =
+    (Math.imul(graph.randomState, 1_664_525) + 1_013_904_223) >>> 0;
+  return graph.randomState / 4_294_967_296;
+}
 
-  if (nextChordIndex !== graph.chordIndex) {
-    graph.chordIndex = nextChordIndex;
-    const chord = AMBIENT_CHORDS[nextChordIndex];
-
-    graph.oscillators.forEach((oscillator, index) => {
-      oscillator.frequency.setTargetAtTime(
-        chord[index],
-        now,
-        2.8,
-      );
-    });
-  }
-
-  if (now < graph.nextChimeAt) {
-    return;
-  }
-
+function scheduleAmbientNote(
+  graph: AmbientMusicGraph,
+  frequency: number,
+  start: number,
+  duration: number,
+  level: number,
+  pan: number,
+) {
   const oscillator = graph.context.createOscillator();
   const gain = graph.context.createGain();
-  const frequency =
-    AMBIENT_MELODY[graph.chimeStep % AMBIENT_MELODY.length];
-  const noteLength = 5.8;
+  const panner = graph.context.createStereoPanner();
+  const attack = Math.min(0.9, duration * 0.28);
 
-  oscillator.type = "sine";
-  oscillator.frequency.setValueAtTime(frequency, now);
+  oscillator.type =
+    nextAmbientRandom(graph) > 0.76 ? "triangle" : "sine";
+  oscillator.frequency.setValueAtTime(frequency, start);
+  oscillator.detune.setValueAtTime(
+    (nextAmbientRandom(graph) - 0.5) * 7,
+    start,
+  );
   oscillator.frequency.exponentialRampToValueAtTime(
-    frequency * 0.997,
-    now + noteLength,
+    frequency * (0.996 + nextAmbientRandom(graph) * 0.003),
+    start + duration,
   );
-  gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.009, now + 1.1);
-  gain.gain.exponentialRampToValueAtTime(
-    0.0001,
-    now + noteLength,
-  );
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(level, start + attack);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  panner.pan.setValueAtTime(pan, start);
   oscillator.connect(gain);
-  gain.connect(graph.filter);
-  oscillator.start(now);
-  oscillator.stop(now + noteLength + 0.05);
+  gain.connect(panner);
+  panner.connect(graph.filter);
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.05);
   oscillator.addEventListener("ended", () => {
     oscillator.disconnect();
     gain.disconnect();
+    panner.disconnect();
   });
+}
 
-  graph.chimeStep += 1;
-  graph.nextChimeAt =
-    now + 7.4 + (graph.chimeStep % 3) * 1.15;
+function updateAmbientMusicGraph(graph: AmbientMusicGraph) {
+  const now = graph.context.currentTime;
+
+  if (now < graph.nextPhraseAt) {
+    return;
+  }
+
+  const chord =
+    AMBIENT_CHORDS[
+      (graph.phraseIndex +
+        Math.floor(nextAmbientRandom(graph) * 2)) %
+        AMBIENT_CHORDS.length
+    ];
+  const noteCount = 2 + Math.floor(nextAmbientRandom(graph) * 3);
+  let cursor = now + 0.08;
+  let phraseEnd = cursor;
+
+  graph.filter.frequency.setTargetAtTime(
+    900 + nextAmbientRandom(graph) * 720,
+    now,
+    1.8,
+  );
+  graph.delay.delayTime.setTargetAtTime(
+    0.38 + nextAmbientRandom(graph) * 0.28,
+    now,
+    1.5,
+  );
+
+  for (let note = 0; note < noteCount; note += 1) {
+    const chordTone =
+      chord[Math.floor(nextAmbientRandom(graph) * chord.length)];
+    const octave = nextAmbientRandom(graph) < 0.78 ? 2 : 1;
+    const duration = 2.7 + nextAmbientRandom(graph) * 2.8;
+
+    scheduleAmbientNote(
+      graph,
+      chordTone * octave,
+      cursor,
+      duration,
+      0.0045 + nextAmbientRandom(graph) * 0.003,
+      (nextAmbientRandom(graph) - 0.5) * 0.7,
+    );
+    phraseEnd = Math.max(phraseEnd, cursor + duration);
+    cursor += 1.25 + nextAmbientRandom(graph) * 1.55;
+  }
+
+  graph.phraseIndex += 1;
+  graph.nextPhraseAt =
+    phraseEnd + 7 + nextAmbientRandom(graph) * 12;
 }
 
 const movementKeys = new Set([
@@ -375,15 +406,9 @@ export function PlacesGlobe() {
       const ambientGraph = ambientMusicGraphRef.current;
 
       if (ambientGraph) {
-        ambientGraph.oscillators.forEach((oscillator) => {
-          oscillator.stop();
-          oscillator.disconnect();
-        });
-        ambientGraph.voiceGains.forEach((gain) => gain.disconnect());
-        ambientGraph.lfo.stop();
-        ambientGraph.lfo.disconnect();
-        ambientGraph.lfoGain.disconnect();
         ambientGraph.filter.disconnect();
+        ambientGraph.delay.disconnect();
+        ambientGraph.feedback.disconnect();
         ambientGraph.masterGain.disconnect();
       }
 
@@ -466,7 +491,7 @@ export function PlacesGlobe() {
     foamFilter.Q.value = 0.52;
     oceanGain.gain.value = 0.0001;
     foamGain.gain.value = 0.0001;
-    masterGain.gain.value = 0.24;
+    masterGain.gain.value = 0.18;
     lfo.type = "sine";
     lfo.frequency.value = 0.16;
     lfoGain.gain.value = 0;
@@ -514,53 +539,32 @@ export function PlacesGlobe() {
     }
 
     const filter = context.createBiquadFilter();
+    const delay = context.createDelay(1.5);
+    const feedback = context.createGain();
     const masterGain = context.createGain();
-    const lfo = context.createOscillator();
-    const lfoGain = context.createGain();
-    const voiceLevels = [0.014, 0.008, 0.006];
-    const oscillators: OscillatorNode[] = [];
-    const voiceGains: GainNode[] = [];
 
     filter.type = "lowpass";
-    filter.frequency.value = 760;
-    filter.Q.value = 0.32;
-    masterGain.gain.value = 0.28;
-    lfo.type = "sine";
-    lfo.frequency.value = 0.035;
-    lfoGain.gain.value = 115;
-
-    AMBIENT_CHORDS[0].forEach((frequency, index) => {
-      const oscillator = context.createOscillator();
-      const voiceGain = context.createGain();
-
-      oscillator.type = index === 0 ? "sine" : "triangle";
-      oscillator.frequency.value = frequency;
-      oscillator.detune.value = index === 1 ? -3 : index === 2 ? 4 : 0;
-      voiceGain.gain.value = voiceLevels[index];
-      oscillator.connect(voiceGain);
-      voiceGain.connect(filter);
-      oscillator.start();
-      oscillators.push(oscillator);
-      voiceGains.push(voiceGain);
-    });
-
+    filter.frequency.value = 1180;
+    filter.Q.value = 0.38;
+    delay.delayTime.value = 0.48;
+    feedback.gain.value = 0.16;
+    masterGain.gain.value = 0.24;
     filter.connect(masterGain);
+    filter.connect(delay);
+    delay.connect(feedback);
+    feedback.connect(delay);
+    delay.connect(masterGain);
     masterGain.connect(context.destination);
-    lfo.connect(lfoGain);
-    lfoGain.connect(filter.frequency);
-    lfo.start();
 
     const graph: AmbientMusicGraph = {
       context,
-      oscillators,
-      voiceGains,
       filter,
+      delay,
+      feedback,
       masterGain,
-      lfo,
-      lfoGain,
-      chordIndex: 0,
-      chimeStep: 0,
-      nextChimeAt: context.currentTime + 4.2,
+      phraseIndex: 0,
+      nextPhraseAt: context.currentTime + 2.8,
+      randomState: 0x4a6f7365,
     };
     ambientMusicGraphRef.current = graph;
     return graph;
@@ -583,20 +587,27 @@ export function PlacesGlobe() {
 
       const now = graph.context.currentTime;
       const onWater = traversalMode !== "land";
+      const slowSwell =
+        0.9 +
+        Math.sin(now * 0.17) * 0.07 +
+        Math.sin(now * 0.061 + 1.4) * 0.035;
+      const foamVariance =
+        0.88 + Math.sin(now * 0.41 + 0.8) * 0.12;
       const oceanTarget = onWater
         ? traversalMode === "boat"
-          ? 0.013
-          : 0.016
+          ? 0.0095 * slowSwell
+          : 0.012 * slowSwell
         : 0.0001;
       const foamTarget = onWater
         ? 0.0015 +
           movementBlend *
-            (traversalMode === "boat" ? 0.018 : 0.014)
+            (traversalMode === "boat" ? 0.014 : 0.011) *
+            foamVariance
         : 0.0001;
       const filterTarget =
         traversalMode === "boat"
-          ? 620 + movementBlend * 560
-          : 480 + movementBlend * 330;
+          ? 570 + movementBlend * 520 + Math.sin(now * 0.13) * 55
+          : 450 + movementBlend * 310 + Math.sin(now * 0.11) * 42;
 
       graph.oceanGain.gain.setTargetAtTime(
         oceanTarget,
@@ -614,9 +625,19 @@ export function PlacesGlobe() {
         0.22,
       );
       graph.foamFilter.frequency.setTargetAtTime(
-        1100 + movementBlend * 1050,
+        1020 + movementBlend * 920 + Math.sin(now * 0.29) * 90,
         now,
         0.18,
+      );
+      graph.oceanSource.playbackRate.setTargetAtTime(
+        0.68 + Math.sin(now * 0.07) * 0.045,
+        now,
+        0.8,
+      );
+      graph.foamSource.playbackRate.setTargetAtTime(
+        1.12 + Math.sin(now * 0.19 + 0.6) * 0.07,
+        now,
+        0.45,
       );
       graph.lfoGain.gain.setTargetAtTime(
         onWater ? 0.0016 : 0,

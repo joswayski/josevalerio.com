@@ -638,7 +638,7 @@ function OceanSurface({
 
             gl_FragColor = vec4(
               water,
-              0.88 + fresnel * 0.08
+              0.7 + fresnel * 0.18 + crest * 0.025
             );
           }
         `}
@@ -2167,12 +2167,14 @@ function SwimmingFish({
       return;
     }
 
-    const surfaceRipple = reduceMotion
-      ? 0
-      : Math.max(0, Math.sin(elapsed * 1.6 + definition.bobPhase)) * 0.018;
+    const swimDepth = reduceMotion
+      ? 0.072
+      : 0.066 +
+        (Math.sin(elapsed * 1.35 + definition.bobPhase) * 0.5 + 0.5) *
+          0.018;
     const position = positionRef.current
       .copy(direction)
-      .multiplyScalar(OCEAN_SURFACE_RADIUS + 0.035 + surfaceRipple);
+      .multiplyScalar(OCEAN_SURFACE_RADIUS - swimDepth);
     const tangent = tangentRef.current
       .crossVectors(definition.orbitAxis, direction)
       .normalize();
