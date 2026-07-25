@@ -32,11 +32,13 @@ import {
   Color,
   DoubleSide,
   MathUtils,
+  Object3D,
   Quaternion,
   SRGBColorSpace,
-  type ShaderMaterial,
   Vector3,
   type Group,
+  type InstancedBufferAttribute,
+  type InstancedMesh,
   type Mesh,
   type MeshStandardMaterial,
   type Points,
@@ -204,21 +206,23 @@ type CloudDefinition = {
 
 type CloudPuff = {
   basePosition: Vector3;
+  currentPosition: Vector3;
+  baseScale: Vector3;
+  rotation: Quaternion;
   driftDirection: Vector3;
   scatterDirection: Vector3;
-  radius: number;
   opacity: number;
   phase: number;
 };
 
-const CLOUD_INTERACTION_RADIUS = 1.05;
+const CLOUD_INTERACTION_RADIUS = 1.3;
 const CLOUD_DEFINITIONS: CloudDefinition[] = [
   {
     id: "western-atlantic",
     coordinates: [-74, 31],
     seed: 11,
     width: 1.15,
-    puffCount: 11,
+    puffCount: 40,
     altitude: 0.34,
   },
   {
@@ -226,7 +230,7 @@ const CLOUD_DEFINITIONS: CloudDefinition[] = [
     coordinates: [-91, 44],
     seed: 23,
     width: 1.05,
-    puffCount: 10,
+    puffCount: 36,
     altitude: 0.36,
   },
   {
@@ -234,7 +238,7 @@ const CLOUD_DEFINITIONS: CloudDefinition[] = [
     coordinates: [-64, 18],
     seed: 37,
     width: 1.25,
-    puffCount: 12,
+    puffCount: 44,
     altitude: 0.32,
   },
   {
@@ -242,7 +246,7 @@ const CLOUD_DEFINITIONS: CloudDefinition[] = [
     coordinates: [-18, 49],
     seed: 41,
     width: 1.3,
-    puffCount: 12,
+    puffCount: 46,
     altitude: 0.38,
   },
   {
@@ -250,7 +254,7 @@ const CLOUD_DEFINITIONS: CloudDefinition[] = [
     coordinates: [24, 39],
     seed: 53,
     width: 1.05,
-    puffCount: 10,
+    puffCount: 36,
     altitude: 0.34,
   },
   {
@@ -258,7 +262,7 @@ const CLOUD_DEFINITIONS: CloudDefinition[] = [
     coordinates: [128, 35],
     seed: 67,
     width: 1.2,
-    puffCount: 12,
+    puffCount: 42,
     altitude: 0.36,
   },
   {
@@ -266,7 +270,7 @@ const CLOUD_DEFINITIONS: CloudDefinition[] = [
     coordinates: [160, 24],
     seed: 79,
     width: 1.35,
-    puffCount: 12,
+    puffCount: 48,
     altitude: 0.38,
   },
   {
@@ -274,7 +278,7 @@ const CLOUD_DEFINITIONS: CloudDefinition[] = [
     coordinates: [78, -8],
     seed: 97,
     width: 1.2,
-    puffCount: 11,
+    puffCount: 42,
     altitude: 0.34,
   },
   {
@@ -282,7 +286,7 @@ const CLOUD_DEFINITIONS: CloudDefinition[] = [
     coordinates: [-18, -18],
     seed: 101,
     width: 1.15,
-    puffCount: 10,
+    puffCount: 40,
     altitude: 0.33,
   },
 ];
@@ -525,25 +529,57 @@ function createCloudPuffs(definition: CloudDefinition) {
     .normalize();
   const surfaceRadius = planetSurfaceRadiusAt(centerDirection);
   const puffs: CloudPuff[] = [];
+  const coreCount = Math.floor(definition.puffCount * 0.72);
 
   for (let index = 0; index < definition.puffCount; index += 1) {
+    const isCore = index < coreCount;
     const horizontalAngle = random() * Math.PI * 2;
+    const horizontalDistribution = isCore
+      ? Math.pow(random(), 0.82) * 0.72
+      : 0.62 + Math.pow(random(), 0.5) * 0.38;
     const horizontalRadius =
-      Math.sqrt(random()) * definition.width * 0.5;
+      horizontalDistribution * definition.width * 0.52;
     const eastOffset = Math.cos(horizontalAngle) * horizontalRadius;
     const northOffset =
-      Math.sin(horizontalAngle) * horizontalRadius * 0.58;
+      Math.sin(horizontalAngle) * horizontalRadius * 0.72;
+    const verticalSpread =
+      definition.width * (isCore ? 0.19 : 0.27);
     const radialOffset =
-      definition.altitude + (random() - 0.5) * 0.18;
+      definition.altitude +
+      (random() + random() - 1) * verticalSpread;
     const basePosition = centerDirection
       .clone()
       .multiplyScalar(surfaceRadius + radialOffset)
       .addScaledVector(east, eastOffset)
       .addScaledVector(north, northOffset);
     const scatterAngle = random() * Math.PI * 2;
+    const radius = isCore
+      ? 0.2 + random() * 0.15
+      : 0.1 + random() * 0.14;
+    const rotationAxis = new Vector3(
+      random() - 0.5,
+      random() - 0.5,
+      random() - 0.5,
+    );
+
+    if (rotationAxis.lengthSq() < 0.0001) {
+      rotationAxis.copy(UP);
+    } else {
+      rotationAxis.normalize();
+    }
 
     puffs.push({
       basePosition,
+      currentPosition: basePosition.clone(),
+      baseScale: new Vector3(
+        radius * (0.88 + random() * 0.38),
+        radius * (0.78 + random() * 0.4),
+        radius * (0.88 + random() * 0.38),
+      ),
+      rotation: new Quaternion().setFromAxisAngle(
+        rotationAxis,
+        random() * Math.PI * 2,
+      ),
       driftDirection: east
         .clone()
         .multiplyScalar(0.65 + random() * 0.35)
@@ -554,8 +590,9 @@ function createCloudPuffs(definition: CloudDefinition) {
         .multiplyScalar(Math.cos(scatterAngle))
         .addScaledVector(north, Math.sin(scatterAngle))
         .normalize(),
-      radius: 0.16 + random() * 0.16,
-      opacity: 0.18 + random() * 0.14,
+      opacity: isCore
+        ? 0.5 + random() * 0.2
+        : 0.24 + random() * 0.2,
       phase: random() * Math.PI * 2,
     });
   }
@@ -580,7 +617,10 @@ function CloudCluster({
     () => createCloudPuffs(definition),
     [definition],
   );
-  const puffRefs = useRef<Array<Mesh | null>>([]);
+  const cloudMeshRef = useRef<InstancedMesh | null>(null);
+  const opacityAttributeRef =
+    useRef<InstancedBufferAttribute | null>(null);
+  const transformRef = useRef(new Object3D());
   const travelerPositionRef = useRef(new Vector3());
   const targetPositionRef = useRef(new Vector3());
   const separationRef = useRef(new Vector3());
@@ -591,8 +631,26 @@ function CloudCluster({
       : skyPhase === "twilight"
         ? "#e8e9e6"
         : "#f7f5ef";
+  const cloudUniforms = useMemo(
+    () => ({
+      cloudColor: { value: new Color(cloudColor) },
+      cloudUp: { value: cloud.centerDirection.clone() },
+    }),
+    [cloud.centerDirection, cloudColor],
+  );
+  const initialOpacities = useMemo(
+    () => new Float32Array(cloud.puffs.map((puff) => puff.opacity)),
+    [cloud.puffs],
+  );
 
   useFrame(({ clock }, delta) => {
+    const cloudMesh = cloudMeshRef.current;
+    const opacityAttribute = opacityAttributeRef.current;
+
+    if (!cloudMesh || !opacityAttribute) {
+      return;
+    }
+
     const travelerDirection = travelerDirectionRef.current;
     const travelerPosition = travelerPositionRef.current
       .copy(travelerDirection)
@@ -602,12 +660,6 @@ function CloudCluster({
     const easeDelta = Math.min(delta, 0.05);
 
     cloud.puffs.forEach((puff, index) => {
-      const mesh = puffRefs.current[index];
-
-      if (!mesh) {
-        return;
-      }
-
       const drift = reduceMotion
         ? 0
         : Math.sin(clock.elapsedTime * 0.34 + puff.phase) * 0.055;
@@ -645,7 +697,14 @@ function CloudCluster({
         targetPosition
           .addScaledVector(
             lateral,
-            interaction * (0.42 + puff.radius * 0.8),
+            interaction *
+              (0.54 +
+                Math.max(
+                  puff.baseScale.x,
+                  puff.baseScale.y,
+                  puff.baseScale.z,
+                ) *
+                  1.2),
           )
           .addScaledVector(
             cloud.centerDirection,
@@ -653,90 +712,150 @@ function CloudCluster({
           );
       }
 
-      const response = interaction > 0.01 ? 10 : 1.8;
-      mesh.position.lerp(
+      const response = interaction > 0.01 ? 9 : 1.45;
+      puff.currentPosition.lerp(
         targetPosition,
         1 - Math.exp(-easeDelta * response),
       );
-      mesh.scale.setScalar(
-        1 +
-          interaction * 0.24 +
-          (reduceMotion
-            ? 0
-            : Math.sin(clock.elapsedTime * 0.5 + puff.phase) * 0.025),
-      );
+      const breathing = reduceMotion
+        ? 0
+        : Math.sin(clock.elapsedTime * 0.5 + puff.phase) * 0.025;
+      const interactionScale = MathUtils.lerp(1, 0.84, interaction);
+      const transform = transformRef.current;
 
-      const material = mesh.material as ShaderMaterial;
-      material.uniforms.opacity.value =
-        puff.opacity * (1 - interaction * 0.78);
+      transform.position.copy(puff.currentPosition);
+      transform.quaternion.copy(puff.rotation);
+      transform.scale
+        .copy(puff.baseScale)
+        .multiplyScalar((1 + breathing) * interactionScale);
+      transform.updateMatrix();
+      cloudMesh.setMatrixAt(index, transform.matrix);
+      opacityAttribute.setX(
+        index,
+        puff.opacity * (1 - interaction * 0.74),
+      );
     });
+
+    cloudMesh.instanceMatrix.needsUpdate = true;
+    opacityAttribute.needsUpdate = true;
   });
 
   return (
-    <group>
-      {cloud.puffs.map((puff, index) => (
-        <mesh
-          key={`${definition.id}-${index}`}
-          ref={(mesh) => {
-            puffRefs.current[index] = mesh;
-          }}
-          position={puff.basePosition.toArray()}
-          renderOrder={4}
-        >
-          <icosahedronGeometry args={[puff.radius, 2]} />
-          <shaderMaterial
-            uniforms={{
-              cloudColor: { value: new Color(cloudColor) },
-              opacity: { value: puff.opacity },
-            }}
-            vertexShader={`
-              varying vec3 vViewNormal;
-              varying vec3 vViewDirection;
+    <instancedMesh
+      ref={cloudMeshRef}
+      args={[undefined, undefined, cloud.puffs.length]}
+      frustumCulled={false}
+      renderOrder={4}
+    >
+      <icosahedronGeometry args={[1, 1]}>
+        <instancedBufferAttribute
+          ref={opacityAttributeRef}
+          attach="attributes-instanceOpacity"
+          args={[initialOpacities, 1]}
+        />
+      </icosahedronGeometry>
+      <shaderMaterial
+        uniforms={cloudUniforms}
+        vertexShader={`
+          attribute float instanceOpacity;
+          varying float vOpacity;
+          varying vec3 vViewNormal;
+          varying vec3 vViewDirection;
+          varying vec3 vWorldPosition;
+          varying vec3 vWorldNormal;
 
-              void main() {
-                vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
-                vViewNormal = normalize(normalMatrix * normal);
-                vViewDirection = normalize(-viewPosition.xyz);
-                gl_Position = projectionMatrix * viewPosition;
-              }
-            `}
-            fragmentShader={`
-              uniform vec3 cloudColor;
-              uniform float opacity;
-              varying vec3 vViewNormal;
-              varying vec3 vViewDirection;
+          void main() {
+            vec4 instancePosition =
+              instanceMatrix * vec4(position, 1.0);
+            vec4 viewPosition =
+              modelViewMatrix * instancePosition;
+            vec4 worldPosition =
+              modelMatrix * instancePosition;
+            vec3 instanceNormal =
+              mat3(instanceMatrix) * normal;
 
-              void main() {
-                float facing = max(dot(
-                  normalize(vViewNormal),
-                  normalize(vViewDirection)
-                ), 0.0);
-                float density = pow(
-                  smoothstep(0.02, 0.78, facing),
-                  0.72
-                );
+            vOpacity = instanceOpacity;
+            vViewNormal = normalize(
+              normalMatrix * instanceNormal
+            );
+            vViewDirection = normalize(-viewPosition.xyz);
+            vWorldPosition = worldPosition.xyz;
+            vWorldNormal = normalize(
+              mat3(modelMatrix) * instanceNormal
+            );
+            gl_Position =
+              projectionMatrix * viewPosition;
+          }
+        `}
+        fragmentShader={`
+          uniform vec3 cloudColor;
+          uniform vec3 cloudUp;
+          varying float vOpacity;
+          varying vec3 vViewNormal;
+          varying vec3 vViewDirection;
+          varying vec3 vWorldPosition;
+          varying vec3 vWorldNormal;
 
-                if (density < 0.01) {
-                  discard;
-                }
+          float hash(vec3 value) {
+            return fract(sin(dot(
+              value,
+              vec3(12.9898, 78.233, 37.719)
+            )) * 43758.5453);
+          }
 
-                vec3 shadedColor = cloudColor * mix(
-                  0.78,
-                  1.08,
-                  density
-                );
-                gl_FragColor = vec4(
-                  shadedColor,
-                  opacity * density
-                );
-              }
-            `}
-            transparent
-            depthWrite={false}
-          />
-        </mesh>
-      ))}
-    </group>
+          void main() {
+            float facing = abs(dot(
+              normalize(vViewNormal),
+              normalize(vViewDirection)
+            ));
+            float edge = pow(
+              smoothstep(0.025, 0.68, facing),
+              0.48
+            );
+            float erosion = mix(
+              0.82,
+              1.04,
+              hash(floor(vWorldPosition * 11.0))
+            );
+            float density = edge * erosion;
+
+            if (density < 0.055) {
+              discard;
+            }
+
+            vec3 faceNormal = normalize(cross(
+              dFdx(vWorldPosition),
+              dFdy(vWorldPosition)
+            ));
+
+            if (dot(faceNormal, vWorldNormal) < 0.0) {
+              faceNormal *= -1.0;
+            }
+
+            float topLight = dot(
+              faceNormal,
+              normalize(cloudUp + vec3(0.18, 0.3, 0.12))
+            );
+            float light = clamp(
+              0.68 + topLight * 0.18 + facing * 0.12,
+              0.46,
+              1.0
+            );
+            light = floor(light * 5.0 + 0.5) / 5.0;
+            vec3 shadedColor =
+              cloudColor * light * mix(0.86, 1.03, density);
+
+            gl_FragColor = vec4(
+              shadedColor,
+              min(vOpacity * density, 0.94)
+            );
+          }
+        `}
+        transparent
+        depthWrite={false}
+        side={DoubleSide}
+      />
+    </instancedMesh>
   );
 }
 
