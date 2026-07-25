@@ -4,7 +4,13 @@ import {
   useThree,
   type ThreeEvent,
 } from "@react-three/fiber";
-import { geoEquirectangular, geoPath, type GeoPermissibleObjects } from "d3-geo";
+import { Body, Equator, Horizon, Observer } from "astronomy-engine";
+import {
+  geoContains,
+  geoEquirectangular,
+  geoPath,
+  type GeoPermissibleObjects,
+} from "d3-geo";
 import {
   useEffect,
   useMemo,
@@ -14,10 +20,10 @@ import {
   type RefObject,
 } from "react";
 import {
-  AlwaysDepth,
   BackSide,
   CanvasTexture,
   Color,
+  DoubleSide,
   MathUtils,
   Quaternion,
   SRGBColorSpace,
@@ -93,6 +99,7 @@ const CAMERA_ORBIT_ANGLE_RESPONSE = 8;
 const CAMERA_FOLLOW_RESPONSE = 4;
 const TRAVELER_TURN_RESPONSE = 9;
 const TRAVELER_RENDER_ORDER = 20;
+const TRAVELER_GROUND_CLEARANCE = 0.01;
 const HORIZON_CLIP_MARGIN = 0.035;
 const WORLD = worldAtlas as unknown as Topology<{
   countries: GeometryCollection;
@@ -112,6 +119,70 @@ const UP = new Vector3(0, 1, 0);
 const X_AXIS = new Vector3(1, 0, 0);
 const Y_AXIS = new Vector3(0, 1, 0);
 const FOCUS_DIRECTION = new Vector3(0, -0.24, 0.97).normalize();
+const CELESTIAL_UPDATE_INTERVAL = 0.4;
+
+type CelestialBodyDefinition = {
+  body: Body;
+  color: string;
+  emissive: string;
+  radius: number;
+  distance: number;
+  ring?: {
+    color: string;
+    innerRadius: number;
+    outerRadius: number;
+  };
+};
+
+const CELESTIAL_BODIES: CelestialBodyDefinition[] = [
+  {
+    body: Body.Moon,
+    color: "#c8c5bc",
+    emissive: "#5d5f63",
+    radius: 0.25,
+    distance: 44,
+  },
+  {
+    body: Body.Mercury,
+    color: "#aaa49a",
+    emissive: "#4b4843",
+    radius: 0.075,
+    distance: 48,
+  },
+  {
+    body: Body.Venus,
+    color: "#e7d4a8",
+    emissive: "#7a673d",
+    radius: 0.12,
+    distance: 47,
+  },
+  {
+    body: Body.Mars,
+    color: "#b75e43",
+    emissive: "#642f25",
+    radius: 0.1,
+    distance: 49,
+  },
+  {
+    body: Body.Jupiter,
+    color: "#d8b58d",
+    emissive: "#654b35",
+    radius: 0.19,
+    distance: 51,
+  },
+  {
+    body: Body.Saturn,
+    color: "#d8c696",
+    emissive: "#665a3c",
+    radius: 0.16,
+    distance: 52,
+    ring: {
+      color: "#cdbd98",
+      innerRadius: 0.21,
+      outerRadius: 0.34,
+    },
+  },
+];
 
 function createStarPositions(count: number) {
   const positions = new Float32Array(count * 3);
@@ -169,6 +240,200 @@ function StarField({
         toneMapped={false}
       />
     </points>
+  );
+}
+
+function CelestialBodyModel({
+  definition,
+  skyPhase,
+}: {
+  definition: CelestialBodyDefinition;
+  skyPhase: SkyPhase;
+}) {
+  const emissiveIntensity =
+    skyPhase === "night" ? 0.34 : skyPhase === "twilight" ? 0.24 : 0.12;
+
+  return (
+    <>
+      <mesh>
+        <sphereGeometry args={[definition.radius, 20, 14]} />
+        <meshStandardMaterial
+          color={definition.color}
+          emissive={definition.emissive}
+          emissiveIntensity={emissiveIntensity}
+          roughness={0.86}
+          metalness={0}
+        />
+      </mesh>
+
+      {definition.ring ? (
+        <mesh rotation={[0.48, 0, 0]}>
+          <ringGeometry
+            args={[
+              definition.ring.innerRadius,
+              definition.ring.outerRadius,
+              36,
+            ]}
+          />
+          <meshStandardMaterial
+            color={definition.ring.color}
+            emissive={definition.emissive}
+            emissiveIntensity={emissiveIntensity * 0.7}
+            side={DoubleSide}
+            transparent
+            opacity={0.84}
+            roughness={0.9}
+          />
+        </mesh>
+      ) : null}
+    </>
+  );
+}
+
+function CelestialSky({
+  observerDirectionRef,
+  skyPhase,
+}: {
+  observerDirectionRef: MutableRefObject<Vector3>;
+  skyPhase: SkyPhase;
+}) {
+  const bodyRefs = useRef<Array<Group | null>>([]);
+  const bodyTargetPositionsRef = useRef(
+    CELESTIAL_BODIES.map(() => new Vector3()),
+  );
+  const bodyWasVisibleRef = useRef(
+    CELESTIAL_BODIES.map(() => false),
+  );
+  const lastUpdateRef = useRef(Number.NEGATIVE_INFINITY);
+  const observerUpRef = useRef(new Vector3());
+  const observerSurfaceRef = useRef(new Vector3());
+  const eastRef = useRef(new Vector3());
+  const northRef = useRef(new Vector3());
+  const horizontalRef = useRef(new Vector3());
+  const skyDirectionRef = useRef(new Vector3());
+  const { camera } = useThree();
+
+  useFrame(({ clock }, delta) => {
+    const observerUp = observerUpRef.current
+      .copy(observerDirectionRef.current)
+      .normalize();
+    const shouldUpdate =
+      clock.elapsedTime - lastUpdateRef.current >=
+      CELESTIAL_UPDATE_INTERVAL;
+
+    if (shouldUpdate) {
+      lastUpdateRef.current = clock.elapsedTime;
+
+      const latitude = MathUtils.radToDeg(
+        Math.asin(MathUtils.clamp(observerUp.y, -1, 1)),
+      );
+      const longitude = MathUtils.radToDeg(
+        Math.atan2(observerUp.z, -observerUp.x),
+      );
+      const observer = new Observer(latitude, longitude, 0);
+      const now = new Date();
+      const east = eastRef.current.crossVectors(Y_AXIS, observerUp);
+
+      if (east.lengthSq() < 0.0001) {
+        east.set(0, 0, 1);
+      } else {
+        east.normalize();
+      }
+
+      const north = northRef.current
+        .crossVectors(observerUp, east)
+        .normalize();
+      const observerSurface = observerSurfaceRef.current
+        .copy(observerUp)
+        .multiplyScalar(PLANET_SURFACE_RADIUS);
+
+      CELESTIAL_BODIES.forEach((definition, index) => {
+        const group = bodyRefs.current[index];
+
+        if (!group) {
+          return;
+        }
+
+        const equatorial = Equator(
+          definition.body,
+          now,
+          observer,
+          true,
+          true,
+        );
+        const horizon = Horizon(
+          now,
+          observer,
+          equatorial.ra,
+          equatorial.dec,
+          "normal",
+        );
+        const visible = horizon.altitude >= -0.35;
+
+        group.visible = visible;
+
+        if (!visible) {
+          bodyWasVisibleRef.current[index] = false;
+          return;
+        }
+
+        const azimuth = MathUtils.degToRad(horizon.azimuth);
+        const altitude = MathUtils.degToRad(horizon.altitude);
+        const horizontal = horizontalRef.current
+          .copy(north)
+          .multiplyScalar(Math.cos(azimuth))
+          .addScaledVector(east, Math.sin(azimuth));
+        const skyDirection = skyDirectionRef.current
+          .copy(horizontal)
+          .multiplyScalar(Math.cos(altitude))
+          .addScaledVector(observerUp, Math.sin(altitude))
+          .normalize();
+        const targetPosition = bodyTargetPositionsRef.current[index]
+          .copy(observerSurface)
+          .addScaledVector(skyDirection, definition.distance);
+
+        if (!bodyWasVisibleRef.current[index]) {
+          group.position.copy(targetPosition);
+        }
+
+        bodyWasVisibleRef.current[index] = true;
+      });
+    }
+
+    const ease = 1 - Math.exp(-Math.min(delta, 0.05) * 4.5);
+
+    CELESTIAL_BODIES.forEach((definition, index) => {
+      const group = bodyRefs.current[index];
+
+      if (!group?.visible) {
+        return;
+      }
+
+      group.position.lerp(bodyTargetPositionsRef.current[index], ease);
+
+      if (definition.body === Body.Saturn) {
+        group.lookAt(camera.position);
+      }
+    });
+  });
+
+  return (
+    <group>
+      {CELESTIAL_BODIES.map((definition, index) => (
+        <group
+          key={definition.body}
+          ref={(group) => {
+            bodyRefs.current[index] = group;
+          }}
+          visible={false}
+        >
+          <CelestialBodyModel
+            definition={definition}
+            skyPhase={skyPhase}
+          />
+        </group>
+      ))}
+    </group>
   );
 }
 
@@ -251,6 +516,20 @@ function latLonToVector3(
     -ringRadius * Math.cos(longitudeRadians),
     radius * Math.sin(latitudeRadians),
     ringRadius * Math.sin(longitudeRadians),
+  );
+}
+
+function planetSurfaceRadiusAt(direction: Vector3) {
+  const latitude = MathUtils.radToDeg(
+    Math.asin(MathUtils.clamp(direction.y, -1, 1)),
+  );
+  const longitude = MathUtils.radToDeg(
+    Math.atan2(direction.z, -direction.x),
+  );
+
+  return (
+    PLANET_RADIUS +
+    (geoContains(LAND, [longitude, latitude]) ? PLANET_LAND_RELIEF : 0)
   );
 }
 
@@ -1051,7 +1330,12 @@ function Traveler({
     const playerForward = playerForwardRef.current;
     const position = positionRef.current
       .copy(playerUp)
-      .multiplyScalar(PLANET_SURFACE_RADIUS + 0.055 + bob + jumpLift);
+      .multiplyScalar(
+        planetSurfaceRadiusAt(playerUp) +
+          TRAVELER_GROUND_CLEARANCE +
+          bob +
+          jumpLift,
+      );
     const lookTarget = lookTargetRef.current
       .copy(position)
       .add(playerForward);
@@ -1081,11 +1365,7 @@ function Traveler({
           castShadow
         >
           <boxGeometry args={[0.045, 0.12, 0.05]} />
-          <meshStandardMaterial
-            color="#2c3b40"
-            depthFunc={AlwaysDepth}
-            flatShading
-          />
+          <meshStandardMaterial color="#2c3b40" flatShading />
         </mesh>
         <mesh
           ref={rightLegRef}
@@ -1094,11 +1374,7 @@ function Traveler({
           castShadow
         >
           <boxGeometry args={[0.045, 0.12, 0.05]} />
-          <meshStandardMaterial
-            color="#2c3b40"
-            depthFunc={AlwaysDepth}
-            flatShading
-          />
+          <meshStandardMaterial color="#2c3b40" flatShading />
         </mesh>
         <mesh
           position={[0, 0.17, 0]}
@@ -1106,11 +1382,7 @@ function Traveler({
           castShadow
         >
           <capsuleGeometry args={[0.065, 0.13, 4, 8]} />
-          <meshStandardMaterial
-            color="#d04842"
-            depthFunc={AlwaysDepth}
-            flatShading
-          />
+          <meshStandardMaterial color="#d04842" flatShading />
         </mesh>
         <mesh
           ref={leftArmRef}
@@ -1119,11 +1391,7 @@ function Traveler({
           castShadow
         >
           <boxGeometry args={[0.035, 0.16, 0.04]} />
-          <meshStandardMaterial
-            color="#e9c5a4"
-            depthFunc={AlwaysDepth}
-            flatShading
-          />
+          <meshStandardMaterial color="#e9c5a4" flatShading />
         </mesh>
         <mesh
           ref={rightArmRef}
@@ -1132,11 +1400,7 @@ function Traveler({
           castShadow
         >
           <boxGeometry args={[0.035, 0.16, 0.04]} />
-          <meshStandardMaterial
-            color="#e9c5a4"
-            depthFunc={AlwaysDepth}
-            flatShading
-          />
+          <meshStandardMaterial color="#e9c5a4" flatShading />
         </mesh>
         <mesh
           position={[0, 0.32, 0]}
@@ -1144,11 +1408,7 @@ function Traveler({
           castShadow
         >
           <icosahedronGeometry args={[0.078, 1]} />
-          <meshStandardMaterial
-            color="#e9c5a4"
-            depthFunc={AlwaysDepth}
-            flatShading
-          />
+          <meshStandardMaterial color="#e9c5a4" flatShading />
         </mesh>
         <mesh
           position={[0, 0.2, -0.065]}
@@ -1156,11 +1416,7 @@ function Traveler({
           castShadow
         >
           <boxGeometry args={[0.105, 0.13, 0.055]} />
-          <meshStandardMaterial
-            color="#d4a64c"
-            depthFunc={AlwaysDepth}
-            flatShading
-          />
+          <meshStandardMaterial color="#d4a64c" flatShading />
         </mesh>
       </group>
     </group>
@@ -1176,6 +1432,7 @@ function PlanetExperience({
   onSelect,
   onNearbyChange,
   onFootstep,
+  skyPhase,
   solarDirection,
 }: PlacesSceneProps) {
   const globeRef = useRef<Group>(null);
@@ -1672,6 +1929,11 @@ function PlanetExperience({
 
   return (
     <>
+      <CelestialSky
+        observerDirectionRef={playerUpRef}
+        skyPhase={skyPhase}
+      />
+
       <group ref={globeRef}>
         <mesh castShadow receiveShadow>
           <icosahedronGeometry args={[PLANET_RADIUS, 5]} />
