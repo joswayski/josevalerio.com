@@ -1,9 +1,9 @@
 import { MathUtils, Vector3 } from "three";
 import { places } from "./places";
 
-export const PLANET_RADIUS = 6;
-export const OCEAN_SURFACE_RADIUS = PLANET_RADIUS + 0.1;
-export const PLANET_MAX_SURFACE_RADIUS = 7.12;
+export const PLANET_RADIUS = 9;
+export const OCEAN_SURFACE_RADIUS = PLANET_RADIUS + 0.14;
+export const PLANET_MAX_SURFACE_RADIUS = 10.45;
 
 export type TraversalMode = "boat" | "land" | "swim";
 
@@ -123,13 +123,13 @@ export const BIOMES: BiomeDefinition[] = [
     name: "United States",
     countryName: "United States",
     center: sphericalDirection(-18, 32),
-    angularRadius: 0.64,
+    angularRadius: 0.76,
     parts: [
       {
         east: 0,
         north: 0,
-        scaleEast: 0.55,
-        scaleNorth: 0.31,
+        scaleEast: 0.68,
+        scaleNorth: 0.39,
         rotation: -0.08,
         // A broad continental silhouette with a northeastern shoulder,
         // Texas-like southwest weight, and a narrow Florida-like tail.
@@ -156,13 +156,13 @@ export const BIOMES: BiomeDefinition[] = [
     name: "Dominican Republic",
     countryName: "Dominican Republic",
     center: sphericalDirection(70, 18),
-    angularRadius: 0.34,
+    angularRadius: 0.42,
     parts: [
       {
         east: 0,
         north: 0,
-        scaleEast: 0.29,
-        scaleNorth: 0.12,
+        scaleEast: 0.36,
+        scaleNorth: 0.16,
         rotation: -0.05,
         outline: [
           0.98, 0.92, 0.88, 0.94, 1.04, 0.98, 0.9, 0.86, 0.9, 0.97,
@@ -186,13 +186,13 @@ export const BIOMES: BiomeDefinition[] = [
     name: "Türkiye",
     countryName: "Türkiye",
     center: sphericalDirection(154, 27),
-    angularRadius: 0.5,
+    angularRadius: 0.61,
     parts: [
       {
         east: 0,
         north: 0,
-        scaleEast: 0.43,
-        scaleNorth: 0.18,
+        scaleEast: 0.55,
+        scaleNorth: 0.23,
         rotation: 0.04,
         outline: [
           0.96, 0.92, 0.94, 1.02, 0.98, 0.9, 0.86, 0.9, 0.96, 1.02,
@@ -216,13 +216,13 @@ export const BIOMES: BiomeDefinition[] = [
     name: "South Korea",
     countryName: "South Korea",
     center: sphericalDirection(-132, 4),
-    angularRadius: 0.36,
+    angularRadius: 0.44,
     parts: [
       {
         east: 0,
         north: 0,
-        scaleEast: 0.16,
-        scaleNorth: 0.29,
+        scaleEast: 0.21,
+        scaleNorth: 0.37,
         rotation: -0.18,
         outline: [
           0.9, 0.96, 1.04, 1, 0.92, 0.88, 0.9, 0.96, 1, 0.94,
@@ -246,13 +246,13 @@ export const BIOMES: BiomeDefinition[] = [
     name: "Japan",
     countryName: "Japan",
     center: sphericalDirection(-93, -31),
-    angularRadius: 0.48,
+    angularRadius: 0.58,
     parts: [
       {
         east: 0,
         north: 0,
-        scaleEast: 0.14,
-        scaleNorth: 0.31,
+        scaleEast: 0.19,
+        scaleNorth: 0.4,
         rotation: -0.38,
         outline: [
           0.9, 0.96, 1.02, 0.98, 0.9, 0.86, 0.9, 1, 1.05, 0.98,
@@ -261,10 +261,10 @@ export const BIOMES: BiomeDefinition[] = [
         ],
       },
       {
-        east: 0.09,
-        north: 0.29,
-        scaleEast: 0.1,
-        scaleNorth: 0.1,
+        east: 0.12,
+        north: 0.37,
+        scaleEast: 0.13,
+        scaleNorth: 0.13,
         rotation: 0.1,
         outline: [
           0.94, 1.02, 0.96, 0.9, 0.94, 1.04, 1, 0.92, 0.88, 0.94,
@@ -273,10 +273,10 @@ export const BIOMES: BiomeDefinition[] = [
         heightScale: 0.82,
       },
       {
-        east: -0.08,
-        north: -0.28,
-        scaleEast: 0.09,
-        scaleNorth: 0.12,
+        east: -0.11,
+        north: -0.36,
+        scaleEast: 0.12,
+        scaleNorth: 0.15,
         rotation: -0.22,
         outline: [
           0.96, 1.04, 0.96, 0.9, 0.94, 1.02, 0.98, 0.9, 0.92, 1,
@@ -304,33 +304,33 @@ export const BIOME_BY_ID = new Map(
 const PLACE_LAYOUT: Record<string, PlaceLayout> = {
   "new-york": {
     biomeId: "united-states",
-    east: 0.31,
-    north: 0.08,
+    east: 0.39,
+    north: 0.1,
   },
   "new-jersey": {
     biomeId: "united-states",
-    east: 0.27,
-    north: 0.015,
+    east: 0.34,
+    north: 0.02,
   },
   "rhode-island": {
     biomeId: "united-states",
-    east: 0.38,
-    north: 0.105,
+    east: 0.48,
+    north: 0.13,
   },
   chicago: {
     biomeId: "united-states",
-    east: -0.08,
-    north: 0.08,
+    east: -0.1,
+    north: 0.1,
   },
   austin: {
     biomeId: "united-states",
-    east: -0.07,
-    north: -0.17,
+    east: -0.09,
+    north: -0.22,
   },
   "central-florida": {
     biomeId: "united-states",
-    east: 0.28,
-    north: -0.16,
+    east: 0.35,
+    north: -0.2,
   },
   "dominican-republic": {
     biomeId: "dominican-republic",
@@ -339,32 +339,32 @@ const PLACE_LAYOUT: Record<string, PlaceLayout> = {
   },
   istanbul: {
     biomeId: "turkiye",
-    east: -0.27,
-    north: 0.075,
+    east: -0.34,
+    north: 0.095,
   },
   ankara: {
     biomeId: "turkiye",
-    east: -0.01,
-    north: 0.035,
+    east: -0.015,
+    north: 0.045,
   },
   izmir: {
     biomeId: "turkiye",
-    east: -0.26,
-    north: -0.055,
+    east: -0.33,
+    north: -0.07,
   },
   bodrum: {
     biomeId: "turkiye",
-    east: -0.13,
-    north: -0.12,
+    east: -0.17,
+    north: -0.155,
   },
   malatya: {
     biomeId: "turkiye",
-    east: 0.25,
-    north: 0.015,
+    east: 0.32,
+    north: 0.02,
   },
-  seoul: { biomeId: "south-korea", east: 0, north: 0.02 },
-  tokyo: { biomeId: "japan", east: 0.035, north: -0.105 },
-  osaka: { biomeId: "japan", east: -0.045, north: -0.015 },
+  seoul: { biomeId: "south-korea", east: 0, north: 0.025 },
+  tokyo: { biomeId: "japan", east: 0.045, north: -0.135 },
+  osaka: { biomeId: "japan", east: -0.06, north: -0.02 },
 };
 
 export const PLACE_DIRECTIONS = new Map(
@@ -400,10 +400,10 @@ export const WATER_FEATURES: WaterFeature[] = [
     biomeId: "united-states",
     center: directionFromOffset(
       BIOME_BY_ID.get("united-states")!.center,
-      0.02,
-      0.105,
+      0.025,
+      0.13,
     ),
-    angularRadius: 0.08,
+    angularRadius: 0.1,
     color: "#66aeb7",
     depth: 0.24,
   },

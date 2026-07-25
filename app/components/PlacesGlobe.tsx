@@ -43,7 +43,36 @@ type WaterAudioGraph = {
   lfoGain: GainNode;
 };
 
+type AmbientMusicGraph = {
+  context: AudioContext;
+  oscillators: OscillatorNode[];
+  voiceGains: GainNode[];
+  filter: BiquadFilterNode;
+  masterGain: GainNode;
+  lfo: OscillatorNode;
+  lfoGain: GainNode;
+  chordIndex: number;
+  chimeStep: number;
+  nextChimeAt: number;
+};
+
 const DAY_IN_MILLISECONDS = 86_400_000;
+const AMBIENT_CHORDS = [
+  [146.83, 220, 329.63],
+  [123.47, 185, 293.66],
+  [98, 146.83, 246.94],
+  [110, 164.81, 293.66],
+] as const;
+const AMBIENT_MELODY = [
+  293.66,
+  369.99,
+  440,
+  329.63,
+  493.88,
+  369.99,
+  293.66,
+  440,
+] as const;
 const DEFAULT_CELESTIAL_STATE: CelestialState = {
   skyPhase: "day",
   solarDirection: [-1, 0, 0],
@@ -153,6 +182,60 @@ function resolvePhotoSrc(
   return null;
 }
 
+function updateAmbientMusicGraph(graph: AmbientMusicGraph) {
+  const now = graph.context.currentTime;
+  const nextChordIndex =
+    Math.floor(now / 14) % AMBIENT_CHORDS.length;
+
+  if (nextChordIndex !== graph.chordIndex) {
+    graph.chordIndex = nextChordIndex;
+    const chord = AMBIENT_CHORDS[nextChordIndex];
+
+    graph.oscillators.forEach((oscillator, index) => {
+      oscillator.frequency.setTargetAtTime(
+        chord[index],
+        now,
+        2.8,
+      );
+    });
+  }
+
+  if (now < graph.nextChimeAt) {
+    return;
+  }
+
+  const oscillator = graph.context.createOscillator();
+  const gain = graph.context.createGain();
+  const frequency =
+    AMBIENT_MELODY[graph.chimeStep % AMBIENT_MELODY.length];
+  const noteLength = 5.8;
+
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(frequency, now);
+  oscillator.frequency.exponentialRampToValueAtTime(
+    frequency * 0.997,
+    now + noteLength,
+  );
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.009, now + 1.1);
+  gain.gain.exponentialRampToValueAtTime(
+    0.0001,
+    now + noteLength,
+  );
+  oscillator.connect(gain);
+  gain.connect(graph.filter);
+  oscillator.start(now);
+  oscillator.stop(now + noteLength + 0.05);
+  oscillator.addEventListener("ended", () => {
+    oscillator.disconnect();
+    gain.disconnect();
+  });
+
+  graph.chimeStep += 1;
+  graph.nextChimeAt =
+    now + 7.4 + (graph.chimeStep % 3) * 1.15;
+}
+
 const movementKeys = new Set([
   "ArrowLeft",
   "ArrowRight",
@@ -197,6 +280,7 @@ export function PlacesGlobe() {
   const footstepBufferRef = useRef<AudioBuffer | null>(null);
   const waterNoiseBufferRef = useRef<AudioBuffer | null>(null);
   const waterAudioGraphRef = useRef<WaterAudioGraph | null>(null);
+  const ambientMusicGraphRef = useRef<AmbientMusicGraph | null>(null);
   const exploreInputRef = useRef<ExploreInput>({
     horizontal: 0,
     vertical: 0,
@@ -283,9 +367,25 @@ export function PlacesGlobe() {
         waterGraph.lfoGain.disconnect();
       }
 
+      const ambientGraph = ambientMusicGraphRef.current;
+
+      if (ambientGraph) {
+        ambientGraph.oscillators.forEach((oscillator) => {
+          oscillator.stop();
+          oscillator.disconnect();
+        });
+        ambientGraph.voiceGains.forEach((gain) => gain.disconnect());
+        ambientGraph.lfo.stop();
+        ambientGraph.lfo.disconnect();
+        ambientGraph.lfoGain.disconnect();
+        ambientGraph.filter.disconnect();
+        ambientGraph.masterGain.disconnect();
+      }
+
       footstepBufferRef.current = null;
       waterNoiseBufferRef.current = null;
       waterAudioGraphRef.current = null;
+      ambientMusicGraphRef.current = null;
       void audioContextRef.current?.close();
     },
     [],
@@ -304,6 +404,7 @@ export function PlacesGlobe() {
     footstepBufferRef.current = null;
     waterNoiseBufferRef.current = null;
     waterAudioGraphRef.current = null;
+    ambientMusicGraphRef.current = null;
     void context.resume();
     return context;
   }, []);
@@ -360,7 +461,7 @@ export function PlacesGlobe() {
     foamFilter.Q.value = 0.52;
     oceanGain.gain.value = 0.0001;
     foamGain.gain.value = 0.0001;
-    masterGain.gain.value = 0.68;
+    masterGain.gain.value = 0.24;
     lfo.type = "sine";
     lfo.frequency.value = 0.16;
     lfoGain.gain.value = 0;
@@ -394,8 +495,80 @@ export function PlacesGlobe() {
     return graph;
   }, []);
 
+  const ensureAmbientMusicGraph = useCallback(() => {
+    const context = audioContextRef.current;
+
+    if (!context || context.state === "closed") {
+      return null;
+    }
+
+    const currentGraph = ambientMusicGraphRef.current;
+
+    if (currentGraph?.context === context) {
+      return currentGraph;
+    }
+
+    const filter = context.createBiquadFilter();
+    const masterGain = context.createGain();
+    const lfo = context.createOscillator();
+    const lfoGain = context.createGain();
+    const voiceLevels = [0.014, 0.008, 0.006];
+    const oscillators: OscillatorNode[] = [];
+    const voiceGains: GainNode[] = [];
+
+    filter.type = "lowpass";
+    filter.frequency.value = 760;
+    filter.Q.value = 0.32;
+    masterGain.gain.value = 0.28;
+    lfo.type = "sine";
+    lfo.frequency.value = 0.035;
+    lfoGain.gain.value = 115;
+
+    AMBIENT_CHORDS[0].forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const voiceGain = context.createGain();
+
+      oscillator.type = index === 0 ? "sine" : "triangle";
+      oscillator.frequency.value = frequency;
+      oscillator.detune.value = index === 1 ? -3 : index === 2 ? 4 : 0;
+      voiceGain.gain.value = voiceLevels[index];
+      oscillator.connect(voiceGain);
+      voiceGain.connect(filter);
+      oscillator.start();
+      oscillators.push(oscillator);
+      voiceGains.push(voiceGain);
+    });
+
+    filter.connect(masterGain);
+    masterGain.connect(context.destination);
+    lfo.connect(lfoGain);
+    lfoGain.connect(filter.frequency);
+    lfo.start();
+
+    const graph: AmbientMusicGraph = {
+      context,
+      oscillators,
+      voiceGains,
+      filter,
+      masterGain,
+      lfo,
+      lfoGain,
+      chordIndex: 0,
+      chimeStep: 0,
+      nextChimeAt: context.currentTime + 4.2,
+    };
+    ambientMusicGraphRef.current = graph;
+    return graph;
+  }, []);
+
   const updateTraversalAudio = useCallback(
     (traversalMode: TraversalMode, movementBlend: number) => {
+      const ambientGraph = ensureAmbientMusicGraph();
+
+      if (ambientGraph) {
+        updateAmbientMusicGraph(ambientGraph);
+      }
+
       const graph = ensureWaterAudioGraph();
 
       if (!graph) {
@@ -406,13 +579,13 @@ export function PlacesGlobe() {
       const onWater = traversalMode !== "land";
       const oceanTarget = onWater
         ? traversalMode === "boat"
-          ? 0.022
-          : 0.029
+          ? 0.013
+          : 0.016
         : 0.0001;
       const foamTarget = onWater
-        ? 0.004 +
+        ? 0.0015 +
           movementBlend *
-            (traversalMode === "boat" ? 0.05 : 0.034)
+            (traversalMode === "boat" ? 0.018 : 0.014)
         : 0.0001;
       const filterTarget =
         traversalMode === "boat"
@@ -440,12 +613,12 @@ export function PlacesGlobe() {
         0.18,
       );
       graph.lfoGain.gain.setTargetAtTime(
-        onWater ? 0.0035 : 0,
+        onWater ? 0.0016 : 0,
         now,
         0.4,
       );
     },
-    [ensureWaterAudioGraph],
+    [ensureAmbientMusicGraph, ensureWaterAudioGraph],
   );
 
   useEffect(() => {
@@ -775,7 +948,7 @@ export function PlacesGlobe() {
       lowpass.frequency.value = 2600;
       gain.gain.setValueAtTime(0.0001, start);
       gain.gain.exponentialRampToValueAtTime(
-        0.032 * strength,
+        0.009 * strength,
         start + 0.012,
       );
       gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.17);
@@ -787,7 +960,7 @@ export function PlacesGlobe() {
       bubble.frequency.exponentialRampToValueAtTime(82, start + 0.12);
       bubbleGain.gain.setValueAtTime(0.0001, start);
       bubbleGain.gain.exponentialRampToValueAtTime(
-        0.012 * strength,
+        0.0032 * strength,
         start + 0.009,
       );
       bubbleGain.gain.exponentialRampToValueAtTime(

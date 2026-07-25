@@ -91,26 +91,31 @@ type PlacesSceneProps = {
   solarDirection: [number, number, number];
 };
 
-const WALK_SPEED = 0.32;
-const RUN_SPEED = 0.7;
-const SWIM_SPEED = 0.22;
-const FAST_SWIM_SPEED = 0.36;
-const BOAT_SPEED = 0.62;
-const FAST_BOAT_SPEED = 1.05;
-const START_DISTANCE = 0.24;
+const WALK_SPEED = 0.17;
+const RUN_SPEED = 0.36;
+const SWIM_SPEED = 0.12;
+const FAST_SWIM_SPEED = 0.21;
+const BOAT_SPEED = 0.2;
+const FAST_BOAT_SPEED = 0.34;
+const START_DISTANCE = 0.38;
 const NEARBY_DISTANCE = Math.cos(0.075);
 const JUMP_DURATION = 0.52;
 const JUMP_LANDING_DELAY = 0.22;
 const JUMP_CYCLE_DURATION = JUMP_DURATION + JUMP_LANDING_DELAY;
-const BROWSE_CAMERA_POSITION = new Vector3(0, 0.45, 18.8);
-const CLOSE_CAMERA_HEIGHT = 9.4;
-const CLOSE_CAMERA_TRAIL = 4.2;
-const CLOSE_TARGET_HEIGHT = 5;
-const CLOSE_TARGET_LEAD = 2.6;
-const OVERVIEW_CAMERA_HEIGHT = 21;
-const OVERVIEW_CAMERA_TRAIL = 6;
-const OVERVIEW_TARGET_HEIGHT = 0.5;
-const OVERVIEW_TARGET_LEAD = 3;
+const WORLD_SCALE = PLANET_RADIUS / 6;
+const BROWSE_CAMERA_POSITION = new Vector3(
+  0,
+  0.45 * WORLD_SCALE,
+  18.8 * WORLD_SCALE,
+);
+const CLOSE_CAMERA_HEIGHT = 9.4 * WORLD_SCALE;
+const CLOSE_CAMERA_TRAIL = 4.2 * WORLD_SCALE;
+const CLOSE_TARGET_HEIGHT = 5 * WORLD_SCALE;
+const CLOSE_TARGET_LEAD = 2.6 * WORLD_SCALE;
+const OVERVIEW_CAMERA_HEIGHT = 21 * WORLD_SCALE;
+const OVERVIEW_CAMERA_TRAIL = 6 * WORLD_SCALE;
+const OVERVIEW_TARGET_HEIGHT = 0.5 * WORLD_SCALE;
+const OVERVIEW_TARGET_LEAD = 3 * WORLD_SCALE;
 const DEFAULT_CAMERA_DISTANCE = 0.3;
 const CAMERA_DISTANCE_RATE = 0.75;
 const CAMERA_ORBIT_SPEED = 0.85;
@@ -454,7 +459,7 @@ function CelestialSky({
         const targetPosition = bodyTargetPositionsRef.current[index].copy(
           latLonToVector3(
             [earthFixedLongitude, equatorial.dec],
-            definition.distance,
+            definition.distance * WORLD_SCALE,
           ),
         );
 
@@ -1086,7 +1091,7 @@ function SurfaceParticles({
   );
 }
 
-const BOAT_WAKE_SAMPLE_COUNT = 36;
+const BOAT_WAKE_SAMPLE_COUNT = 44;
 const BOAT_WAKE_VERTICES_PER_SAMPLE = 6;
 
 function createBoatWakeGeometry() {
@@ -1174,7 +1179,7 @@ function BoatWake({
     strengthRef.current = MathUtils.damp(
       strengthRef.current,
       targetStrength,
-      targetStrength > strengthRef.current ? 5.5 : 2.3,
+      targetStrength > strengthRef.current ? 3.2 : 1.55,
       frameDelta,
     );
 
@@ -1200,7 +1205,7 @@ function BoatWake({
     if (
       traversalMode === "boat" &&
       movementBlend > 0.025 &&
-      sampleDistance > (reduceMotion ? 0.014 : 0.008)
+      sampleDistance > (reduceMotion ? 0.012 : 0.006)
     ) {
       for (let index = samples.length - 1; index > 0; index -= 1) {
         samples[index].direction.copy(samples[index - 1].direction);
@@ -1246,9 +1251,9 @@ function BoatWake({
       const turbulence =
         Math.sin(
           sampleIndex * 1.61 -
-            clock.elapsedTime * (reduceMotion ? 0 : 2.4),
+            clock.elapsedTime * (reduceMotion ? 0 : 1.35),
         ) *
-        0.018 *
+        0.012 *
         progress;
       const centerWidth = MathUtils.lerp(0.035, 0.006, progress);
       const color = foamColorRef.current
@@ -1307,7 +1312,7 @@ function BoatWake({
 
     if (meshRef.current) {
       const material = meshRef.current.material as MeshBasicMaterial;
-      material.opacity = strengthRef.current * 0.76;
+      material.opacity = strengthRef.current * 0.68;
       meshRef.current.visible = strengthRef.current > 0.012;
     }
   });
@@ -1847,10 +1852,158 @@ function PhotoProjection({
   );
 }
 
+function DestinationBeacon({
+  selected,
+  hovered,
+  reduceMotion,
+}: {
+  selected: boolean;
+  hovered: boolean;
+  reduceMotion: boolean;
+}) {
+  const outerRingRef = useRef<Mesh>(null);
+  const innerRingRef = useRef<Mesh>(null);
+  const beaconRef = useRef<Mesh>(null);
+  const beamRef = useRef<Mesh>(null);
+  const color = selected ? "#ff665c" : "#ffd568";
+
+  useFrame(({ clock }, delta) => {
+    const pulse = reduceMotion
+      ? 1
+      : 1 + Math.sin(clock.elapsedTime * 2.1) * 0.08;
+    const hoverBoost = hovered ? 1.16 : 1;
+
+    if (outerRingRef.current) {
+      const targetScale = pulse * hoverBoost;
+      const scale = MathUtils.damp(
+        outerRingRef.current.scale.x,
+        targetScale,
+        5,
+        Math.min(delta, 0.05),
+      );
+      outerRingRef.current.scale.setScalar(scale);
+      outerRingRef.current.rotation.z +=
+        delta * (reduceMotion ? 0 : selected ? 0.42 : 0.24);
+    }
+
+    if (innerRingRef.current) {
+      const targetScale = (2 - pulse) * hoverBoost;
+      const scale = MathUtils.damp(
+        innerRingRef.current.scale.x,
+        targetScale,
+        4.5,
+        Math.min(delta, 0.05),
+      );
+      innerRingRef.current.scale.setScalar(scale);
+      innerRingRef.current.rotation.z -=
+        delta * (reduceMotion ? 0 : selected ? 0.55 : 0.3);
+    }
+
+    if (beaconRef.current) {
+      beaconRef.current.position.y = reduceMotion
+        ? 0.72
+        : 0.72 + Math.sin(clock.elapsedTime * 1.65) * 0.045;
+      beaconRef.current.rotation.y +=
+        delta * (reduceMotion ? 0 : selected ? 1.25 : 0.75);
+    }
+
+    if (beamRef.current) {
+      const material = beamRef.current.material as MeshBasicMaterial;
+      material.opacity =
+        (selected ? 0.18 : 0.11) *
+        (reduceMotion
+          ? 1
+          : 0.88 + Math.sin(clock.elapsedTime * 2.1) * 0.12);
+    }
+  });
+
+  return (
+    <group>
+      <mesh
+        ref={outerRingRef}
+        position={[0, 0.045, 0]}
+        rotation={[Math.PI / 2, 0, 0]}
+        renderOrder={15}
+      >
+        <torusGeometry args={[0.265, 0.017, 8, 40]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={selected ? 0.94 : 0.78}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh
+        ref={innerRingRef}
+        position={[0, 0.052, 0]}
+        rotation={[Math.PI / 2, 0, Math.PI / 4]}
+        renderOrder={15}
+      >
+        <torusGeometry args={[0.205, 0.009, 6, 8]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={selected ? 0.88 : 0.62}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh
+        ref={beamRef}
+        position={[0, 0.39, 0]}
+        renderOrder={14}
+      >
+        <cylinderGeometry args={[0.045, 0.19, 0.68, 12, 1, true]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={selected ? 0.18 : 0.11}
+          side={DoubleSide}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh
+        ref={beaconRef}
+        position={[0, 0.72, 0]}
+        renderOrder={16}
+      >
+        <octahedronGeometry args={[0.09, 0]} />
+        <meshBasicMaterial
+          color={color}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh position={[0, 0.72, 0]} renderOrder={13}>
+        <sphereGeometry args={[0.16, 12, 8]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={selected ? 0.13 : 0.08}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      {selected || hovered ? (
+        <pointLight
+          color={color}
+          intensity={selected ? 2.2 : 1.3}
+          distance={1.7}
+          decay={2}
+          position={[0, 0.25, 0]}
+        />
+      ) : null}
+    </group>
+  );
+}
+
 function DestinationWorld({
   place,
   selected,
   exploreMode,
+  reduceMotion,
   projectionRef,
   travelerDirectionRef,
   onSelect,
@@ -1858,6 +2011,7 @@ function DestinationWorld({
   place: Place;
   selected: boolean;
   exploreMode: boolean;
+  reduceMotion: boolean;
   projectionRef: RefObject<HTMLButtonElement | null>;
   travelerDirectionRef: MutableRefObject<Vector3>;
   onSelect: (placeId: string) => void;
@@ -1902,7 +2056,7 @@ function DestinationWorld({
     aboveHorizonRef.current = aboveHorizon;
     groupRef.current.visible = aboveHorizon;
 
-    const targetScale = selected ? 1.9 : hovered ? 1.65 : 1.48;
+    const targetScale = selected ? 2.35 : hovered ? 2.12 : 1.82;
     const scale = MathUtils.damp(
       groupRef.current.scale.x,
       targetScale,
@@ -1941,18 +2095,24 @@ function DestinationWorld({
         gl.domElement.style.cursor = "grab";
       }}
     >
-      <mesh position={[0, 0.08, 0]}>
-        <sphereGeometry args={[0.19, 8, 6]} />
+      <mesh position={[0, 0.2, 0]}>
+        <sphereGeometry args={[0.3, 10, 8]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
+
+      <DestinationBeacon
+        selected={selected}
+        hovered={hovered}
+        reduceMotion={reduceMotion}
+      />
 
       <group position={[0, selected ? 0.075 : 0.025, 0]}>
         <mesh position={[0, 0.015, 0]} castShadow receiveShadow>
           <dodecahedronGeometry args={[0.14, 0]} />
           <meshStandardMaterial
             color={selected ? "#d04842" : "#d8c8aa"}
-            emissive={selected ? "#4f0d0a" : "#000000"}
-            emissiveIntensity={selected ? 0.22 : 0}
+            emissive={selected ? "#7a1711" : "#614c19"}
+            emissiveIntensity={selected ? 0.4 : 0.16}
             flatShading
           />
         </mesh>
@@ -2084,12 +2244,12 @@ function Traveler({
     if (moving) {
       const easedMovement = MathUtils.smoothstep(movementBlend, 0, 1);
       const fullGaitSpeed = boating
-        ? MathUtils.lerp(4.6, 7.2, runBlend)
+        ? MathUtils.lerp(1.55, 2.55, runBlend)
         : swimming
           ? MathUtils.lerp(5.8, 8.8, runBlend)
           : MathUtils.lerp(9.5, 16, runBlend);
       const gaitSpeed = MathUtils.lerp(
-        boating ? 2.8 : swimming ? 3.2 : 3.8,
+        boating ? 0.7 : swimming ? 3.2 : 3.8,
         fullGaitSpeed,
         easedMovement,
       );
@@ -2128,7 +2288,7 @@ function Traveler({
     const bob = moving
       ? Math.abs(Math.sin(phaseRef.current)) *
         (boating
-          ? MathUtils.lerp(0.008, 0.016, runBlend)
+          ? MathUtils.lerp(0.004, 0.009, runBlend)
           : swimming
             ? MathUtils.lerp(0.012, 0.024, runBlend)
             : MathUtils.lerp(0.018, 0.034, runBlend)) *
@@ -2175,30 +2335,56 @@ function Traveler({
     }
 
     if (leftArmRef.current && rightArmRef.current) {
-      leftArmRef.current.rotation.x = boating
+      const leftArmTargetX = boating
         ? -0.48 + stride * 0.42
         : swimming
           ? stride * 1.05
           : jumping
             ? -0.5
             : -stride * 0.72;
-      rightArmRef.current.rotation.x = boating
+      const rightArmTargetX = boating
         ? -0.48 + stride * 0.42
         : swimming
           ? -stride * 1.05
           : jumping
             ? -0.5
             : stride * 0.72;
-      leftArmRef.current.rotation.z = boating
+      const leftArmTargetZ = boating
         ? -0.16
         : swimming
           ? -0.32
           : 0;
-      rightArmRef.current.rotation.z = boating
+      const rightArmTargetZ = boating
         ? 0.16
         : swimming
           ? 0.32
           : 0;
+      const armResponse = boating ? 4.2 : 11;
+
+      leftArmRef.current.rotation.x = MathUtils.damp(
+        leftArmRef.current.rotation.x,
+        leftArmTargetX,
+        armResponse,
+        Math.min(delta, 0.05),
+      );
+      rightArmRef.current.rotation.x = MathUtils.damp(
+        rightArmRef.current.rotation.x,
+        rightArmTargetX,
+        armResponse,
+        Math.min(delta, 0.05),
+      );
+      leftArmRef.current.rotation.z = MathUtils.damp(
+        leftArmRef.current.rotation.z,
+        leftArmTargetZ,
+        armResponse,
+        Math.min(delta, 0.05),
+      );
+      rightArmRef.current.rotation.z = MathUtils.damp(
+        rightArmRef.current.rotation.z,
+        rightArmTargetZ,
+        armResponse,
+        Math.min(delta, 0.05),
+      );
     }
 
     if (modelRef.current) {
@@ -2219,7 +2405,7 @@ function Traveler({
     boatBlendRef.current = MathUtils.damp(
       boatBlendRef.current,
       boating ? 1 : 0,
-      7,
+      4,
       Math.min(delta, 0.05),
     );
 
@@ -2236,12 +2422,51 @@ function Traveler({
         -0.025 +
         (reduceMotion
           ? 0
-          : Math.sin(clock.elapsedTime * 1.7) * 0.008 * boatScale);
+          : Math.sin(clock.elapsedTime * 0.9) *
+            0.005 *
+            boatScale);
+      boatRef.current.rotation.x = MathUtils.damp(
+        boatRef.current.rotation.x,
+        reduceMotion
+          ? 0
+          : Math.cos(clock.elapsedTime * 0.72) *
+            0.012 *
+            boatScale,
+        2.4,
+        Math.min(delta, 0.05),
+      );
+      boatRef.current.rotation.z = MathUtils.damp(
+        boatRef.current.rotation.z,
+        reduceMotion
+          ? 0
+          : Math.sin(clock.elapsedTime * 0.58) *
+            0.018 *
+            boatScale,
+        2.2,
+        Math.min(delta, 0.05),
+      );
     }
 
     if (paddleRef.current) {
-      paddleRef.current.rotation.x =
-        -0.35 + (moving ? Math.sin(phaseRef.current) * 0.52 : 0);
+      const paddleStroke =
+        moving && boating
+          ? Math.sin(phaseRef.current) * 0.44 * movementBlend
+          : 0;
+
+      paddleRef.current.rotation.x = MathUtils.damp(
+        paddleRef.current.rotation.x,
+        -0.35 + paddleStroke,
+        4.2,
+        Math.min(delta, 0.05),
+      );
+      paddleRef.current.rotation.z = MathUtils.damp(
+        paddleRef.current.rotation.z,
+        moving && boating
+          ? Math.cos(phaseRef.current) * 0.08 * movementBlend
+          : 0,
+        3.8,
+        Math.min(delta, 0.05),
+      );
     }
   });
 
@@ -2725,7 +2950,13 @@ function PlanetExperience({
             ? RUN_SPEED
             : WALK_SPEED) *
         movementReadiness;
-      const movementResponse = targetMovementVelocity === 0 ? 5.5 : 7;
+      const movementResponse = boating
+        ? targetMovementVelocity === 0
+          ? 2.2
+          : 2.8
+        : targetMovementVelocity === 0
+          ? 4.2
+          : 5.5;
       movementVelocityRef.current = MathUtils.damp(
         movementVelocityRef.current,
         targetMovementVelocity,
@@ -2946,6 +3177,7 @@ function PlanetExperience({
             place={place}
             selected={place.id === selectedPlaceId}
             exploreMode={exploreMode}
+            reduceMotion={reduceMotion}
             projectionRef={projectionRef}
             travelerDirectionRef={playerUpRef}
             onSelect={onSelect}
@@ -3008,7 +3240,7 @@ export function PlacesScene(props: PlacesSceneProps) {
     () =>
       new Vector3(...props.solarDirection)
         .normalize()
-        .multiplyScalar(28)
+        .multiplyScalar(28 * WORLD_SCALE)
         .toArray() as [number, number, number],
     [props.solarDirection],
   );
@@ -3017,7 +3249,16 @@ export function PlacesScene(props: PlacesSceneProps) {
     <Canvas
       className="places-canvas"
       aria-hidden="true"
-      camera={{ position: [0, 0.45, 18.8], fov: 40, near: 0.05, far: 80 }}
+      camera={{
+        position: [
+          0,
+          0.45 * WORLD_SCALE,
+          18.8 * WORLD_SCALE,
+        ],
+        fov: 40,
+        near: 0.05,
+        far: 120,
+      }}
       dpr={[1, 1.5]}
       gl={{
         alpha: true,
@@ -3043,10 +3284,10 @@ export function PlacesScene(props: PlacesSceneProps) {
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
-        shadow-camera-left={-10}
-        shadow-camera-right={10}
-        shadow-camera-top={10}
-        shadow-camera-bottom={-10}
+        shadow-camera-left={-10 * WORLD_SCALE}
+        shadow-camera-right={10 * WORLD_SCALE}
+        shadow-camera-top={10 * WORLD_SCALE}
+        shadow-camera-bottom={-10 * WORLD_SCALE}
       />
       <directionalLight
         position={[-5, -2, 3]}

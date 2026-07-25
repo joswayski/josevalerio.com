@@ -79,9 +79,10 @@ type LoosePropState = {
 };
 
 const UP = new Vector3(0, 1, 0);
-const TERRAIN_SEGMENTS = 84;
-const TERRAIN_RINGS = 28;
+const TERRAIN_SEGMENTS = 108;
+const TERRAIN_RINGS = 36;
 const VEGETATION_INTERACTION_ANGLE = 0.105;
+const MAX_OCEAN_TRAVEL_SPEED = 0.34;
 const FLAG_STAR = (() => {
   const shape = new Shape();
 
@@ -510,7 +511,8 @@ function OceanSurface({
     uniforms.travelerDirection.value.copy(travelerDirection);
     uniforms.interaction.value = oceanTravel
       ? MathUtils.clamp(
-          Math.abs(movementVelocityRef.current) / 1.05,
+          Math.abs(movementVelocityRef.current) /
+            MAX_OCEAN_TRAVEL_SPEED,
           0,
           1,
         )
@@ -519,7 +521,7 @@ function OceanSurface({
 
   return (
     <mesh renderOrder={1} receiveShadow>
-      <sphereGeometry args={[OCEAN_SURFACE_RADIUS, 128, 64]} />
+      <sphereGeometry args={[OCEAN_SURFACE_RADIUS, 160, 80]} />
       <shaderMaterial
         uniforms={uniforms}
         vertexShader={`
@@ -1115,14 +1117,14 @@ function createVegetation() {
     const plants: VegetationDefinition[] = [];
     const count =
       biome.id === "united-states"
-        ? 38
+        ? 48
         : biome.id === "turkiye"
-          ? 28
+          ? 36
           : biome.id === "japan"
-            ? 30
+            ? 38
             : biome.id === "south-korea"
-              ? 24
-              : 20;
+              ? 30
+              : 26;
 
     for (let index = 0; index < count; index += 1) {
       let direction = biome.center;
