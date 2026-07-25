@@ -4,7 +4,14 @@ import {
   useThree,
   type ThreeEvent,
 } from "@react-three/fiber";
-import { Body, Equator, Horizon, Observer } from "astronomy-engine";
+import {
+  Body,
+  EquatorFromVector,
+  GeoVector,
+  RotateVector,
+  Rotation_EQJ_EQD,
+  SiderealTime,
+} from "astronomy-engine";
 import {
   geoContains,
   geoEquirectangular,
@@ -27,9 +34,11 @@ import {
   MathUtils,
   Quaternion,
   SRGBColorSpace,
+  type ShaderMaterial,
   Vector3,
   type Group,
   type Mesh,
+  type MeshStandardMaterial,
   type Points,
 } from "three";
 import { feature, mesh } from "topojson-client";
@@ -119,7 +128,7 @@ const UP = new Vector3(0, 1, 0);
 const X_AXIS = new Vector3(1, 0, 0);
 const Y_AXIS = new Vector3(0, 1, 0);
 const FOCUS_DIRECTION = new Vector3(0, -0.24, 0.97).normalize();
-const CELESTIAL_UPDATE_INTERVAL = 0.4;
+const CELESTIAL_UPDATE_INTERVAL = 20;
 
 type CelestialBodyDefinition = {
   body: Body;
@@ -139,48 +148,142 @@ const CELESTIAL_BODIES: CelestialBodyDefinition[] = [
     body: Body.Moon,
     color: "#c8c5bc",
     emissive: "#5d5f63",
-    radius: 0.25,
-    distance: 44,
+    radius: 0.72,
+    distance: 30,
   },
   {
     body: Body.Mercury,
     color: "#aaa49a",
     emissive: "#4b4843",
-    radius: 0.075,
-    distance: 48,
+    radius: 0.24,
+    distance: 35,
   },
   {
     body: Body.Venus,
     color: "#e7d4a8",
     emissive: "#7a673d",
-    radius: 0.12,
-    distance: 47,
+    radius: 0.4,
+    distance: 37,
   },
   {
     body: Body.Mars,
     color: "#b75e43",
     emissive: "#642f25",
-    radius: 0.1,
-    distance: 49,
+    radius: 0.34,
+    distance: 39,
   },
   {
     body: Body.Jupiter,
     color: "#d8b58d",
     emissive: "#654b35",
-    radius: 0.19,
-    distance: 51,
+    radius: 0.88,
+    distance: 44,
   },
   {
     body: Body.Saturn,
     color: "#d8c696",
     emissive: "#665a3c",
-    radius: 0.16,
-    distance: 52,
+    radius: 0.68,
+    distance: 48,
     ring: {
       color: "#cdbd98",
-      innerRadius: 0.21,
-      outerRadius: 0.34,
+      innerRadius: 0.86,
+      outerRadius: 1.34,
     },
+  },
+];
+
+type CloudDefinition = {
+  id: string;
+  coordinates: [longitude: number, latitude: number];
+  seed: number;
+  width: number;
+  puffCount: number;
+  altitude: number;
+};
+
+type CloudPuff = {
+  basePosition: Vector3;
+  driftDirection: Vector3;
+  scatterDirection: Vector3;
+  radius: number;
+  opacity: number;
+  phase: number;
+};
+
+const CLOUD_INTERACTION_RADIUS = 1.05;
+const CLOUD_DEFINITIONS: CloudDefinition[] = [
+  {
+    id: "western-atlantic",
+    coordinates: [-74, 31],
+    seed: 11,
+    width: 1.15,
+    puffCount: 11,
+    altitude: 0.34,
+  },
+  {
+    id: "great-lakes",
+    coordinates: [-91, 44],
+    seed: 23,
+    width: 1.05,
+    puffCount: 10,
+    altitude: 0.36,
+  },
+  {
+    id: "caribbean",
+    coordinates: [-64, 18],
+    seed: 37,
+    width: 1.25,
+    puffCount: 12,
+    altitude: 0.32,
+  },
+  {
+    id: "north-atlantic",
+    coordinates: [-18, 49],
+    seed: 41,
+    width: 1.3,
+    puffCount: 12,
+    altitude: 0.38,
+  },
+  {
+    id: "mediterranean",
+    coordinates: [24, 39],
+    seed: 53,
+    width: 1.05,
+    puffCount: 10,
+    altitude: 0.34,
+  },
+  {
+    id: "east-asia",
+    coordinates: [128, 35],
+    seed: 67,
+    width: 1.2,
+    puffCount: 12,
+    altitude: 0.36,
+  },
+  {
+    id: "north-pacific",
+    coordinates: [160, 24],
+    seed: 79,
+    width: 1.35,
+    puffCount: 12,
+    altitude: 0.38,
+  },
+  {
+    id: "indian-ocean",
+    coordinates: [78, -8],
+    seed: 97,
+    width: 1.2,
+    puffCount: 11,
+    altitude: 0.34,
+  },
+  {
+    id: "south-atlantic",
+    coordinates: [-18, -18],
+    seed: 101,
+    width: 1.15,
+    puffCount: 10,
+    altitude: 0.33,
   },
 ];
 
@@ -255,6 +358,17 @@ function CelestialBodyModel({
 
   return (
     <>
+      <mesh scale={1.18}>
+        <sphereGeometry args={[definition.radius, 16, 12]} />
+        <meshBasicMaterial
+          color={definition.emissive}
+          transparent
+          opacity={skyPhase === "night" ? 0.16 : 0.08}
+          side={BackSide}
+          depthWrite={false}
+        />
+      </mesh>
+
       <mesh>
         <sphereGeometry args={[definition.radius, 20, 14]} />
         <meshStandardMaterial
@@ -291,32 +405,21 @@ function CelestialBodyModel({
 }
 
 function CelestialSky({
-  observerDirectionRef,
   skyPhase,
 }: {
-  observerDirectionRef: MutableRefObject<Vector3>;
   skyPhase: SkyPhase;
 }) {
   const bodyRefs = useRef<Array<Group | null>>([]);
   const bodyTargetPositionsRef = useRef(
     CELESTIAL_BODIES.map(() => new Vector3()),
   );
-  const bodyWasVisibleRef = useRef(
+  const bodyWasInitializedRef = useRef(
     CELESTIAL_BODIES.map(() => false),
   );
   const lastUpdateRef = useRef(Number.NEGATIVE_INFINITY);
-  const observerUpRef = useRef(new Vector3());
-  const observerSurfaceRef = useRef(new Vector3());
-  const eastRef = useRef(new Vector3());
-  const northRef = useRef(new Vector3());
-  const horizontalRef = useRef(new Vector3());
-  const skyDirectionRef = useRef(new Vector3());
   const { camera } = useThree();
 
   useFrame(({ clock }, delta) => {
-    const observerUp = observerUpRef.current
-      .copy(observerDirectionRef.current)
-      .normalize();
     const shouldUpdate =
       clock.elapsedTime - lastUpdateRef.current >=
       CELESTIAL_UPDATE_INTERVAL;
@@ -324,28 +427,9 @@ function CelestialSky({
     if (shouldUpdate) {
       lastUpdateRef.current = clock.elapsedTime;
 
-      const latitude = MathUtils.radToDeg(
-        Math.asin(MathUtils.clamp(observerUp.y, -1, 1)),
-      );
-      const longitude = MathUtils.radToDeg(
-        Math.atan2(observerUp.z, -observerUp.x),
-      );
-      const observer = new Observer(latitude, longitude, 0);
       const now = new Date();
-      const east = eastRef.current.crossVectors(Y_AXIS, observerUp);
-
-      if (east.lengthSq() < 0.0001) {
-        east.set(0, 0, 1);
-      } else {
-        east.normalize();
-      }
-
-      const north = northRef.current
-        .crossVectors(observerUp, east)
-        .normalize();
-      const observerSurface = observerSurfaceRef.current
-        .copy(observerUp)
-        .multiplyScalar(PLANET_SURFACE_RADIUS);
+      const equatorOfDate = Rotation_EQJ_EQD(now);
+      const greenwichSiderealDegrees = SiderealTime(now) * 15;
 
       CELESTIAL_BODIES.forEach((definition, index) => {
         const group = bodyRefs.current[index];
@@ -354,49 +438,29 @@ function CelestialSky({
           return;
         }
 
-        const equatorial = Equator(
-          definition.body,
-          now,
-          observer,
-          true,
-          true,
+        const equatorial = EquatorFromVector(
+          RotateVector(
+            equatorOfDate,
+            GeoVector(definition.body, now, true),
+          ),
         );
-        const horizon = Horizon(
-          now,
-          observer,
-          equatorial.ra,
-          equatorial.dec,
-          "normal",
+        const earthFixedLongitude =
+          MathUtils.euclideanModulo(
+            equatorial.ra * 15 - greenwichSiderealDegrees + 180,
+            360,
+          ) - 180;
+        const targetPosition = bodyTargetPositionsRef.current[index].copy(
+          latLonToVector3(
+            [earthFixedLongitude, equatorial.dec],
+            definition.distance,
+          ),
         );
-        const visible = horizon.altitude >= -0.35;
 
-        group.visible = visible;
-
-        if (!visible) {
-          bodyWasVisibleRef.current[index] = false;
-          return;
-        }
-
-        const azimuth = MathUtils.degToRad(horizon.azimuth);
-        const altitude = MathUtils.degToRad(horizon.altitude);
-        const horizontal = horizontalRef.current
-          .copy(north)
-          .multiplyScalar(Math.cos(azimuth))
-          .addScaledVector(east, Math.sin(azimuth));
-        const skyDirection = skyDirectionRef.current
-          .copy(horizontal)
-          .multiplyScalar(Math.cos(altitude))
-          .addScaledVector(observerUp, Math.sin(altitude))
-          .normalize();
-        const targetPosition = bodyTargetPositionsRef.current[index]
-          .copy(observerSurface)
-          .addScaledVector(skyDirection, definition.distance);
-
-        if (!bodyWasVisibleRef.current[index]) {
+        if (!bodyWasInitializedRef.current[index]) {
           group.position.copy(targetPosition);
         }
 
-        bodyWasVisibleRef.current[index] = true;
+        bodyWasInitializedRef.current[index] = true;
       });
     }
 
@@ -405,7 +469,7 @@ function CelestialSky({
     CELESTIAL_BODIES.forEach((definition, index) => {
       const group = bodyRefs.current[index];
 
-      if (!group?.visible) {
+      if (!group || !bodyWasInitializedRef.current[index]) {
         return;
       }
 
@@ -425,13 +489,584 @@ function CelestialSky({
           ref={(group) => {
             bodyRefs.current[index] = group;
           }}
-          visible={false}
         >
           <CelestialBodyModel
             definition={definition}
             skyPhase={skyPhase}
           />
         </group>
+      ))}
+    </group>
+  );
+}
+
+function createSeededRandom(seed: number) {
+  let state = seed >>> 0;
+
+  return () => {
+    state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+    return state / 4_294_967_296;
+  };
+}
+
+function createCloudPuffs(definition: CloudDefinition) {
+  const random = createSeededRandom(definition.seed);
+  const centerDirection = latLonToVector3(definition.coordinates).normalize();
+  const east = new Vector3().crossVectors(Y_AXIS, centerDirection);
+
+  if (east.lengthSq() < 0.0001) {
+    east.set(0, 0, 1);
+  } else {
+    east.normalize();
+  }
+
+  const north = new Vector3()
+    .crossVectors(centerDirection, east)
+    .normalize();
+  const surfaceRadius = planetSurfaceRadiusAt(centerDirection);
+  const puffs: CloudPuff[] = [];
+
+  for (let index = 0; index < definition.puffCount; index += 1) {
+    const horizontalAngle = random() * Math.PI * 2;
+    const horizontalRadius =
+      Math.sqrt(random()) * definition.width * 0.5;
+    const eastOffset = Math.cos(horizontalAngle) * horizontalRadius;
+    const northOffset =
+      Math.sin(horizontalAngle) * horizontalRadius * 0.58;
+    const radialOffset =
+      definition.altitude + (random() - 0.5) * 0.18;
+    const basePosition = centerDirection
+      .clone()
+      .multiplyScalar(surfaceRadius + radialOffset)
+      .addScaledVector(east, eastOffset)
+      .addScaledVector(north, northOffset);
+    const scatterAngle = random() * Math.PI * 2;
+
+    puffs.push({
+      basePosition,
+      driftDirection: east
+        .clone()
+        .multiplyScalar(0.65 + random() * 0.35)
+        .addScaledVector(north, (random() - 0.5) * 0.45)
+        .normalize(),
+      scatterDirection: east
+        .clone()
+        .multiplyScalar(Math.cos(scatterAngle))
+        .addScaledVector(north, Math.sin(scatterAngle))
+        .normalize(),
+      radius: 0.16 + random() * 0.16,
+      opacity: 0.18 + random() * 0.14,
+      phase: random() * Math.PI * 2,
+    });
+  }
+
+  return { centerDirection, puffs };
+}
+
+function CloudCluster({
+  definition,
+  travelerDirectionRef,
+  exploreMode,
+  reduceMotion,
+  skyPhase,
+}: {
+  definition: CloudDefinition;
+  travelerDirectionRef: MutableRefObject<Vector3>;
+  exploreMode: boolean;
+  reduceMotion: boolean;
+  skyPhase: SkyPhase;
+}) {
+  const cloud = useMemo(
+    () => createCloudPuffs(definition),
+    [definition],
+  );
+  const puffRefs = useRef<Array<Mesh | null>>([]);
+  const travelerPositionRef = useRef(new Vector3());
+  const targetPositionRef = useRef(new Vector3());
+  const separationRef = useRef(new Vector3());
+  const lateralRef = useRef(new Vector3());
+  const cloudColor =
+    skyPhase === "night"
+      ? "#b8c3ca"
+      : skyPhase === "twilight"
+        ? "#e8e9e6"
+        : "#f7f5ef";
+
+  useFrame(({ clock }, delta) => {
+    const travelerDirection = travelerDirectionRef.current;
+    const travelerPosition = travelerPositionRef.current
+      .copy(travelerDirection)
+      .multiplyScalar(
+        planetSurfaceRadiusAt(travelerDirection) + 0.34,
+      );
+    const easeDelta = Math.min(delta, 0.05);
+
+    cloud.puffs.forEach((puff, index) => {
+      const mesh = puffRefs.current[index];
+
+      if (!mesh) {
+        return;
+      }
+
+      const drift = reduceMotion
+        ? 0
+        : Math.sin(clock.elapsedTime * 0.34 + puff.phase) * 0.055;
+      const targetPosition = targetPositionRef.current
+        .copy(puff.basePosition)
+        .addScaledVector(puff.driftDirection, drift);
+      const separation = separationRef.current
+        .copy(targetPosition)
+        .sub(travelerPosition);
+      const distance = separation.length();
+      const interaction =
+        exploreMode && distance < CLOUD_INTERACTION_RADIUS
+          ? 1 -
+            MathUtils.smoothstep(
+              distance,
+              0.22,
+              CLOUD_INTERACTION_RADIUS,
+            )
+          : 0;
+
+      if (interaction > 0) {
+        const lateral = lateralRef.current
+          .copy(separation)
+          .addScaledVector(
+            cloud.centerDirection,
+            -separation.dot(cloud.centerDirection),
+          );
+
+        if (lateral.lengthSq() < 0.0001) {
+          lateral.copy(puff.scatterDirection);
+        } else {
+          lateral.normalize();
+        }
+
+        targetPosition
+          .addScaledVector(
+            lateral,
+            interaction * (0.42 + puff.radius * 0.8),
+          )
+          .addScaledVector(
+            cloud.centerDirection,
+            interaction * 0.2,
+          );
+      }
+
+      const response = interaction > 0.01 ? 10 : 1.8;
+      mesh.position.lerp(
+        targetPosition,
+        1 - Math.exp(-easeDelta * response),
+      );
+      mesh.scale.setScalar(
+        1 +
+          interaction * 0.24 +
+          (reduceMotion
+            ? 0
+            : Math.sin(clock.elapsedTime * 0.5 + puff.phase) * 0.025),
+      );
+
+      const material = mesh.material as ShaderMaterial;
+      material.uniforms.opacity.value =
+        puff.opacity * (1 - interaction * 0.78);
+    });
+  });
+
+  return (
+    <group>
+      {cloud.puffs.map((puff, index) => (
+        <mesh
+          key={`${definition.id}-${index}`}
+          ref={(mesh) => {
+            puffRefs.current[index] = mesh;
+          }}
+          position={puff.basePosition.toArray()}
+          renderOrder={4}
+        >
+          <icosahedronGeometry args={[puff.radius, 2]} />
+          <shaderMaterial
+            uniforms={{
+              cloudColor: { value: new Color(cloudColor) },
+              opacity: { value: puff.opacity },
+            }}
+            vertexShader={`
+              varying vec3 vViewNormal;
+              varying vec3 vViewDirection;
+
+              void main() {
+                vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
+                vViewNormal = normalize(normalMatrix * normal);
+                vViewDirection = normalize(-viewPosition.xyz);
+                gl_Position = projectionMatrix * viewPosition;
+              }
+            `}
+            fragmentShader={`
+              uniform vec3 cloudColor;
+              uniform float opacity;
+              varying vec3 vViewNormal;
+              varying vec3 vViewDirection;
+
+              void main() {
+                float facing = max(dot(
+                  normalize(vViewNormal),
+                  normalize(vViewDirection)
+                ), 0.0);
+                float density = pow(
+                  smoothstep(0.02, 0.78, facing),
+                  0.72
+                );
+
+                if (density < 0.01) {
+                  discard;
+                }
+
+                vec3 shadedColor = cloudColor * mix(
+                  0.78,
+                  1.08,
+                  density
+                );
+                gl_FragColor = vec4(
+                  shadedColor,
+                  opacity * density
+                );
+              }
+            `}
+            transparent
+            depthWrite={false}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function CloudLayer({
+  travelerDirectionRef,
+  exploreMode,
+  reduceMotion,
+  skyPhase,
+}: {
+  travelerDirectionRef: MutableRefObject<Vector3>;
+  exploreMode: boolean;
+  reduceMotion: boolean;
+  skyPhase: SkyPhase;
+}) {
+  return (
+    <group>
+      {CLOUD_DEFINITIONS.map((definition) => (
+        <CloudCluster
+          key={definition.id}
+          definition={definition}
+          travelerDirectionRef={travelerDirectionRef}
+          exploreMode={exploreMode}
+          reduceMotion={reduceMotion}
+          skyPhase={skyPhase}
+        />
+      ))}
+    </group>
+  );
+}
+
+function InteractiveOcean({
+  reliefTexture,
+  travelerDirectionRef,
+  movementVelocityRef,
+  exploreMode,
+  reduceMotion,
+  skyPhase,
+}: {
+  reliefTexture: CanvasTexture;
+  travelerDirectionRef: MutableRefObject<Vector3>;
+  movementVelocityRef: MutableRefObject<number>;
+  exploreMode: boolean;
+  reduceMotion: boolean;
+  skyPhase: SkyPhase;
+}) {
+  const movementBlendRef = useRef(0);
+  const uniforms = useMemo(
+    () => ({
+      time: { value: 0 },
+      reliefMap: { value: reliefTexture },
+      travelerDirection: { value: new Vector3(0, 1, 0) },
+      movement: { value: 0 },
+      ambientMotion: { value: reduceMotion ? 0 : 1 },
+      oceanColor: {
+        value: new Color(
+          skyPhase === "night"
+            ? "#456474"
+            : skyPhase === "twilight"
+              ? "#8fb1b3"
+              : "#b2d5d2",
+        ),
+      },
+    }),
+    [reduceMotion, reliefTexture, skyPhase],
+  );
+
+  useFrame(({ clock }, delta) => {
+    const travelerDirection = travelerDirectionRef.current;
+    const overWater =
+      planetSurfaceRadiusAt(travelerDirection) <=
+      PLANET_RADIUS + 0.001;
+    const targetMovement =
+      exploreMode && overWater
+        ? MathUtils.clamp(
+            Math.abs(movementVelocityRef.current) / RUN_SPEED,
+            0,
+            1,
+          )
+        : 0;
+
+    movementBlendRef.current = MathUtils.damp(
+      movementBlendRef.current,
+      targetMovement,
+      targetMovement > 0 ? 8 : 3,
+      Math.min(delta, 0.05),
+    );
+    uniforms.time.value = clock.elapsedTime;
+    uniforms.travelerDirection.value.copy(travelerDirection);
+    uniforms.movement.value = movementBlendRef.current;
+  });
+
+  return (
+    <mesh renderOrder={2}>
+      <icosahedronGeometry args={[PLANET_RADIUS + 0.008, 5]} />
+      <shaderMaterial
+        uniforms={uniforms}
+        vertexShader={`
+          uniform sampler2D reliefMap;
+          uniform float time;
+          uniform vec3 travelerDirection;
+          uniform float movement;
+          uniform float ambientMotion;
+          varying float vWater;
+          varying float vCrest;
+
+          void main() {
+            vec3 direction = normalize(position);
+            float land = texture2D(reliefMap, uv).r;
+            float water = 1.0 - smoothstep(0.18, 0.82, land);
+            float ambientWave = (
+              sin(position.x * 3.7 + time * 0.58) +
+              sin(position.z * 4.4 - time * 0.43) +
+              sin(position.y * 5.1 + time * 0.31)
+            ) / 3.0;
+            float angularDistance = acos(clamp(
+              dot(direction, normalize(travelerDirection)),
+              -1.0,
+              1.0
+            ));
+            float wakeEnvelope = exp(-angularDistance * 27.0);
+            float wake = sin(
+              angularDistance * 112.0 - time * 8.5
+            ) * wakeEnvelope * movement;
+            float displacement = water * (
+              0.012 +
+              ambientWave * 0.012 * ambientMotion +
+              wake * 0.042
+            );
+            vec3 displacedPosition = position + normal * displacement;
+
+            vWater = water;
+            vCrest = clamp(
+              0.5 + ambientWave * 0.24 + wake * 0.62,
+              0.0,
+              1.0
+            );
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(
+              displacedPosition,
+              1.0
+            );
+          }
+        `}
+        fragmentShader={`
+          uniform vec3 oceanColor;
+          varying float vWater;
+          varying float vCrest;
+
+          void main() {
+            if (vWater < 0.04) {
+              discard;
+            }
+
+            vec3 crestColor = mix(
+              oceanColor * 0.82,
+              vec3(0.92, 0.98, 0.98),
+              vCrest * 0.42
+            );
+            float alpha = vWater * (0.14 + vCrest * 0.13);
+            gl_FragColor = vec4(crestColor, alpha);
+          }
+        `}
+        transparent
+        depthWrite={false}
+        polygonOffset
+        polygonOffsetFactor={-1}
+      />
+    </mesh>
+  );
+}
+
+type DustParticleState = {
+  active: boolean;
+  age: number;
+  duration: number;
+  baseScale: number;
+  position: Vector3;
+  velocity: Vector3;
+  gravity: Vector3;
+};
+
+const DUST_PARTICLE_COUNT = 16;
+
+function SurfaceDust({
+  travelerDirectionRef,
+  travelerForwardRef,
+  movementVelocityRef,
+  exploreMode,
+  reduceMotion,
+}: {
+  travelerDirectionRef: MutableRefObject<Vector3>;
+  travelerForwardRef: MutableRefObject<Vector3>;
+  movementVelocityRef: MutableRefObject<number>;
+  exploreMode: boolean;
+  reduceMotion: boolean;
+}) {
+  const particleRefs = useRef<Array<Mesh | null>>([]);
+  const particlesRef = useRef<DustParticleState[]>(
+    Array.from({ length: DUST_PARTICLE_COUNT }, () => ({
+      active: false,
+      age: 0,
+      duration: 0.58,
+      baseScale: 1,
+      position: new Vector3(),
+      velocity: new Vector3(),
+      gravity: new Vector3(),
+    })),
+  );
+  const spawnAccumulatorRef = useRef(0);
+  const nextParticleRef = useRef(0);
+  const spawnSequenceRef = useRef(0);
+  const rightRef = useRef(new Vector3());
+
+  useFrame((_, delta) => {
+    const frameDelta = Math.min(delta, 0.05);
+    const travelerDirection = travelerDirectionRef.current;
+    const movementSpeed = Math.abs(movementVelocityRef.current);
+    const movementBlend = MathUtils.clamp(
+      movementSpeed / RUN_SPEED,
+      0,
+      1,
+    );
+    const onLand =
+      planetSurfaceRadiusAt(travelerDirection) >
+      PLANET_RADIUS + PLANET_LAND_RELIEF * 0.5;
+    const canSpawn =
+      exploreMode && onLand && movementBlend > 0.08;
+
+    if (canSpawn) {
+      spawnAccumulatorRef.current += frameDelta;
+      const spawnInterval = MathUtils.lerp(
+        reduceMotion ? 0.2 : 0.14,
+        reduceMotion ? 0.13 : 0.075,
+        movementBlend,
+      );
+
+      while (spawnAccumulatorRef.current >= spawnInterval) {
+        spawnAccumulatorRef.current -= spawnInterval;
+
+        const particleIndex =
+          nextParticleRef.current % DUST_PARTICLE_COUNT;
+        const particle = particlesRef.current[particleIndex];
+        const phase = spawnSequenceRef.current * 2.399963;
+        const sideways = Math.sin(phase);
+        const forward = travelerForwardRef.current;
+        const right = rightRef.current
+          .crossVectors(forward, travelerDirection)
+          .normalize();
+        const surfaceRadius = planetSurfaceRadiusAt(travelerDirection);
+
+        particle.active = true;
+        particle.age = 0;
+        particle.duration = MathUtils.lerp(0.48, 0.72, movementBlend);
+        particle.baseScale = 0.018 + movementBlend * 0.018;
+        particle.position
+          .copy(travelerDirection)
+          .multiplyScalar(surfaceRadius + 0.018)
+          .addScaledVector(right, sideways * 0.08)
+          .addScaledVector(forward, -0.055);
+        particle.velocity
+          .copy(travelerDirection)
+          .multiplyScalar(0.13 + movementBlend * 0.15)
+          .addScaledVector(right, sideways * 0.12)
+          .addScaledVector(forward, -0.06 - movementBlend * 0.05);
+        particle.gravity
+          .copy(travelerDirection)
+          .multiplyScalar(-0.22);
+
+        nextParticleRef.current += 1;
+        spawnSequenceRef.current += 1;
+      }
+    } else {
+      spawnAccumulatorRef.current = 0;
+    }
+
+    particlesRef.current.forEach((particle, index) => {
+      const mesh = particleRefs.current[index];
+
+      if (!mesh) {
+        return;
+      }
+
+      if (!particle.active) {
+        mesh.visible = false;
+        return;
+      }
+
+      particle.age += frameDelta;
+
+      if (particle.age >= particle.duration) {
+        particle.active = false;
+        mesh.visible = false;
+        return;
+      }
+
+      const progress = particle.age / particle.duration;
+      particle.velocity.addScaledVector(particle.gravity, frameDelta);
+      particle.position.addScaledVector(particle.velocity, frameDelta);
+      mesh.visible = true;
+      mesh.position.copy(particle.position);
+      mesh.scale.setScalar(
+        particle.baseScale * MathUtils.lerp(0.75, 2.2, progress),
+      );
+
+      const material = mesh.material as MeshStandardMaterial;
+      material.opacity = (1 - progress) * 0.48;
+    });
+  });
+
+  return (
+    <group>
+      {Array.from({ length: DUST_PARTICLE_COUNT }, (_, index) => (
+        <mesh
+          key={`dust-${index}`}
+          ref={(mesh) => {
+            particleRefs.current[index] = mesh;
+          }}
+          visible={false}
+          renderOrder={6}
+        >
+          <icosahedronGeometry args={[1, 0]} />
+          <meshStandardMaterial
+            color="#d6b98f"
+            emissive="#6b5134"
+            emissiveIntensity={0.08}
+            transparent
+            opacity={0}
+            depthWrite={false}
+            roughness={1}
+          />
+        </mesh>
       ))}
     </group>
   );
@@ -1929,10 +2564,7 @@ function PlanetExperience({
 
   return (
     <>
-      <CelestialSky
-        observerDirectionRef={playerUpRef}
-        skyPhase={skyPhase}
-      />
+      <CelestialSky skyPhase={skyPhase} />
 
       <group ref={globeRef}>
         <mesh castShadow receiveShadow>
@@ -1950,6 +2582,15 @@ function PlanetExperience({
         <DayNightShade
           solarDirection={solarDirection}
           reliefTexture={reliefTexture}
+        />
+
+        <InteractiveOcean
+          reliefTexture={reliefTexture}
+          travelerDirectionRef={playerUpRef}
+          movementVelocityRef={movementVelocityRef}
+          exploreMode={exploreMode}
+          reduceMotion={reduceMotion}
+          skyPhase={skyPhase}
         />
 
         <mesh scale={1.003}>
@@ -1978,17 +2619,33 @@ function PlanetExperience({
             onSelect={onSelect}
           />
         ))}
+
+        <CloudLayer
+          travelerDirectionRef={playerUpRef}
+          exploreMode={exploreMode}
+          reduceMotion={reduceMotion}
+          skyPhase={skyPhase}
+        />
       </group>
 
       {exploreMode ? (
-        <Traveler
-          inputRef={exploreInputRef}
-          movementVelocityRef={movementVelocityRef}
-          playerUpRef={playerUpRef}
-          playerForwardRef={travelerForwardRef}
-          reduceMotion={reduceMotion}
-          onFootstep={onFootstep}
-        />
+        <>
+          <Traveler
+            inputRef={exploreInputRef}
+            movementVelocityRef={movementVelocityRef}
+            playerUpRef={playerUpRef}
+            playerForwardRef={travelerForwardRef}
+            reduceMotion={reduceMotion}
+            onFootstep={onFootstep}
+          />
+          <SurfaceDust
+            travelerDirectionRef={playerUpRef}
+            travelerForwardRef={travelerForwardRef}
+            movementVelocityRef={movementVelocityRef}
+            exploreMode={exploreMode}
+            reduceMotion={reduceMotion}
+          />
+        </>
       ) : null}
 
       <mesh scale={1.075}>
