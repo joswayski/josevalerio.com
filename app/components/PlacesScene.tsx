@@ -13,12 +13,6 @@ import {
   SiderealTime,
 } from "astronomy-engine";
 import {
-  geoContains,
-  geoEquirectangular,
-  geoPath,
-  type GeoPermissibleObjects,
-} from "d3-geo";
-import {
   useEffect,
   useMemo,
   useRef,
@@ -28,13 +22,11 @@ import {
 } from "react";
 import {
   BackSide,
-  CanvasTexture,
   Color,
   DoubleSide,
   MathUtils,
   Object3D,
   Quaternion,
-  SRGBColorSpace,
   Vector3,
   type Group,
   type InstancedBufferAttribute,
@@ -43,14 +35,15 @@ import {
   type MeshStandardMaterial,
   type Points,
 } from "three";
-import { feature, mesh } from "topojson-client";
-import type {
-  GeometryCollection,
-  GeometryObject,
-  Topology,
-} from "topojson-specification";
-import worldAtlas from "world-atlas/countries-110m.json";
 import { places, type Place, type PlaceTerrain } from "../data/places";
+import {
+  PLACE_DIRECTIONS,
+  PLANET_RADIUS,
+  isWaterDirection,
+  sphericalDirection,
+  surfaceRadiusAt as planetSurfaceRadiusAt,
+} from "../data/planetoid";
+import { PlanetoidWorld } from "./PlanetoidWorld";
 
 export type ExploreInput = {
   horizontal: number;
@@ -81,9 +74,6 @@ type PlacesSceneProps = {
   solarDirection: [number, number, number];
 };
 
-const PLANET_RADIUS = 6;
-const PLANET_LAND_RELIEF = 0.16;
-const PLANET_SURFACE_RADIUS = PLANET_RADIUS + PLANET_LAND_RELIEF;
 const WALK_SPEED = 0.32;
 const RUN_SPEED = 0.7;
 const START_DISTANCE = 0.24;
@@ -100,7 +90,7 @@ const OVERVIEW_CAMERA_HEIGHT = 21;
 const OVERVIEW_CAMERA_TRAIL = 6;
 const OVERVIEW_TARGET_HEIGHT = 0.5;
 const OVERVIEW_TARGET_LEAD = 3;
-const DEFAULT_CAMERA_DISTANCE = 0.65;
+const DEFAULT_CAMERA_DISTANCE = 0.3;
 const CAMERA_DISTANCE_RATE = 0.75;
 const CAMERA_ORBIT_SPEED = 0.85;
 const CAMERA_ORBIT_RESPONSE = 2.1;
@@ -112,20 +102,6 @@ const TRAVELER_TURN_RESPONSE = 9;
 const TRAVELER_RENDER_ORDER = 20;
 const TRAVELER_GROUND_CLEARANCE = 0.01;
 const HORIZON_CLIP_MARGIN = 0.035;
-const WORLD = worldAtlas as unknown as Topology<{
-  countries: GeometryCollection;
-  land: GeometryObject;
-}>;
-const LAND = feature(
-  WORLD,
-  WORLD.objects.land,
-) as unknown as GeoPermissibleObjects;
-const BORDERS = mesh(
-  WORLD,
-  WORLD.objects.countries,
-  (countryA, countryB) => countryA !== countryB,
-);
-const SPHERE = { type: "Sphere" } as const;
 const UP = new Vector3(0, 1, 0);
 const X_AXIS = new Vector3(1, 0, 0);
 const Y_AXIS = new Vector3(0, 1, 0);
@@ -886,148 +862,9 @@ function CloudLayer({
   );
 }
 
-function InteractiveOcean({
-  reliefTexture,
-  travelerDirectionRef,
-  movementVelocityRef,
-  exploreMode,
-  reduceMotion,
-  skyPhase,
-}: {
-  reliefTexture: CanvasTexture;
-  travelerDirectionRef: MutableRefObject<Vector3>;
-  movementVelocityRef: MutableRefObject<number>;
-  exploreMode: boolean;
-  reduceMotion: boolean;
-  skyPhase: SkyPhase;
-}) {
-  const movementBlendRef = useRef(0);
-  const uniforms = useMemo(
-    () => ({
-      time: { value: 0 },
-      reliefMap: { value: reliefTexture },
-      travelerDirection: { value: new Vector3(0, 1, 0) },
-      movement: { value: 0 },
-      ambientMotion: { value: reduceMotion ? 0 : 1 },
-      oceanColor: {
-        value: new Color(
-          skyPhase === "night"
-            ? "#456474"
-            : skyPhase === "twilight"
-              ? "#8fb1b3"
-              : "#b2d5d2",
-        ),
-      },
-    }),
-    [reduceMotion, reliefTexture, skyPhase],
-  );
-
-  useFrame(({ clock }, delta) => {
-    const travelerDirection = travelerDirectionRef.current;
-    const overWater =
-      planetSurfaceRadiusAt(travelerDirection) <=
-      PLANET_RADIUS + 0.001;
-    const targetMovement =
-      exploreMode && overWater
-        ? MathUtils.clamp(
-            Math.abs(movementVelocityRef.current) / RUN_SPEED,
-            0,
-            1,
-          )
-        : 0;
-
-    movementBlendRef.current = MathUtils.damp(
-      movementBlendRef.current,
-      targetMovement,
-      targetMovement > 0 ? 8 : 3,
-      Math.min(delta, 0.05),
-    );
-    uniforms.time.value = clock.elapsedTime;
-    uniforms.travelerDirection.value.copy(travelerDirection);
-    uniforms.movement.value = movementBlendRef.current;
-  });
-
-  return (
-    <mesh renderOrder={2}>
-      <icosahedronGeometry args={[PLANET_RADIUS + 0.008, 5]} />
-      <shaderMaterial
-        uniforms={uniforms}
-        vertexShader={`
-          uniform sampler2D reliefMap;
-          uniform float time;
-          uniform vec3 travelerDirection;
-          uniform float movement;
-          uniform float ambientMotion;
-          varying float vWater;
-          varying float vCrest;
-
-          void main() {
-            vec3 direction = normalize(position);
-            float land = texture2D(reliefMap, uv).r;
-            float water = 1.0 - smoothstep(0.18, 0.82, land);
-            float ambientWave = (
-              sin(position.x * 3.7 + time * 0.58) +
-              sin(position.z * 4.4 - time * 0.43) +
-              sin(position.y * 5.1 + time * 0.31)
-            ) / 3.0;
-            float angularDistance = acos(clamp(
-              dot(direction, normalize(travelerDirection)),
-              -1.0,
-              1.0
-            ));
-            float wakeEnvelope = exp(-angularDistance * 27.0);
-            float wake = sin(
-              angularDistance * 112.0 - time * 8.5
-            ) * wakeEnvelope * movement;
-            float displacement = water * (
-              0.012 +
-              ambientWave * 0.012 * ambientMotion +
-              wake * 0.042
-            );
-            vec3 displacedPosition = position + normal * displacement;
-
-            vWater = water;
-            vCrest = clamp(
-              0.5 + ambientWave * 0.24 + wake * 0.62,
-              0.0,
-              1.0
-            );
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(
-              displacedPosition,
-              1.0
-            );
-          }
-        `}
-        fragmentShader={`
-          uniform vec3 oceanColor;
-          varying float vWater;
-          varying float vCrest;
-
-          void main() {
-            if (vWater < 0.04) {
-              discard;
-            }
-
-            vec3 crestColor = mix(
-              oceanColor * 0.82,
-              vec3(0.92, 0.98, 0.98),
-              vCrest * 0.42
-            );
-            float alpha = vWater * (0.14 + vCrest * 0.13);
-            gl_FragColor = vec4(crestColor, alpha);
-          }
-        `}
-        transparent
-        depthWrite={false}
-        polygonOffset
-        polygonOffsetFactor={-1}
-      />
-    </mesh>
-  );
-}
-
 type DustParticleState = {
   active: boolean;
+  water: boolean;
   age: number;
   duration: number;
   baseScale: number;
@@ -1038,7 +875,7 @@ type DustParticleState = {
 
 const DUST_PARTICLE_COUNT = 16;
 
-function SurfaceDust({
+function SurfaceParticles({
   travelerDirectionRef,
   travelerForwardRef,
   movementVelocityRef,
@@ -1055,6 +892,7 @@ function SurfaceDust({
   const particlesRef = useRef<DustParticleState[]>(
     Array.from({ length: DUST_PARTICLE_COUNT }, () => ({
       active: false,
+      water: false,
       age: 0,
       duration: 0.58,
       baseScale: 1,
@@ -1077,11 +915,8 @@ function SurfaceDust({
       0,
       1,
     );
-    const onLand =
-      planetSurfaceRadiusAt(travelerDirection) >
-      PLANET_RADIUS + PLANET_LAND_RELIEF * 0.5;
-    const canSpawn =
-      exploreMode && onLand && movementBlend > 0.08;
+    const onWater = isWaterDirection(travelerDirection);
+    const canSpawn = exploreMode && movementBlend > 0.08;
 
     if (canSpawn) {
       spawnAccumulatorRef.current += frameDelta;
@@ -1106,9 +941,14 @@ function SurfaceDust({
         const surfaceRadius = planetSurfaceRadiusAt(travelerDirection);
 
         particle.active = true;
+        particle.water = onWater;
         particle.age = 0;
-        particle.duration = MathUtils.lerp(0.48, 0.72, movementBlend);
-        particle.baseScale = 0.018 + movementBlend * 0.018;
+        particle.duration = onWater
+          ? MathUtils.lerp(0.34, 0.54, movementBlend)
+          : MathUtils.lerp(0.48, 0.72, movementBlend);
+        particle.baseScale = onWater
+          ? 0.012 + movementBlend * 0.015
+          : 0.018 + movementBlend * 0.018;
         particle.position
           .copy(travelerDirection)
           .multiplyScalar(surfaceRadius + 0.018)
@@ -1116,7 +956,11 @@ function SurfaceDust({
           .addScaledVector(forward, -0.055);
         particle.velocity
           .copy(travelerDirection)
-          .multiplyScalar(0.13 + movementBlend * 0.15)
+          .multiplyScalar(
+            onWater
+              ? 0.25 + movementBlend * 0.22
+              : 0.13 + movementBlend * 0.15,
+          )
           .addScaledVector(right, sideways * 0.12)
           .addScaledVector(forward, -0.06 - movementBlend * 0.05);
         particle.gravity
@@ -1160,7 +1004,14 @@ function SurfaceDust({
       );
 
       const material = mesh.material as MeshStandardMaterial;
-      material.opacity = (1 - progress) * 0.48;
+      material.color.set(
+        particle.water ? "#b8e3df" : "#d6b98f",
+      );
+      material.emissive.set(
+        particle.water ? "#4d8d8b" : "#6b5134",
+      );
+      material.opacity =
+        (1 - progress) * (particle.water ? 0.68 : 0.48);
     });
   });
 
@@ -1168,7 +1019,7 @@ function SurfaceDust({
     <group>
       {Array.from({ length: DUST_PARTICLE_COUNT }, (_, index) => (
         <mesh
-          key={`dust-${index}`}
+          key={`surface-particle-${index}`}
           ref={(mesh) => {
             particleRefs.current[index] = mesh;
           }}
@@ -1191,73 +1042,6 @@ function SurfaceDust({
   );
 }
 
-function DayNightShade({
-  solarDirection,
-  reliefTexture,
-}: {
-  solarDirection: [number, number, number];
-  reliefTexture: CanvasTexture;
-}) {
-  const uniforms = useMemo(
-    () => ({
-      sunDirection: {
-        value: new Vector3(...solarDirection).normalize(),
-      },
-      nightOpacity: { value: 0.58 },
-      reliefMap: { value: reliefTexture },
-      reliefScale: { value: PLANET_LAND_RELIEF },
-    }),
-    [reliefTexture, solarDirection],
-  );
-
-  return (
-    <mesh>
-      <icosahedronGeometry args={[PLANET_RADIUS, 5]} />
-      <shaderMaterial
-        uniforms={uniforms}
-        vertexShader={`
-          uniform sampler2D reliefMap;
-          uniform float reliefScale;
-          varying vec3 vGlobeDirection;
-
-          void main() {
-            float relief = texture2D(reliefMap, uv).r * reliefScale;
-            vec3 displacedPosition = position + normal * (relief + 0.018);
-            vGlobeDirection = normalize(displacedPosition);
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(
-              displacedPosition,
-              1.0
-            );
-          }
-        `}
-        fragmentShader={`
-          uniform vec3 sunDirection;
-          uniform float nightOpacity;
-          varying vec3 vGlobeDirection;
-
-          void main() {
-            float sunlight = dot(
-              normalize(vGlobeDirection),
-              normalize(sunDirection)
-            );
-            float night = 1.0 - smoothstep(-0.16, 0.2, sunlight);
-            float deepNight = 1.0 - smoothstep(-0.62, -0.08, sunlight);
-            vec3 nightColor = mix(
-              vec3(0.075, 0.1, 0.18),
-              vec3(0.025, 0.04, 0.095),
-              deepNight
-            );
-            gl_FragColor = vec4(nightColor, night * nightOpacity);
-          }
-        `}
-        transparent
-        depthWrite={false}
-        toneMapped={false}
-      />
-    </mesh>
-  );
-}
-
 function latLonToVector3(
   [longitude, latitude]: [number, number],
   radius = 1,
@@ -1270,20 +1054,6 @@ function latLonToVector3(
     -ringRadius * Math.cos(longitudeRadians),
     radius * Math.sin(latitudeRadians),
     ringRadius * Math.sin(longitudeRadians),
-  );
-}
-
-function planetSurfaceRadiusAt(direction: Vector3) {
-  const latitude = MathUtils.radToDeg(
-    Math.asin(MathUtils.clamp(direction.y, -1, 1)),
-  );
-  const longitude = MathUtils.radToDeg(
-    Math.atan2(direction.z, -direction.x),
-  );
-
-  return (
-    PLANET_RADIUS +
-    (geoContains(LAND, [longitude, latitude]) ? PLANET_LAND_RELIEF : 0)
   );
 }
 
@@ -1300,82 +1070,10 @@ function isAboveGlobeHorizon(
   const cameraFacingHeight =
     worldPosition.dot(cameraPosition) / worldRadius;
 
-  return cameraFacingHeight > PLANET_SURFACE_RADIUS + HORIZON_CLIP_MARGIN;
-}
-
-const PLACE_DIRECTIONS = new Map(
-  places.map((place) => [
-    place.id,
-    latLonToVector3(place.coordinates).normalize(),
-  ]),
-);
-
-function createGlobeTexture() {
-  const canvas = document.createElement("canvas");
-  canvas.width = 1024;
-  canvas.height = 512;
-
-  const context = canvas.getContext("2d");
-
-  if (!context) {
-    throw new Error("Unable to create the globe texture.");
-  }
-
-  const projection = geoEquirectangular().fitSize(
-    [canvas.width, canvas.height],
-    SPHERE,
+  return (
+    cameraFacingHeight >
+    PLANET_RADIUS + 0.08 + HORIZON_CLIP_MARGIN
   );
-  const path = geoPath(projection, context);
-
-  context.fillStyle = "#a9c7c0";
-  context.fillRect(0, 0, canvas.width, canvas.height);
-
-  context.beginPath();
-  path(LAND);
-  context.fillStyle = "#e7ded0";
-  context.fill();
-
-  context.beginPath();
-  path(BORDERS);
-  context.strokeStyle = "rgba(95, 100, 96, 0.3)";
-  context.lineWidth = 0.75;
-  context.stroke();
-
-  const texture = new CanvasTexture(canvas);
-  texture.colorSpace = SRGBColorSpace;
-  texture.needsUpdate = true;
-
-  return texture;
-}
-
-function createGlobeReliefTexture() {
-  const canvas = document.createElement("canvas");
-  canvas.width = 1024;
-  canvas.height = 512;
-
-  const context = canvas.getContext("2d");
-
-  if (!context) {
-    throw new Error("Unable to create the globe relief texture.");
-  }
-
-  const projection = geoEquirectangular().fitSize(
-    [canvas.width, canvas.height],
-    SPHERE,
-  );
-  const path = geoPath(projection, context);
-
-  context.fillStyle = "#000000";
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.beginPath();
-  path(LAND);
-  context.fillStyle = "#ffffff";
-  context.fill();
-
-  const texture = new CanvasTexture(canvas);
-  texture.needsUpdate = true;
-
-  return texture;
 }
 
 function terrainColor(terrain: PlaceTerrain) {
@@ -1763,7 +1461,9 @@ function PhotoProjection({
     if (exploreMode) {
       const travelerProjectedPosition = travelerProjectedPositionRef.current
         .copy(travelerDirectionRef.current)
-        .multiplyScalar(PLANET_SURFACE_RADIUS + 0.38)
+        .multiplyScalar(
+          planetSurfaceRadiusAt(travelerDirectionRef.current) + 0.38,
+        )
         .project(camera);
       const travelerIsOnScreen =
         travelerProjectedPosition.z > -1 &&
@@ -1876,8 +1576,16 @@ function DestinationWorld({
   const [hovered, setHovered] = useState(false);
   const { camera, gl } = useThree();
   const position = useMemo(
-    () => latLonToVector3(place.coordinates, PLANET_SURFACE_RADIUS + 0.025),
-    [place.coordinates],
+    () => {
+      const direction =
+        PLACE_DIRECTIONS.get(place.id)?.clone() ??
+        sphericalDirection(0, 0);
+
+      return direction.multiplyScalar(
+        planetSurfaceRadiusAt(direction) + 0.025,
+      );
+    },
+    [place.id],
   );
   const orientation = useMemo(
     () =>
@@ -2187,7 +1895,6 @@ function PlanetExperience({
   onNearbyChange,
   onFootstep,
   skyPhase,
-  solarDirection,
 }: PlacesSceneProps) {
   const globeRef = useRef<Group>(null);
   const dragRef = useRef<{
@@ -2218,21 +1925,12 @@ function PlanetExperience({
   const cameraTargetRef = useRef(new Vector3());
   const cameraDistanceRef = useRef(DEFAULT_CAMERA_DISTANCE);
   const cameraDistanceTargetRef = useRef(DEFAULT_CAMERA_DISTANCE);
-  const texture = useMemo(createGlobeTexture, []);
-  const reliefTexture = useMemo(createGlobeReliefTexture, []);
+  const tornadoDirectionRef = useRef(new Vector3(0, 1, 0));
   const { camera, gl } = useThree();
 
   useEffect(() => {
     onNearbyChangeRef.current = onNearbyChange;
   }, [onNearbyChange]);
-
-  useEffect(
-    () => () => {
-      texture.dispose();
-      reliefTexture.dispose();
-    },
-    [reliefTexture, texture],
-  );
 
   useEffect(() => {
     const selectedPlace =
@@ -2686,46 +2384,14 @@ function PlanetExperience({
       <CelestialSky skyPhase={skyPhase} />
 
       <group ref={globeRef}>
-        <mesh castShadow receiveShadow>
-          <icosahedronGeometry args={[PLANET_RADIUS, 5]} />
-          <meshStandardMaterial
-            map={texture}
-            displacementMap={reliefTexture}
-            displacementScale={PLANET_LAND_RELIEF}
-            roughness={0.9}
-            metalness={0}
-            flatShading
-          />
-        </mesh>
-
-        <DayNightShade
-          solarDirection={solarDirection}
-          reliefTexture={reliefTexture}
-        />
-
-        <InteractiveOcean
-          reliefTexture={reliefTexture}
+        <PlanetoidWorld
           travelerDirectionRef={playerUpRef}
           movementVelocityRef={movementVelocityRef}
+          tornadoDirectionRef={tornadoDirectionRef}
           exploreMode={exploreMode}
           reduceMotion={reduceMotion}
           skyPhase={skyPhase}
         />
-
-        <mesh scale={1.003}>
-          <icosahedronGeometry args={[PLANET_RADIUS, 4]} />
-          <meshStandardMaterial
-            color="#ffffff"
-            displacementMap={reliefTexture}
-            displacementScale={PLANET_LAND_RELIEF}
-            emissive="#ffffff"
-            emissiveIntensity={0.2}
-            transparent
-            opacity={0.12}
-            wireframe
-            depthWrite={false}
-          />
-        </mesh>
 
         {places.map((place) => (
           <DestinationWorld
@@ -2757,7 +2423,7 @@ function PlanetExperience({
             reduceMotion={reduceMotion}
             onFootstep={onFootstep}
           />
-          <SurfaceDust
+          <SurfaceParticles
             travelerDirectionRef={playerUpRef}
             travelerForwardRef={travelerForwardRef}
             movementVelocityRef={movementVelocityRef}

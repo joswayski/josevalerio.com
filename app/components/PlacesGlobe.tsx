@@ -42,8 +42,8 @@ function getCelestialState(now: Date): CelestialState {
           (localHour >= 17.5 && localHour < 20)
         ? "twilight"
         : "night";
-  // Approximate the current subsolar point from UTC so the globe can show a
-  // real day/night split without requesting the visitor's location.
+  // Approximate the current subsolar point from UTC so the planetoid can use a
+  // real day/night direction without requesting the visitor's location.
   const startOfYear = Date.UTC(now.getUTCFullYear(), 0, 0);
   const currentDay = Date.UTC(
     now.getUTCFullYear(),
@@ -97,7 +97,7 @@ class SceneErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Unable to render the places globe.", error, errorInfo);
+    console.error("Unable to render the places world.", error, errorInfo);
   }
 
   render() {
@@ -110,7 +110,7 @@ function SceneFallback() {
     <div
       className="places-scene-fallback"
       role="img"
-      aria-label="A stylized globe showing places Jose has visited"
+      aria-label="A tiny explorable planetoid inspired by places Jose has visited"
     >
       <div className="places-scene-fallback-planet" aria-hidden="true">
         <span />
