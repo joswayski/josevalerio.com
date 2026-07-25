@@ -3,6 +3,7 @@ import { places } from "./places";
 
 export const PLANET_RADIUS = 10;
 export const OCEAN_SURFACE_RADIUS = PLANET_RADIUS + 0.14;
+export const OCEAN_FLOOR_RADIUS = PLANET_RADIUS - 0.68;
 export const PLANET_MAX_SURFACE_RADIUS = 11.45;
 
 export type TraversalMode = "boat" | "land" | "swim";

@@ -6,9 +6,11 @@ import {
   type MutableRefObject,
 } from "react";
 import {
+  BackSide,
   BufferGeometry,
   Color,
   DoubleSide,
+  DynamicDrawUsage,
   Float32BufferAttribute,
   IcosahedronGeometry,
   MathUtils,
@@ -23,6 +25,7 @@ import {
 import {
   BIOMES,
   BIOME_BY_ID,
+  OCEAN_FLOOR_RADIUS,
   OCEAN_SURFACE_RADIUS,
   PLACE_DIRECTIONS,
   PLANET_RADIUS,
@@ -46,10 +49,27 @@ type SkyPhase = "day" | "twilight" | "night";
 
 type PlanetoidWorldProps = {
   travelerDirectionRef: MutableRefObject<Vector3>;
+  travelerForwardRef: MutableRefObject<Vector3>;
   movementVelocityRef: MutableRefObject<number>;
+  traversalModeRef: MutableRefObject<"boat" | "land" | "swim">;
+  waterSurfaceRef: MutableRefObject<OceanSurfaceApi | null>;
   exploreMode: boolean;
   reduceMotion: boolean;
   skyPhase: SkyPhase;
+};
+
+export type OceanSurfaceApi = {
+  sampleRadius: (direction: Vector3) => number;
+  sampleNormal: (
+    direction: Vector3,
+    forward: Vector3,
+    target: Vector3,
+  ) => Vector3;
+  disturb: (
+    direction: Vector3,
+    strength: number,
+    angularRadius?: number,
+  ) => void;
 };
 
 type VegetationDefinition = {
@@ -269,7 +289,7 @@ function createEscarpmentGeometry(biome: BiomeDefinition) {
         angle,
       );
       const topRadius = surfaceRadiusAt(direction) + 0.005;
-      const bottomRadius = OCEAN_SURFACE_RADIUS - 0.045;
+      const bottomRadius = OCEAN_FLOOR_RADIUS + 0.04;
       const top = direction.clone().multiplyScalar(topRadius);
       const bottom = direction.clone().multiplyScalar(bottomRadius);
       const shade = 0.75 + (segment % 6) * 0.035;
@@ -500,15 +520,84 @@ function createWaterGeometry(radius: number) {
   return geometry;
 }
 
+const OCEAN_SEGMENTS = 128;
+const OCEAN_RINGS = 64;
+const OCEAN_VERTEX_STRIDE = OCEAN_SEGMENTS + 1;
+const OCEAN_SIMULATION_STEP = 1 / 45;
+
+function oceanGridCoordinates(direction: Vector3) {
+  const normalized = direction.clone().normalize();
+  const phi = Math.atan2(normalized.z, -normalized.x);
+  const wrappedPhi = phi < 0 ? phi + Math.PI * 2 : phi;
+
+  return {
+    x: (wrappedPhi / (Math.PI * 2)) * OCEAN_SEGMENTS,
+    y:
+      (Math.acos(MathUtils.clamp(normalized.y, -1, 1)) / Math.PI) *
+      OCEAN_RINGS,
+  };
+}
+
+function oceanGridIndex(x: number, y: number) {
+  const wrappedX =
+    ((x % OCEAN_SEGMENTS) + OCEAN_SEGMENTS) % OCEAN_SEGMENTS;
+  const clampedY = MathUtils.clamp(y, 0, OCEAN_RINGS);
+
+  return clampedY * OCEAN_VERTEX_STRIDE + wrappedX;
+}
+
+function ambientOceanHeight(
+  direction: Vector3,
+  elapsedTime: number,
+  motion: number,
+  openWater: number,
+) {
+  if (motion === 0) {
+    return 0;
+  }
+
+  const swell =
+    Math.sin(
+      direction.x * 9.5 +
+        direction.z * 4.8 +
+        elapsedTime * 0.52,
+    ) *
+      0.027 +
+    Math.sin(
+      direction.y * 12.5 -
+        direction.x * 5.2 -
+        elapsedTime * 0.43,
+    ) *
+      0.022;
+  const crossingWave =
+    Math.sin(
+      (direction.x + direction.y) * 20 +
+        elapsedTime * 0.78,
+    ) *
+      0.012 +
+    Math.sin(
+      (direction.z - direction.x) * 27 -
+        elapsedTime * 0.66,
+    ) *
+      0.008;
+
+  return (swell + crossingWave) * openWater * motion;
+}
+
 function createOceanSurfaceGeometry() {
   const geometry = new SphereGeometry(
     OCEAN_SURFACE_RADIUS,
-    160,
-    80,
+    OCEAN_SEGMENTS,
+    OCEAN_RINGS,
   );
-  const positionAttribute = geometry.getAttribute("position");
+  const positionAttribute = geometry.getAttribute(
+    "position",
+  ) as Float32BufferAttribute;
   const shoreProximity = new Float32Array(positionAttribute.count);
+  const waveEnergy = new Float32Array(positionAttribute.count);
   const direction = new Vector3();
+
+  positionAttribute.setUsage(DynamicDrawUsage);
 
   for (let vertex = 0; vertex < positionAttribute.count; vertex += 1) {
     direction
@@ -525,25 +614,59 @@ function createOceanSurfaceGeometry() {
     "shoreProximity",
     new Float32BufferAttribute(shoreProximity, 1),
   );
+  const waveEnergyAttribute = new Float32BufferAttribute(waveEnergy, 1);
+  waveEnergyAttribute.setUsage(DynamicDrawUsage);
+  geometry.setAttribute("waveEnergy", waveEnergyAttribute);
   geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+
+  if (geometry.boundingSphere) {
+    geometry.boundingSphere.radius = OCEAN_SURFACE_RADIUS + 0.32;
+  }
 
   return geometry;
 }
 
 function OceanSurface({
   travelerDirectionRef,
+  travelerForwardRef,
   movementVelocityRef,
+  traversalModeRef,
+  waterSurfaceRef,
   exploreMode,
   reduceMotion,
   skyPhase,
 }: PlanetoidWorldProps) {
   const geometry = useMemo(createOceanSurfaceGeometry, []);
+  const simulation = useMemo(() => {
+    const positionAttribute = geometry.getAttribute(
+      "position",
+    ) as Float32BufferAttribute;
+    const directions = new Float32Array(positionAttribute.count * 3);
+
+    for (let vertex = 0; vertex < positionAttribute.count; vertex += 1) {
+      const offset = vertex * 3;
+      const x = positionAttribute.getX(vertex);
+      const y = positionAttribute.getY(vertex);
+      const z = positionAttribute.getZ(vertex);
+      const inverseLength = 1 / Math.hypot(x, y, z);
+      directions[offset] = x * inverseLength;
+      directions[offset + 1] = y * inverseLength;
+      directions[offset + 2] = z * inverseLength;
+    }
+
+    return {
+      directions,
+      heights: new Float32Array(positionAttribute.count),
+      velocities: new Float32Array(positionAttribute.count),
+      nextVelocities: new Float32Array(positionAttribute.count),
+      accumulatedTime: 0,
+      elapsedTime: 0,
+      disturbanceAccumulator: 0,
+    };
+  }, [geometry]);
   const uniforms = useMemo(
     () => ({
-      time: { value: 0 },
-      motion: { value: reduceMotion ? 0 : 1 },
-      interaction: { value: 0 },
-      travelerDirection: { value: new Vector3(0, 1, 0) },
       deepColor: {
         value:
           skyPhase === "night"
@@ -563,108 +686,433 @@ function OceanSurface({
             : new Color("#eafbf2"),
       },
     }),
-    [reduceMotion, skyPhase],
+    [skyPhase],
   );
+  const wakeDirectionRef = useRef(new Vector3());
+  const wakeSideRef = useRef(new Vector3());
+  const wakeLeftRef = useRef(new Vector3());
+  const wakeRightRef = useRef(new Vector3());
+
+  const sampleDynamicHeight = (direction: Vector3) => {
+    const coordinates = oceanGridCoordinates(direction);
+    const x0 = Math.floor(coordinates.x) % OCEAN_SEGMENTS;
+    const x1 = (x0 + 1) % OCEAN_SEGMENTS;
+    const y0 = MathUtils.clamp(
+      Math.floor(coordinates.y),
+      0,
+      OCEAN_RINGS,
+    );
+    const y1 = Math.min(OCEAN_RINGS, y0 + 1);
+    const xBlend = coordinates.x - Math.floor(coordinates.x);
+    const yBlend = coordinates.y - Math.floor(coordinates.y);
+    const top = MathUtils.lerp(
+      simulation.heights[oceanGridIndex(x0, y0)],
+      simulation.heights[oceanGridIndex(x1, y0)],
+      xBlend,
+    );
+    const bottom = MathUtils.lerp(
+      simulation.heights[oceanGridIndex(x0, y1)],
+      simulation.heights[oceanGridIndex(x1, y1)],
+      xBlend,
+    );
+
+    return MathUtils.lerp(top, bottom, yBlend);
+  };
+
+  const sampleRadius = (direction: Vector3) => {
+    const normalized = direction.clone().normalize();
+    const openWater = MathUtils.lerp(
+      1,
+      0.1,
+      oceanShoreProximityAt(normalized),
+    );
+    const ambientHeight = ambientOceanHeight(
+      normalized,
+      simulation.elapsedTime,
+      reduceMotion ? 0 : 1,
+      openWater,
+    );
+    const simulatedHeight =
+      sampleDynamicHeight(normalized) * openWater;
+
+    return (
+      OCEAN_SURFACE_RADIUS +
+      MathUtils.clamp(ambientHeight + simulatedHeight, -0.16, 0.2)
+    );
+  };
+
+  const disturb = (
+    direction: Vector3,
+    strength: number,
+    angularRadius = 0.055,
+  ) => {
+    const normalized = direction.clone().normalize();
+    const coordinates = oceanGridCoordinates(normalized);
+    const latitude = Math.acos(
+      MathUtils.clamp(normalized.y, -1, 1),
+    );
+    const verticalRange =
+      Math.ceil((angularRadius / Math.PI) * OCEAN_RINGS) + 1;
+    const horizontalRange =
+      Math.ceil(
+        (angularRadius /
+          (Math.PI * 2 * Math.max(0.16, Math.sin(latitude)))) *
+          OCEAN_SEGMENTS,
+      ) + 1;
+    const centerX = Math.round(coordinates.x);
+    const centerY = Math.round(coordinates.y);
+
+    for (
+      let y = Math.max(1, centerY - verticalRange);
+      y <= Math.min(OCEAN_RINGS - 1, centerY + verticalRange);
+      y += 1
+    ) {
+      for (
+        let x = centerX - horizontalRange;
+        x <= centerX + horizontalRange;
+        x += 1
+      ) {
+        const index = oceanGridIndex(x, y);
+        const offset = index * 3;
+        const dot = MathUtils.clamp(
+          normalized.x * simulation.directions[offset] +
+            normalized.y * simulation.directions[offset + 1] +
+            normalized.z * simulation.directions[offset + 2],
+          -1,
+          1,
+        );
+        const distance = Math.acos(dot);
+
+        if (distance >= angularRadius) {
+          continue;
+        }
+
+        const progress = 1 - distance / angularRadius;
+        const falloff = progress * progress * (3 - 2 * progress);
+        simulation.velocities[index] += strength * falloff;
+      }
+    }
+  };
+
+  const sampleNormal = (
+    direction: Vector3,
+    forward: Vector3,
+    target: Vector3,
+  ) => {
+    const up = direction.clone().normalize();
+    const tangentForward = forward
+      .clone()
+      .addScaledVector(up, -forward.dot(up));
+
+    if (tangentForward.lengthSq() < 0.0001) {
+      tangentForward.copy(tangentBasis(up).north);
+    } else {
+      tangentForward.normalize();
+    }
+
+    const tangentRight = new Vector3()
+      .crossVectors(tangentForward, up)
+      .normalize();
+    const sampleAngle = 0.012;
+    const cosine = Math.cos(sampleAngle);
+    const sine = Math.sin(sampleAngle);
+    const aheadDirection = up
+      .clone()
+      .multiplyScalar(cosine)
+      .addScaledVector(tangentForward, sine)
+      .normalize();
+    const rightDirection = up
+      .clone()
+      .multiplyScalar(cosine)
+      .addScaledVector(tangentRight, sine)
+      .normalize();
+    const center = up.multiplyScalar(sampleRadius(up));
+    const ahead = aheadDirection.multiplyScalar(
+      sampleRadius(aheadDirection),
+    );
+    const right = rightDirection.multiplyScalar(
+      sampleRadius(rightDirection),
+    );
+
+    target
+      .crossVectors(
+        right.sub(center),
+        ahead.sub(center),
+      )
+      .normalize();
+
+    if (target.dot(direction) < 0) {
+      target.multiplyScalar(-1);
+    }
+
+    return target;
+  };
 
   useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(() => {
+    const api: OceanSurfaceApi = {
+      sampleRadius,
+      sampleNormal,
+      disturb,
+    };
+    waterSurfaceRef.current = api;
 
-  useFrame(({ clock }) => {
+    return () => {
+      if (waterSurfaceRef.current === api) {
+        waterSurfaceRef.current = null;
+      }
+    };
+  });
+
+  useFrame(({ clock }, delta) => {
+    const frameDelta = Math.min(delta, 0.05);
     const travelerDirection = travelerDirectionRef.current;
-    const oceanTravel = exploreMode && isOceanDirection(travelerDirection);
+    const oceanTravel =
+      exploreMode && isOceanDirection(travelerDirection);
+    const movementBlend = MathUtils.clamp(
+      Math.abs(movementVelocityRef.current) /
+        MAX_OCEAN_TRAVEL_SPEED,
+      0,
+      1,
+    );
+    simulation.elapsedTime = clock.elapsedTime;
+    simulation.disturbanceAccumulator += frameDelta;
 
-    uniforms.time.value = clock.elapsedTime;
-    uniforms.travelerDirection.value.copy(travelerDirection);
-    uniforms.interaction.value = oceanTravel
-      ? MathUtils.clamp(
-          Math.abs(movementVelocityRef.current) /
-            MAX_OCEAN_TRAVEL_SPEED,
-          0,
-          1,
-        )
-      : 0;
+    if (
+      oceanTravel &&
+      movementBlend > 0.035 &&
+      simulation.disturbanceAccumulator >=
+        (traversalModeRef.current === "boat" ? 0.07 : 0.11)
+    ) {
+      simulation.disturbanceAccumulator = 0;
+      const travelerForward = travelerForwardRef.current;
+      const behindAngle =
+        traversalModeRef.current === "boat" ? 0.028 : 0.018;
+      const sideAngle =
+        traversalModeRef.current === "boat" ? 0.026 : 0.016;
+      const cosine = Math.cos(behindAngle);
+      const sine = Math.sin(behindAngle);
+      const sideCosine = Math.cos(sideAngle);
+      const sideSine = Math.sin(sideAngle);
+      const wakeDirection = wakeDirectionRef.current
+        .copy(travelerDirection)
+        .multiplyScalar(cosine)
+        .addScaledVector(travelerForward, -sine)
+        .normalize();
+      const wakeSide = wakeSideRef.current
+        .crossVectors(travelerForward, travelerDirection)
+        .normalize();
+      const wakeStrength =
+        (traversalModeRef.current === "boat" ? -0.72 : -0.42) *
+        movementBlend;
+
+      disturb(
+        wakeDirection,
+        wakeStrength,
+        traversalModeRef.current === "boat" ? 0.06 : 0.045,
+      );
+      wakeLeftRef.current
+        .copy(wakeDirection)
+        .multiplyScalar(sideCosine)
+        .addScaledVector(wakeSide, sideSine)
+        .normalize();
+      wakeRightRef.current
+        .copy(wakeDirection)
+        .multiplyScalar(sideCosine)
+        .addScaledVector(wakeSide, -sideSine)
+        .normalize();
+      disturb(
+        wakeLeftRef.current,
+        -wakeStrength * 0.42,
+        0.036,
+      );
+      disturb(
+        wakeRightRef.current,
+        -wakeStrength * 0.42,
+        0.036,
+      );
+    }
+
+    simulation.accumulatedTime = Math.min(
+      simulation.accumulatedTime + frameDelta,
+      OCEAN_SIMULATION_STEP * 3,
+    );
+
+    while (simulation.accumulatedTime >= OCEAN_SIMULATION_STEP) {
+      simulation.accumulatedTime -= OCEAN_SIMULATION_STEP;
+      const damping = Math.exp(
+        -OCEAN_SIMULATION_STEP * (reduceMotion ? 4.6 : 1.35),
+      );
+      const propagation = reduceMotion ? 21 : 42;
+
+      for (let y = 1; y < OCEAN_RINGS; y += 1) {
+        for (let x = 0; x < OCEAN_SEGMENTS; x += 1) {
+          const index = oceanGridIndex(x, y);
+          const left = oceanGridIndex(x - 1, y);
+          const right = oceanGridIndex(x + 1, y);
+          const above = oceanGridIndex(x, y - 1);
+          const below = oceanGridIndex(x, y + 1);
+          const height = simulation.heights[index];
+          const laplacian =
+            simulation.heights[left] +
+            simulation.heights[right] +
+            simulation.heights[above] +
+            simulation.heights[below] -
+            height * 4;
+          const acceleration =
+            laplacian * propagation - height * 1.8;
+
+          simulation.nextVelocities[index] =
+            (simulation.velocities[index] +
+              acceleration * OCEAN_SIMULATION_STEP) *
+            damping;
+        }
+      }
+
+      for (let y = 1; y < OCEAN_RINGS; y += 1) {
+        for (let x = 0; x < OCEAN_SEGMENTS; x += 1) {
+          const index = oceanGridIndex(x, y);
+          const seamIndex = y * OCEAN_VERTEX_STRIDE + OCEAN_SEGMENTS;
+
+          simulation.velocities[index] =
+            simulation.nextVelocities[index];
+          simulation.heights[index] = MathUtils.clamp(
+            simulation.heights[index] +
+              simulation.velocities[index] * OCEAN_SIMULATION_STEP,
+            -0.16,
+            0.2,
+          );
+
+          if (x === 0) {
+            simulation.velocities[seamIndex] =
+              simulation.velocities[index];
+            simulation.heights[seamIndex] =
+              simulation.heights[index];
+          }
+        }
+      }
+    }
+
+    const positionAttribute = geometry.getAttribute(
+      "position",
+    ) as Float32BufferAttribute;
+    const positionArray = positionAttribute.array as Float32Array;
+    const shoreAttribute = geometry.getAttribute(
+      "shoreProximity",
+    ) as Float32BufferAttribute;
+    const energyAttribute = geometry.getAttribute(
+      "waveEnergy",
+    ) as Float32BufferAttribute;
+    const energyArray = energyAttribute.array as Float32Array;
+
+    for (let vertex = 0; vertex < positionAttribute.count; vertex += 1) {
+      const offset = vertex * 3;
+      const directionX = simulation.directions[offset];
+      const directionY = simulation.directions[offset + 1];
+      const directionZ = simulation.directions[offset + 2];
+      const direction = wakeDirectionRef.current.set(
+        directionX,
+        directionY,
+        directionZ,
+      );
+      const openWater = MathUtils.lerp(
+        1,
+        0.1,
+        shoreAttribute.getX(vertex),
+      );
+      const ambientHeight = ambientOceanHeight(
+        direction,
+        simulation.elapsedTime,
+        reduceMotion ? 0 : 1,
+        openWater,
+      );
+      const simulatedHeight =
+        simulation.heights[vertex] * openWater;
+      const radius =
+        OCEAN_SURFACE_RADIUS +
+        MathUtils.clamp(
+          ambientHeight + simulatedHeight,
+          -0.16,
+          0.2,
+        );
+
+      positionArray[offset] = directionX * radius;
+      positionArray[offset + 1] = directionY * radius;
+      positionArray[offset + 2] = directionZ * radius;
+      energyArray[vertex] = MathUtils.clamp(
+        Math.abs(simulatedHeight) * 5.2 +
+          Math.abs(simulation.velocities[vertex]) * 0.2 +
+          Math.max(0, ambientHeight) * 4.2,
+        0,
+        1,
+      );
+    }
+
+    positionAttribute.needsUpdate = true;
+    energyAttribute.needsUpdate = true;
   });
 
   return (
     <group>
-      <mesh renderOrder={0} receiveShadow>
-        <sphereGeometry
-          args={[PLANET_RADIUS + 0.012, 128, 64]}
-        />
-        <meshStandardMaterial
-          color={skyPhase === "night" ? "#041526" : "#062f4a"}
-          roughness={0.72}
-          metalness={0}
-          depthWrite
+      <mesh geometry={geometry} renderOrder={0}>
+        <shaderMaterial
+          uniforms={uniforms}
+          vertexShader={`
+            varying vec3 vWorldPosition;
+
+            void main() {
+              vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+              vWorldPosition = worldPosition.xyz;
+              gl_Position = projectionMatrix * viewMatrix * worldPosition;
+            }
+          `}
+          fragmentShader={`
+            uniform vec3 deepColor;
+            varying vec3 vWorldPosition;
+
+            void main() {
+              float facing = clamp(
+                dot(
+                  normalize(cameraPosition - vWorldPosition),
+                  normalize(vWorldPosition)
+                ),
+                0.0,
+                1.0
+              );
+              gl_FragColor = vec4(
+                deepColor * 0.72,
+                0.2 + facing * 0.12
+              );
+            }
+          `}
+          side={BackSide}
+          transparent
+          depthWrite={false}
         />
       </mesh>
       <mesh geometry={geometry} renderOrder={1} receiveShadow>
         <shaderMaterial
           uniforms={uniforms}
           vertexShader={`
-            uniform float time;
-            uniform float motion;
-            uniform float interaction;
-            uniform vec3 travelerDirection;
             attribute float shoreProximity;
+            attribute float waveEnergy;
             varying vec3 vWorldPosition;
             varying vec3 vWorldNormal;
             varying float vWave;
-            varying float vWake;
             varying float vShoreProximity;
 
             void main() {
               vec3 direction = normalize(position);
-              float radius = length(position);
-              float swell = (
-                sin(direction.x * 11.0 + direction.z * 5.0 + time * 0.34) +
-                sin(direction.y * 13.0 - direction.x * 4.0 - time * 0.29)
-              ) * 0.5;
-              float broadWave = (
-                sin(direction.x * 21.0 + time * 0.76) +
-                sin(direction.z * 25.0 - time * 0.61) +
-                sin((direction.x + direction.y) * 18.0 + time * 0.47)
-              ) / 3.0;
-              float detailWave = (
-                sin(direction.y * 48.0 - time * 1.22) +
-                sin((direction.z - direction.x) * 43.0 + time * 0.97)
-              ) * 0.5;
-              float travelerDistance = acos(clamp(
-                dot(direction, normalize(travelerDirection)),
-                -1.0,
-                1.0
-              ));
-              float wake = sin(
-                travelerDistance * 105.0 - time * 9.0
-              ) * exp(-travelerDistance * 34.0) * interaction;
-              float openWater = mix(1.0, 0.42, shoreProximity);
-              float displacement = motion * (
-                swell * 0.034 +
-                broadWave * 0.025 +
-                detailWave * 0.009
-              ) * openWater + wake * 0.045 * openWater;
-              vec3 displacedPosition =
-                direction * (radius + displacement);
               vec4 worldPosition =
-                modelMatrix * vec4(displacedPosition, 1.0);
+                modelMatrix * vec4(position, 1.0);
 
-              vWave = clamp(
-                0.5 +
-                swell * 0.2 +
-                broadWave * 0.31 +
-                detailWave * 0.13,
-                0.0,
-                1.0
-              );
-              vWake = wake;
+              vWave = waveEnergy;
               vShoreProximity = shoreProximity;
               vWorldPosition = worldPosition.xyz;
               vWorldNormal = normalize(
                 mat3(modelMatrix) * direction
               );
-              gl_Position = projectionMatrix * modelViewMatrix * vec4(
-                displacedPosition,
-                1.0
-              );
+              gl_Position = projectionMatrix * viewMatrix * worldPosition;
             }
           `}
           fragmentShader={`
@@ -674,7 +1122,6 @@ function OceanSurface({
             varying vec3 vWorldPosition;
             varying vec3 vWorldNormal;
             varying float vWave;
-            varying float vWake;
             varying float vShoreProximity;
 
             void main() {
@@ -707,8 +1154,7 @@ function OceanSurface({
                 ),
                 38.0
               );
-              float crest = smoothstep(0.68, 0.84, vWave);
-              float wakeFoam = smoothstep(0.36, 0.82, abs(vWake));
+              float crest = smoothstep(0.5, 0.9, vWave);
               float deepWater = pow(
                 clamp(1.0 - vShoreProximity, 0.0, 1.0),
                 0.72
@@ -727,12 +1173,12 @@ function OceanSurface({
               water = mix(
                 water,
                 foamColor,
-                max(crest * 0.07, wakeFoam * 0.72)
+                crest * 0.44
               );
 
               gl_FragColor = vec4(
                 water,
-                0.82 + fresnel * 0.1 + crest * 0.025
+                0.72 + fresnel * 0.16 + crest * 0.08
               );
             }
           `}
@@ -2183,7 +2629,10 @@ function LandmarkTerrain() {
 
 function BasePlanetoid({ skyPhase }: { skyPhase: SkyPhase }) {
   const geometry = useMemo(() => {
-    const nextGeometry = new IcosahedronGeometry(PLANET_RADIUS, 5);
+    const nextGeometry = new IcosahedronGeometry(
+      OCEAN_FLOOR_RADIUS,
+      5,
+    );
     nextGeometry.computeVertexNormals();
     return nextGeometry;
   }, []);
@@ -2193,7 +2642,7 @@ function BasePlanetoid({ skyPhase }: { skyPhase: SkyPhase }) {
   return (
     <mesh geometry={geometry} castShadow receiveShadow>
       <meshStandardMaterial
-        color={skyPhase === "night" ? "#142a35" : "#285158"}
+        color={skyPhase === "night" ? "#020b16" : "#062a3c"}
         roughness={1}
         metalness={0}
         flatShading
@@ -2839,7 +3288,10 @@ function AmbientBirds({
 
 export function PlanetoidWorld({
   travelerDirectionRef,
+  travelerForwardRef,
   movementVelocityRef,
+  traversalModeRef,
+  waterSurfaceRef,
   exploreMode,
   reduceMotion,
   skyPhase,
@@ -2849,7 +3301,10 @@ export function PlanetoidWorld({
       <BasePlanetoid skyPhase={skyPhase} />
       <OceanSurface
         travelerDirectionRef={travelerDirectionRef}
+        travelerForwardRef={travelerForwardRef}
         movementVelocityRef={movementVelocityRef}
+        traversalModeRef={traversalModeRef}
+        waterSurfaceRef={waterSurfaceRef}
         exploreMode={exploreMode}
         reduceMotion={reduceMotion}
         skyPhase={skyPhase}

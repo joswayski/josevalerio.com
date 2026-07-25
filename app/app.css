@@ -589,9 +589,9 @@ button {
   z-index: 2;
   display: grid;
   grid-template-areas:
-    ". up jump"
-    "left down right";
-  grid-template-columns: repeat(3, 2.15rem);
+    ". up jump interact"
+    "left down right .";
+  grid-template-columns: repeat(4, 2.15rem);
   gap: 0.25rem;
 }
 
@@ -638,6 +638,13 @@ button {
   grid-area: jump;
   color: var(--accent);
   font-size: 1.1rem;
+}
+
+.explore-dpad-interact {
+  grid-area: interact;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .globe-instructions {

@@ -45,6 +45,7 @@ import {
   PLACE_DIRECTIONS,
   PLACE_SCENERY_DIRECTIONS,
   PLANET_RADIUS,
+  isOceanDirection,
   isWaterDirection,
   sphericalDirection,
   surfaceRadiusAt as planetSurfaceRadiusAt,
@@ -52,7 +53,10 @@ import {
   traversalSurfaceRadiusAt,
   type TraversalMode,
 } from "../data/planetoid";
-import { PlanetoidWorld } from "./PlanetoidWorld";
+import {
+  PlanetoidWorld,
+  type OceanSurfaceApi,
+} from "./PlanetoidWorld";
 
 export type ExploreInput = {
   horizontal: number;
@@ -62,6 +66,7 @@ export type ExploreInput = {
   zoom: number;
   jumpReady: boolean;
   jumpSequence: number;
+  interactSequence: number;
 };
 
 export type SkyPhase = "day" | "twilight" | "night";
@@ -1216,12 +1221,16 @@ function SurfaceParticles({
   travelerDirectionRef,
   travelerForwardRef,
   movementVelocityRef,
+  traversalModeRef,
+  waterSurfaceRef,
   exploreMode,
   reduceMotion,
 }: {
   travelerDirectionRef: MutableRefObject<Vector3>;
   travelerForwardRef: MutableRefObject<Vector3>;
   movementVelocityRef: MutableRefObject<number>;
+  traversalModeRef: MutableRefObject<TraversalMode>;
+  waterSurfaceRef: MutableRefObject<OceanSurfaceApi | null>;
   exploreMode: boolean;
   reduceMotion: boolean;
 }) {
@@ -1247,7 +1256,7 @@ function SurfaceParticles({
     const frameDelta = Math.min(delta, 0.05);
     const travelerDirection = travelerDirectionRef.current;
     const movementSpeed = Math.abs(movementVelocityRef.current);
-    const traversalMode = traversalModeAt(travelerDirection);
+    const traversalMode = traversalModeRef.current;
     const onWater = isWaterDirection(travelerDirection);
     const movementBlend = MathUtils.clamp(
       movementSpeed /
@@ -1284,9 +1293,14 @@ function SurfaceParticles({
         const right = rightRef.current
           .crossVectors(forward, travelerDirection)
           .normalize();
-        const surfaceRadius = onWater
-          ? traversalSurfaceRadiusAt(travelerDirection)
-          : planetSurfaceRadiusAt(travelerDirection);
+        const surfaceRadius =
+          onWater &&
+          isOceanDirection(travelerDirection) &&
+          waterSurfaceRef.current
+            ? waterSurfaceRef.current.sampleRadius(travelerDirection)
+            : onWater
+              ? traversalSurfaceRadiusAt(travelerDirection)
+              : planetSurfaceRadiusAt(travelerDirection);
 
         particle.active = true;
         particle.water = onWater;
@@ -1461,12 +1475,16 @@ function BoatWake({
   travelerDirectionRef,
   travelerForwardRef,
   movementVelocityRef,
+  traversalModeRef,
+  waterSurfaceRef,
   exploreMode,
   reduceMotion,
 }: {
   travelerDirectionRef: MutableRefObject<Vector3>;
   travelerForwardRef: MutableRefObject<Vector3>;
   movementVelocityRef: MutableRefObject<number>;
+  traversalModeRef: MutableRefObject<TraversalMode>;
+  waterSurfaceRef: MutableRefObject<OceanSurfaceApi | null>;
   exploreMode: boolean;
   reduceMotion: boolean;
 }) {
@@ -1515,7 +1533,7 @@ function BoatWake({
     const frameDelta = Math.min(delta, 0.05);
     const travelerDirection = travelerDirectionRef.current;
     const travelerForward = travelerForwardRef.current;
-    const traversalMode = traversalModeAt(travelerDirection);
+    const traversalMode = traversalModeRef.current;
     const movementBlend = MathUtils.clamp(
       Math.abs(movementVelocityRef.current) / FAST_BOAT_SPEED,
       0,
@@ -1618,8 +1636,6 @@ function BoatWake({
       "position",
     ) as Float32BufferAttribute;
     const colors = geometry.getAttribute("color") as Float32BufferAttribute;
-    const wakeRadius = OCEAN_SURFACE_RADIUS + 0.035;
-
     const setWakeVertex = (
       vertexIndex: number,
       direction: Vector3,
@@ -1630,8 +1646,11 @@ function BoatWake({
       const vertex = vertexDirectionRef.current
         .copy(direction)
         .addScaledVector(right, lateralOffset / OCEAN_SURFACE_RADIUS)
-        .normalize()
-        .multiplyScalar(wakeRadius);
+        .normalize();
+      const wakeRadius =
+        (waterSurfaceRef.current?.sampleRadius(vertex) ??
+          OCEAN_SURFACE_RADIUS) + 0.026;
+      vertex.multiplyScalar(wakeRadius);
       positions.setXYZ(vertexIndex, vertex.x, vertex.y, vertex.z);
       colors.setXYZ(vertexIndex, color.r, color.g, color.b);
     };
@@ -3308,6 +3327,7 @@ function Traveler({
   playerUpRef,
   playerForwardRef,
   traversalModeRef,
+  waterSurfaceRef,
   reduceMotion,
   onFootstep,
   onWaterStroke,
@@ -3317,6 +3337,7 @@ function Traveler({
   playerUpRef: MutableRefObject<Vector3>;
   playerForwardRef: MutableRefObject<Vector3>;
   traversalModeRef: MutableRefObject<TraversalMode>;
+  waterSurfaceRef: MutableRefObject<OceanSurfaceApi | null>;
   reduceMotion: boolean;
   onFootstep: PlacesSceneProps["onFootstep"];
   onWaterStroke: PlacesSceneProps["onWaterStroke"];
@@ -3342,6 +3363,11 @@ function Traveler({
   const lookTargetRef = useRef(new Vector3());
   const immersionRef = useRef(0);
   const boatBlendRef = useRef(0);
+  const buoyantRadiusRef = useRef<number | null>(null);
+  const buoyantVelocityRef = useRef(0);
+  const waterNormalRef = useRef(new Vector3(0, 1, 0));
+  const waterRightRef = useRef(new Vector3(1, 0, 0));
+  const previousTraversalModeRef = useRef<TraversalMode>("land");
 
   useFrame(({ clock }, delta) => {
     const movementSpeed = Math.abs(movementVelocityRef.current);
@@ -3349,6 +3375,8 @@ function Traveler({
     const traversalMode = traversalModeRef.current;
     const swimming = traversalMode === "swim";
     const boating = traversalMode === "boat";
+    const oceanWater = isOceanDirection(playerUpRef.current);
+    const waterSurface = waterSurfaceRef.current;
     const baseMovementSpeed = boating
       ? BOAT_SPEED
       : swimming
@@ -3460,16 +3488,62 @@ function Traveler({
       : 0;
     const playerUp = playerUpRef.current;
     const playerForward = playerForwardRef.current;
+
+    if (
+      waterSurface &&
+      oceanWater &&
+      previousTraversalModeRef.current !== traversalMode
+    ) {
+      waterSurface.disturb(
+        playerUp,
+        previousTraversalModeRef.current === "land" ? -1.25 : -0.82,
+        previousTraversalModeRef.current === "land" ? 0.11 : 0.075,
+      );
+    }
+    previousTraversalModeRef.current = traversalMode;
+
     immersionRef.current = MathUtils.damp(
       immersionRef.current,
-      boating ? 0.045 : swimming ? -0.22 : 0,
+      boating ? -0.025 : swimming ? -0.28 : 0,
       6,
       Math.min(delta, 0.05),
     );
+    const staticSurfaceRadius = traversalSurfaceRadiusAt(playerUp);
+    const sampledSurfaceRadius =
+      oceanWater && waterSurface
+        ? waterSurface.sampleRadius(playerUp)
+        : staticSurfaceRadius;
+
+    if (traversalMode === "land") {
+      buoyantRadiusRef.current = null;
+      buoyantVelocityRef.current = 0;
+    } else {
+      if (buoyantRadiusRef.current === null) {
+        buoyantRadiusRef.current = sampledSurfaceRadius;
+      }
+
+      const frameDelta = Math.min(delta, 0.05);
+      const buoyancyStrength = boating ? 28 : 38;
+      const buoyancyDamping = boating ? 4.8 : 7.5;
+      buoyantVelocityRef.current +=
+        (sampledSurfaceRadius - buoyantRadiusRef.current) *
+        buoyancyStrength *
+        frameDelta;
+      buoyantVelocityRef.current *= Math.exp(
+        -buoyancyDamping * frameDelta,
+      );
+      buoyantRadiusRef.current +=
+        buoyantVelocityRef.current * frameDelta;
+    }
+
+    const movementSurfaceRadius =
+      traversalMode === "land"
+        ? staticSurfaceRadius
+        : (buoyantRadiusRef.current ?? sampledSurfaceRadius);
     const position = positionRef.current
       .copy(playerUp)
       .multiplyScalar(
-        traversalSurfaceRadiusAt(playerUp) +
+        movementSurfaceRadius +
           immersionRef.current +
           TRAVELER_GROUND_CLEARANCE +
           bob +
@@ -3558,7 +3632,7 @@ function Traveler({
     if (modelRef.current) {
       modelRef.current.rotation.x = MathUtils.damp(
         modelRef.current.rotation.x,
-        swimming ? 0.2 : boating ? -0.055 : 0,
+        swimming ? 0.82 : boating ? -0.055 : 0,
         7,
         Math.min(delta, 0.05),
       );
@@ -3583,34 +3657,52 @@ function Traveler({
         0,
         1,
       );
+      const waterNormal =
+        boating && oceanWater && waterSurface
+          ? waterSurface.sampleNormal(
+              playerUp,
+              playerForward,
+              waterNormalRef.current,
+            )
+          : waterNormalRef.current.copy(playerUp);
+      const waterRight = waterRightRef.current
+        .crossVectors(playerForward, playerUp)
+        .normalize();
+      const normalUp = Math.max(0.2, waterNormal.dot(playerUp));
+      const pitch = MathUtils.clamp(
+        Math.atan2(waterNormal.dot(playerForward), normalUp),
+        -0.16,
+        0.16,
+      );
+      const roll = MathUtils.clamp(
+        -Math.atan2(waterNormal.dot(waterRight), normalUp),
+        -0.2,
+        0.2,
+      );
 
       boatRef.current.visible = boatScale > 0.01;
       boatRef.current.scale.setScalar(boatScale);
-      boatRef.current.position.y =
-        -0.025 +
-        (reduceMotion
-          ? 0
-          : Math.sin(clock.elapsedTime * 0.9) *
-            0.005 *
-            boatScale);
+      boatRef.current.position.y = 0;
       boatRef.current.rotation.x = MathUtils.damp(
         boatRef.current.rotation.x,
-        reduceMotion
-          ? 0
-          : Math.cos(clock.elapsedTime * 0.72) *
-            0.012 *
-            boatScale,
-        2.4,
+        pitch +
+          (reduceMotion
+            ? 0
+            : Math.cos(clock.elapsedTime * 0.72) *
+              0.008 *
+              boatScale),
+        4.6,
         Math.min(delta, 0.05),
       );
       boatRef.current.rotation.z = MathUtils.damp(
         boatRef.current.rotation.z,
-        reduceMotion
-          ? 0
-          : Math.sin(clock.elapsedTime * 0.58) *
-            0.018 *
-            boatScale,
-        2.2,
+        roll +
+          (reduceMotion
+            ? 0
+            : Math.sin(clock.elapsedTime * 0.58) *
+              0.01 *
+              boatScale),
+        4.2,
         Math.min(delta, 0.05),
       );
     }
@@ -3878,7 +3970,22 @@ function PlanetExperience({
   const cameraDistanceRef = useRef(DEFAULT_CAMERA_DISTANCE);
   const cameraDistanceTargetRef = useRef(DEFAULT_CAMERA_DISTANCE);
   const traversalModeRef = useRef<TraversalMode>("land");
+  const oceanTraversalModeRef = useRef<
+    Extract<TraversalMode, "boat" | "swim">
+  >("boat");
+  const lastInteractSequenceRef = useRef(
+    exploreInputRef.current.interactSequence,
+  );
+  const waterSurfaceRef = useRef<OceanSurfaceApi | null>(null);
   const { camera, gl } = useThree();
+
+  const traversalModeForDirection = (direction: Vector3) => {
+    const worldMode = traversalModeAt(direction);
+
+    return worldMode === "boat"
+      ? oceanTraversalModeRef.current
+      : worldMode;
+  };
 
   useEffect(() => {
     onNearbyChangeRef.current = onNearbyChange;
@@ -3905,7 +4012,9 @@ function PlanetExperience({
         .copy(selectedDirection)
         .applyAxisAngle(east, START_DISTANCE)
         .normalize();
-      traversalModeRef.current = traversalModeAt(playerUpRef.current);
+      traversalModeRef.current = traversalModeForDirection(
+        playerUpRef.current,
+      );
       playerForwardRef.current
         .copy(selectedDirection)
         .addScaledVector(
@@ -4078,7 +4187,18 @@ function PlanetExperience({
       const playerUp = playerUpRef.current;
       const playerForward = playerForwardRef.current;
       const travelerForward = travelerForwardRef.current;
-      const traversalMode = traversalModeAt(playerUp);
+      if (
+        input.interactSequence !== lastInteractSequenceRef.current
+      ) {
+        lastInteractSequenceRef.current = input.interactSequence;
+
+        if (isOceanDirection(playerUp)) {
+          oceanTraversalModeRef.current =
+            oceanTraversalModeRef.current === "boat" ? "swim" : "boat";
+        }
+      }
+
+      const traversalMode = traversalModeForDirection(playerUp);
       const swimming = traversalMode === "swim";
       const boating = traversalMode === "boat";
       traversalModeRef.current = traversalMode;
@@ -4220,7 +4340,8 @@ function PlanetExperience({
             .crossVectors(cameraMovementForwardRef.current, playerUp)
             .normalize();
         }
-        traversalModeRef.current = traversalModeAt(playerUp);
+        traversalModeRef.current =
+          traversalModeForDirection(playerUp);
       }
 
       const currentTraversalMode = traversalModeRef.current;
@@ -4437,7 +4558,10 @@ function PlanetExperience({
       <group ref={globeRef}>
         <PlanetoidWorld
           travelerDirectionRef={playerUpRef}
+          travelerForwardRef={travelerForwardRef}
           movementVelocityRef={movementVelocityRef}
+          traversalModeRef={traversalModeRef}
+          waterSurfaceRef={waterSurfaceRef}
           exploreMode={exploreMode}
           reduceMotion={reduceMotion}
           skyPhase={skyPhase}
@@ -4479,6 +4603,7 @@ function PlanetExperience({
             playerUpRef={playerUpRef}
             playerForwardRef={travelerForwardRef}
             traversalModeRef={traversalModeRef}
+            waterSurfaceRef={waterSurfaceRef}
             reduceMotion={reduceMotion}
             onFootstep={onFootstep}
             onWaterStroke={onWaterStroke}
@@ -4487,6 +4612,8 @@ function PlanetExperience({
             travelerDirectionRef={playerUpRef}
             travelerForwardRef={travelerForwardRef}
             movementVelocityRef={movementVelocityRef}
+            traversalModeRef={traversalModeRef}
+            waterSurfaceRef={waterSurfaceRef}
             exploreMode={exploreMode}
             reduceMotion={reduceMotion}
           />
@@ -4494,6 +4621,8 @@ function PlanetExperience({
             travelerDirectionRef={playerUpRef}
             travelerForwardRef={travelerForwardRef}
             movementVelocityRef={movementVelocityRef}
+            traversalModeRef={traversalModeRef}
+            waterSurfaceRef={waterSurfaceRef}
             exploreMode={exploreMode}
             reduceMotion={reduceMotion}
           />

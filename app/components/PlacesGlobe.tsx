@@ -322,6 +322,7 @@ export function PlacesGlobe() {
     zoom: 0,
     jumpReady: true,
     jumpSequence: 0,
+    interactSequence: 0,
   });
   const pressedKeysRef = useRef(new Set<string>());
   // Keep an explicitly clicked place selected until the traveler leaves the
@@ -662,6 +663,7 @@ export function PlacesGlobe() {
       zoom: 0,
       jumpReady: exploreInputRef.current.jumpReady,
       jumpSequence: exploreInputRef.current.jumpSequence,
+      interactSequence: exploreInputRef.current.interactSequence,
     };
     photoGalleryRef.current?.focus();
   }, [expandedPhoto]);
@@ -677,6 +679,7 @@ export function PlacesGlobe() {
         zoom: 0,
         jumpReady: true,
         jumpSequence: exploreInputRef.current.jumpSequence,
+        interactSequence: exploreInputRef.current.interactSequence,
       };
       return;
     }
@@ -700,6 +703,7 @@ export function PlacesGlobe() {
         zoom: Number(zoomIn) - Number(zoomOut),
         jumpReady: exploreInputRef.current.jumpReady,
         jumpSequence: exploreInputRef.current.jumpSequence,
+        interactSequence: exploreInputRef.current.interactSequence,
       };
     };
 
@@ -752,6 +756,7 @@ export function PlacesGlobe() {
         zoom: 0,
         jumpReady: true,
         jumpSequence: exploreInputRef.current.jumpSequence,
+        interactSequence: exploreInputRef.current.interactSequence,
       };
     };
   }, [ensureAudioContext, expandedGallery, exploreMode]);
@@ -1041,6 +1046,18 @@ export function PlacesGlobe() {
     playJumpSound();
   }, [playJumpSound]);
 
+  const triggerInteraction = useCallback(() => {
+    if (nearbyPlaceId) {
+      openPlaceGallery(nearbyPlaceId);
+      return;
+    }
+
+    exploreInputRef.current = {
+      ...exploreInputRef.current,
+      interactSequence: exploreInputRef.current.interactSequence + 1,
+    };
+  }, [nearbyPlaceId, openPlaceGallery]);
+
   useEffect(() => {
     if (!exploreMode) {
       return;
@@ -1080,9 +1097,9 @@ export function PlacesGlobe() {
         return;
       }
 
-      if (normalizedKey === "f" && nearbyPlaceId) {
+      if (normalizedKey === "f") {
         event.preventDefault();
-        openPlaceGallery(nearbyPlaceId);
+        triggerInteraction();
       }
     };
 
@@ -1091,9 +1108,8 @@ export function PlacesGlobe() {
   }, [
     expandedGallery,
     exploreMode,
-    nearbyPlaceId,
-    openPlaceGallery,
     showRelativePhoto,
+    triggerInteraction,
     triggerJump,
   ]);
 
@@ -1259,6 +1275,15 @@ export function PlacesGlobe() {
               onClick={triggerJump}
             >
               ↟
+            </button>
+            <button
+              type="button"
+              className="explore-dpad-interact"
+              aria-label="Interact or enter and exit the kayak"
+              title="Interact"
+              onClick={triggerInteraction}
+            >
+              F
             </button>
           </div>
         ) : null}
