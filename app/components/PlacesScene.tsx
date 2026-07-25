@@ -18,12 +18,10 @@ import {
   BackSide,
   CanvasTexture,
   Color,
-  IcosahedronGeometry,
   MathUtils,
   Quaternion,
   SRGBColorSpace,
   Vector3,
-  type BufferGeometry,
   type Group,
   type Mesh,
   type Points,
@@ -67,17 +65,11 @@ type PlacesSceneProps = {
 };
 
 const PLANET_RADIUS = 6;
-const PLANET_TERRAIN_MAX = 1.45;
-const PLANET_HORIZON_RADIUS = PLANET_RADIUS + 0.45;
-const PLANET_ATMOSPHERE_RADIUS =
-  PLANET_RADIUS + PLANET_TERRAIN_MAX + 0.22;
-const TERRAIN_WIDTH = 512;
-const TERRAIN_HEIGHT = 256;
-const TERRAIN_NORMAL_STEP = 0.025;
-const TERRAIN_MAX_TILT = MathUtils.degToRad(38);
+const PLANET_LAND_RELIEF = 0.16;
+const PLANET_SURFACE_RADIUS = PLANET_RADIUS + PLANET_LAND_RELIEF;
 const WALK_SPEED = 0.32;
 const RUN_SPEED = 0.7;
-const START_DISTANCE = 0.075;
+const START_DISTANCE = 0.24;
 const NEARBY_DISTANCE = Math.cos(0.075);
 const JUMP_DURATION = 0.52;
 const JUMP_LANDING_DELAY = 0.22;
@@ -182,10 +174,10 @@ function StarField({
 
 function DayNightShade({
   solarDirection,
-  geometry,
+  reliefTexture,
 }: {
   solarDirection: [number, number, number];
-  geometry: BufferGeometry;
+  reliefTexture: CanvasTexture;
 }) {
   const uniforms = useMemo(
     () => ({
@@ -193,20 +185,30 @@ function DayNightShade({
         value: new Vector3(...solarDirection).normalize(),
       },
       nightOpacity: { value: 0.58 },
+      reliefMap: { value: reliefTexture },
+      reliefScale: { value: PLANET_LAND_RELIEF },
     }),
-    [solarDirection],
+    [reliefTexture, solarDirection],
   );
 
   return (
-    <mesh geometry={geometry} scale={1.002}>
+    <mesh>
+      <icosahedronGeometry args={[PLANET_RADIUS, 5]} />
       <shaderMaterial
         uniforms={uniforms}
         vertexShader={`
+          uniform sampler2D reliefMap;
+          uniform float reliefScale;
           varying vec3 vGlobeDirection;
 
           void main() {
-            vGlobeDirection = normalize(position);
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            float relief = texture2D(reliefMap, uv).r * reliefScale;
+            vec3 displacedPosition = position + normal * (relief + 0.018);
+            vGlobeDirection = normalize(displacedPosition);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(
+              displacedPosition,
+              1.0
+            );
           }
         `}
         fragmentShader={`
@@ -265,7 +267,7 @@ function isAboveGlobeHorizon(
   const cameraFacingHeight =
     worldPosition.dot(cameraPosition) / worldRadius;
 
-  return cameraFacingHeight > PLANET_HORIZON_RADIUS + HORIZON_CLIP_MARGIN;
+  return cameraFacingHeight > PLANET_SURFACE_RADIUS + HORIZON_CLIP_MARGIN;
 }
 
 const PLACE_DIRECTIONS = new Map(
@@ -274,148 +276,6 @@ const PLACE_DIRECTIONS = new Map(
     latLonToVector3(place.coordinates).normalize(),
   ]),
 );
-
-type GlobeTerrain = {
-  width: number;
-  height: number;
-  elevations: Float32Array;
-};
-
-type TerrainNormalScratch = {
-  center: Vector3;
-  tangentA: Vector3;
-  tangentB: Vector3;
-  directionA: Vector3;
-  directionB: Vector3;
-  pointA: Vector3;
-  pointB: Vector3;
-  edgeA: Vector3;
-  edgeB: Vector3;
-};
-
-function createTerrainNormalScratch(): TerrainNormalScratch {
-  return {
-    center: new Vector3(),
-    tangentA: new Vector3(),
-    tangentB: new Vector3(),
-    directionA: new Vector3(),
-    directionB: new Vector3(),
-    pointA: new Vector3(),
-    pointB: new Vector3(),
-    edgeA: new Vector3(),
-    edgeB: new Vector3(),
-  };
-}
-
-function terrainElevationAtDirection(
-  terrain: GlobeTerrain,
-  direction: Vector3,
-) {
-  const directionLength = direction.length();
-
-  if (directionLength === 0) {
-    return 0;
-  }
-
-  const longitude = Math.atan2(direction.z, -direction.x);
-  const latitude = Math.asin(
-    MathUtils.clamp(direction.y / directionLength, -1, 1),
-  );
-  const u =
-    ((longitude + Math.PI) / (Math.PI * 2)) * (terrain.width - 1);
-  const v =
-    (0.5 - latitude / Math.PI) * (terrain.height - 1);
-  const x0 = Math.floor(u);
-  const y0 = MathUtils.clamp(Math.floor(v), 0, terrain.height - 1);
-  const x1 = (x0 + 1) % terrain.width;
-  const y1 = Math.min(y0 + 1, terrain.height - 1);
-  const blendX = u - x0;
-  const blendY = v - y0;
-  const row0 = y0 * terrain.width;
-  const row1 = y1 * terrain.width;
-  const top = MathUtils.lerp(
-    terrain.elevations[row0 + x0],
-    terrain.elevations[row0 + x1],
-    blendX,
-  );
-  const bottom = MathUtils.lerp(
-    terrain.elevations[row1 + x0],
-    terrain.elevations[row1 + x1],
-    blendX,
-  );
-
-  return MathUtils.lerp(top, bottom, blendY);
-}
-
-function terrainSurfacePosition(
-  terrain: GlobeTerrain,
-  direction: Vector3,
-  target: Vector3,
-  offset = 0,
-) {
-  return target
-    .copy(direction)
-    .normalize()
-    .multiplyScalar(
-      PLANET_RADIUS + terrainElevationAtDirection(terrain, direction) + offset,
-    );
-}
-
-function terrainSurfaceNormal(
-  terrain: GlobeTerrain,
-  direction: Vector3,
-  target: Vector3,
-  scratch: TerrainNormalScratch,
-) {
-  const normalizedDirection = scratch.center.copy(direction).normalize();
-  const referenceAxis =
-    Math.abs(normalizedDirection.y) < 0.9 ? Y_AXIS : X_AXIS;
-  const tangentA = scratch.tangentA
-    .crossVectors(referenceAxis, normalizedDirection)
-    .normalize();
-  const tangentB = scratch.tangentB
-    .crossVectors(normalizedDirection, tangentA)
-    .normalize();
-  const directionA = scratch.directionA
-    .copy(normalizedDirection)
-    .addScaledVector(tangentA, TERRAIN_NORMAL_STEP)
-    .normalize();
-  const directionB = scratch.directionB
-    .copy(normalizedDirection)
-    .addScaledVector(tangentB, TERRAIN_NORMAL_STEP)
-    .normalize();
-
-  terrainSurfacePosition(
-    terrain,
-    normalizedDirection,
-    scratch.center,
-  );
-  terrainSurfacePosition(terrain, directionA, scratch.pointA);
-  terrainSurfacePosition(terrain, directionB, scratch.pointB);
-
-  target.crossVectors(
-    scratch.edgeA.copy(scratch.pointA).sub(scratch.center),
-    scratch.edgeB.copy(scratch.pointB).sub(scratch.center),
-  );
-
-  if (target.dot(normalizedDirection) < 0) {
-    target.multiplyScalar(-1);
-  }
-
-  target.normalize();
-  const radialDirection = scratch.directionA.copy(direction).normalize();
-  const terrainTilt = radialDirection.angleTo(target);
-
-  if (terrainTilt > TERRAIN_MAX_TILT) {
-    const rawNormal = scratch.tangentA.copy(target);
-    target
-      .copy(radialDirection)
-      .lerp(rawNormal, TERRAIN_MAX_TILT / terrainTilt)
-      .normalize();
-  }
-
-  return target;
-}
 
 function createGlobeTexture() {
   const canvas = document.createElement("canvas");
@@ -455,262 +315,34 @@ function createGlobeTexture() {
   return texture;
 }
 
-function createGlobeTerrain(): GlobeTerrain {
-  const maskCanvas = document.createElement("canvas");
-  maskCanvas.width = TERRAIN_WIDTH;
-  maskCanvas.height = TERRAIN_HEIGHT;
+function createGlobeReliefTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 512;
 
-  const maskContext = maskCanvas.getContext("2d");
+  const context = canvas.getContext("2d");
 
-  if (!maskContext) {
-    throw new Error("Unable to create the globe terrain mask.");
+  if (!context) {
+    throw new Error("Unable to create the globe relief texture.");
   }
 
   const projection = geoEquirectangular().fitSize(
-    [maskCanvas.width, maskCanvas.height],
+    [canvas.width, canvas.height],
     SPHERE,
   );
-  const path = geoPath(projection, maskContext);
+  const path = geoPath(projection, context);
 
-  maskContext.fillStyle = "#000000";
-  maskContext.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
-  maskContext.beginPath();
+  context.fillStyle = "#000000";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.beginPath();
   path(LAND);
-  maskContext.fillStyle = "#ffffff";
-  maskContext.fill();
+  context.fillStyle = "#ffffff";
+  context.fill();
 
-  const softenedCanvas = document.createElement("canvas");
-  softenedCanvas.width = maskCanvas.width;
-  softenedCanvas.height = maskCanvas.height;
-  const softenedContext = softenedCanvas.getContext("2d");
+  const texture = new CanvasTexture(canvas);
+  texture.needsUpdate = true;
 
-  if (!softenedContext) {
-    throw new Error("Unable to soften the globe terrain mask.");
-  }
-
-  softenedContext.fillStyle = "#000000";
-  softenedContext.fillRect(
-    0,
-    0,
-    softenedCanvas.width,
-    softenedCanvas.height,
-  );
-  softenedContext.filter = "blur(4px)";
-  softenedContext.drawImage(maskCanvas, -maskCanvas.width, 0);
-  softenedContext.drawImage(maskCanvas, 0, 0);
-  softenedContext.drawImage(maskCanvas, maskCanvas.width, 0);
-  softenedContext.filter = "none";
-
-  const hardMask = maskContext.getImageData(
-    0,
-    0,
-    maskCanvas.width,
-    maskCanvas.height,
-  ).data;
-  const softenedMask = softenedContext.getImageData(
-    0,
-    0,
-    softenedCanvas.width,
-    softenedCanvas.height,
-  ).data;
-  const elevations = new Float32Array(
-    maskCanvas.width * maskCanvas.height,
-  );
-  const placeRelief = places.flatMap((place, placeIndex) => {
-    const direction =
-      PLACE_DIRECTIONS.get(place.id) ??
-      latLonToVector3(place.coordinates).normalize();
-    const east = new Vector3().crossVectors(Y_AXIS, direction);
-
-    if (east.lengthSq() < 0.0001) {
-      east.crossVectors(X_AXIS, direction);
-    }
-
-    east.normalize();
-    const north = new Vector3()
-      .crossVectors(direction, east)
-      .normalize();
-    const phase = placeIndex * 2.399963229728653;
-    const primaryAmplitude =
-      place.terrain === "mountain"
-        ? 1.25
-        : place.terrain === "city"
-          ? 0.78
-          : 0.62;
-
-    return [
-      {
-        offset: 0.082,
-        radius: place.terrain === "mountain" ? 0.14 : 0.11,
-        amplitude: primaryAmplitude,
-        azimuth: phase,
-      },
-      {
-        offset: 0.16,
-        radius: place.terrain === "mountain" ? 0.16 : 0.125,
-        amplitude: primaryAmplitude * 0.62,
-        azimuth: phase + 2.18,
-      },
-    ].map((feature) => {
-      const tangent = east
-        .clone()
-        .multiplyScalar(Math.cos(feature.azimuth))
-        .addScaledVector(north, Math.sin(feature.azimuth))
-        .normalize();
-      const featureDirection = direction
-        .clone()
-        .multiplyScalar(Math.cos(feature.offset))
-        .addScaledVector(tangent, Math.sin(feature.offset))
-        .normalize();
-
-      return {
-        direction: featureDirection,
-        threshold: Math.cos(feature.radius),
-        amplitude: feature.amplitude,
-      };
-    });
-  });
-
-  for (let y = 0; y < maskCanvas.height; y += 1) {
-    const latitude =
-      Math.PI / 2 - (y / (maskCanvas.height - 1)) * Math.PI;
-    const latitudeRing = Math.cos(latitude);
-    const directionY = Math.sin(latitude);
-
-    for (let x = 0; x < maskCanvas.width; x += 1) {
-      const pixelIndex = y * maskCanvas.width + x;
-      const colorIndex = pixelIndex * 4;
-      const hardLand = hardMask[colorIndex] / 255;
-
-      if (hardLand <= 0.005) {
-        continue;
-      }
-
-      const softLand = softenedMask[colorIndex] / 255;
-      const coastRise =
-        0.2 + 0.8 * MathUtils.smoothstep(softLand, 0.16, 0.88);
-      const landFactor =
-        MathUtils.smoothstep(hardLand, 0.015, 0.985) * coastRise;
-      const longitude =
-        (x / (maskCanvas.width - 1)) * Math.PI * 2 - Math.PI;
-      const directionX = -latitudeRing * Math.cos(longitude);
-      const directionZ = latitudeRing * Math.sin(longitude);
-      const broadNoise =
-        Math.sin(
-          directionX * 4.1 + directionY * 2.7 - directionZ * 3.4,
-        ) *
-          0.48 +
-        Math.sin(
-          directionX * 9.3 - directionY * 5.2 + directionZ * 7.1,
-        ) *
-          0.32 +
-        Math.sin(
-          directionX * 17.2 + directionY * 13.1 + directionZ * 11.7,
-        ) *
-          0.2;
-      const rolling = MathUtils.clamp(0.5 + broadNoise * 0.5, 0, 1);
-      const ridges =
-        1 -
-        Math.abs(
-          Math.sin(
-            directionX * 12.7 -
-              directionY * 8.4 +
-              directionZ * 14.1,
-          ),
-        );
-      const fineNoise =
-        Math.sin(
-          directionX * 37.1 +
-            directionY * 29.3 -
-            directionZ * 33.7,
-        ) *
-          0.56 +
-        Math.sin(
-          directionX * 53.4 -
-            directionY * 41.6 +
-            directionZ * 47.2,
-        ) *
-          0.44;
-      const fineTerrain = MathUtils.clamp(
-        0.5 + fineNoise * 0.5,
-        0,
-        1,
-      );
-      let elevation =
-        landFactor *
-        (0.16 +
-          rolling * 0.34 +
-          Math.pow(ridges, 2.2) * 0.23 +
-          fineTerrain * 0.22);
-      let placeBump = 0;
-
-      for (const relief of placeRelief) {
-        const dot =
-          directionX * relief.direction.x +
-          directionY * relief.direction.y +
-          directionZ * relief.direction.z;
-
-        if (dot <= relief.threshold) {
-          continue;
-        }
-
-        const proximity = MathUtils.clamp(
-          (dot - relief.threshold) / (1 - relief.threshold),
-          0,
-          1,
-        );
-        const easedProximity =
-          proximity * proximity * (3 - 2 * proximity);
-        placeBump = Math.max(
-          placeBump,
-          relief.amplitude * easedProximity,
-        );
-      }
-
-      elevation += placeBump;
-      elevations[pixelIndex] = Math.min(
-        PLANET_TERRAIN_MAX,
-        elevation,
-      );
-    }
-  }
-
-  return {
-    width: maskCanvas.width,
-    height: maskCanvas.height,
-    elevations,
-  };
-}
-
-function createTerrainGeometry(terrain: GlobeTerrain, detail: number) {
-  const geometry = new IcosahedronGeometry(PLANET_RADIUS, detail);
-  const positions = geometry.getAttribute("position");
-  const direction = new Vector3();
-
-  for (let index = 0; index < positions.count; index += 1) {
-    direction
-      .set(
-        positions.getX(index),
-        positions.getY(index),
-        positions.getZ(index),
-      )
-      .normalize();
-    const radius =
-      PLANET_RADIUS + terrainElevationAtDirection(terrain, direction);
-
-    positions.setXYZ(
-      index,
-      direction.x * radius,
-      direction.y * radius,
-      direction.z * radius,
-    );
-  }
-
-  positions.needsUpdate = true;
-  geometry.computeVertexNormals();
-  geometry.computeBoundingSphere();
-
-  return geometry;
+  return texture;
 }
 
 function terrainColor(terrain: PlaceTerrain) {
@@ -981,13 +613,11 @@ function PhotoProjection({
   projectionRef,
   horizonRef,
   travelerDirectionRef,
-  terrain,
   exploreMode,
 }: {
   projectionRef: RefObject<HTMLButtonElement | null>;
   horizonRef: RefObject<Group | null>;
   travelerDirectionRef: MutableRefObject<Vector3>;
-  terrain: GlobeTerrain;
   exploreMode: boolean;
 }) {
   const anchorRef = useRef<Group>(null);
@@ -1098,12 +728,10 @@ function PhotoProjection({
     }
 
     if (exploreMode) {
-      const travelerProjectedPosition = terrainSurfacePosition(
-        terrain,
-        travelerDirectionRef.current,
-        travelerProjectedPositionRef.current,
-        0.38,
-      ).project(camera);
+      const travelerProjectedPosition = travelerProjectedPositionRef.current
+        .copy(travelerDirectionRef.current)
+        .multiplyScalar(PLANET_SURFACE_RADIUS + 0.38)
+        .project(camera);
       const travelerIsOnScreen =
         travelerProjectedPosition.z > -1 &&
         travelerProjectedPosition.z < 1 &&
@@ -1200,7 +828,6 @@ function DestinationWorld({
   exploreMode,
   projectionRef,
   travelerDirectionRef,
-  terrain,
   onSelect,
 }: {
   place: Place;
@@ -1208,7 +835,6 @@ function DestinationWorld({
   exploreMode: boolean;
   projectionRef: RefObject<HTMLButtonElement | null>;
   travelerDirectionRef: MutableRefObject<Vector3>;
-  terrain: GlobeTerrain;
   onSelect: (placeId: string) => void;
 }) {
   const groupRef = useRef<Group>(null);
@@ -1216,26 +842,17 @@ function DestinationWorld({
   const aboveHorizonRef = useRef(true);
   const [hovered, setHovered] = useState(false);
   const { camera, gl } = useThree();
-  const direction = useMemo(
-    () => latLonToVector3(place.coordinates).normalize(),
+  const position = useMemo(
+    () => latLonToVector3(place.coordinates, PLANET_SURFACE_RADIUS + 0.025),
     [place.coordinates],
   );
-  const position = useMemo(
-    () => terrainSurfacePosition(terrain, direction, new Vector3(), 0.025),
-    [direction, terrain],
-  );
   const orientation = useMemo(
-    () => {
-      const surfaceNormal = terrainSurfaceNormal(
-        terrain,
-        direction,
-        new Vector3(),
-        createTerrainNormalScratch(),
-      );
-
-      return new Quaternion().setFromUnitVectors(UP, surfaceNormal);
-    },
-    [direction, terrain],
+    () =>
+      new Quaternion().setFromUnitVectors(
+        UP,
+        position.clone().normalize(),
+      ),
+    [position],
   );
   const color = terrainColor(place.terrain);
 
@@ -1322,7 +939,6 @@ function DestinationWorld({
           projectionRef={projectionRef}
           horizonRef={groupRef}
           travelerDirectionRef={travelerDirectionRef}
-          terrain={terrain}
           exploreMode={exploreMode}
         />
       ) : null}
@@ -1335,7 +951,6 @@ function Traveler({
   movementVelocityRef,
   playerUpRef,
   playerForwardRef,
-  terrain,
   reduceMotion,
   onFootstep,
 }: {
@@ -1343,7 +958,6 @@ function Traveler({
   movementVelocityRef: MutableRefObject<number>;
   playerUpRef: MutableRefObject<Vector3>;
   playerForwardRef: MutableRefObject<Vector3>;
-  terrain: GlobeTerrain;
   reduceMotion: boolean;
   onFootstep: PlacesSceneProps["onFootstep"];
 }) {
@@ -1362,9 +976,6 @@ function Traveler({
   const lastJumpSequenceRef = useRef(inputRef.current.jumpSequence);
   const positionRef = useRef(new Vector3());
   const lookTargetRef = useRef(new Vector3());
-  const surfaceNormalRef = useRef(new Vector3());
-  const renderForwardRef = useRef(new Vector3());
-  const terrainNormalScratch = useMemo(createTerrainNormalScratch, []);
 
   useFrame((_, delta) => {
     const movementSpeed = Math.abs(movementVelocityRef.current);
@@ -1438,31 +1049,15 @@ function Traveler({
       : 0;
     const playerUp = playerUpRef.current;
     const playerForward = playerForwardRef.current;
-    const position = terrainSurfacePosition(
-      terrain,
-      playerUp,
-      positionRef.current,
-      0.055 + bob + jumpLift,
-    );
-    const surfaceNormal = terrainSurfaceNormal(
-      terrain,
-      playerUp,
-      surfaceNormalRef.current,
-      terrainNormalScratch,
-    );
-    const renderForward = renderForwardRef.current
-      .copy(playerForward)
-      .addScaledVector(
-        surfaceNormal,
-        -playerForward.dot(surfaceNormal),
-      )
-      .normalize();
+    const position = positionRef.current
+      .copy(playerUp)
+      .multiplyScalar(PLANET_SURFACE_RADIUS + 0.055 + bob + jumpLift);
     const lookTarget = lookTargetRef.current
       .copy(position)
-      .add(renderForward);
+      .add(playerForward);
 
     groupRef.current.position.copy(position);
-    groupRef.current.up.copy(surfaceNormal);
+    groupRef.current.up.copy(playerUp);
     groupRef.current.lookAt(lookTarget);
 
     if (leftLegRef.current && rightLegRef.current) {
@@ -1478,13 +1073,6 @@ function Traveler({
 
   return (
     <group ref={groupRef} scale={1.9}>
-      <pointLight
-        position={[0, 0.55, 0.28]}
-        color="#ffd7a0"
-        intensity={9}
-        distance={4.8}
-        decay={2}
-      />
       <group>
         <mesh
           ref={leftLegRef}
@@ -1620,11 +1208,7 @@ function PlanetExperience({
   const cameraDistanceRef = useRef(DEFAULT_CAMERA_DISTANCE);
   const cameraDistanceTargetRef = useRef(DEFAULT_CAMERA_DISTANCE);
   const texture = useMemo(createGlobeTexture, []);
-  const terrain = useMemo(createGlobeTerrain, []);
-  const terrainGeometry = useMemo(
-    () => createTerrainGeometry(terrain, 4),
-    [terrain],
-  );
+  const reliefTexture = useMemo(createGlobeReliefTexture, []);
   const { camera, gl } = useThree();
 
   useEffect(() => {
@@ -1634,9 +1218,9 @@ function PlanetExperience({
   useEffect(
     () => () => {
       texture.dispose();
-      terrainGeometry.dispose();
+      reliefTexture.dispose();
     },
-    [terrainGeometry, texture],
+    [reliefTexture, texture],
   );
 
   useEffect(() => {
@@ -2089,9 +1673,12 @@ function PlanetExperience({
   return (
     <>
       <group ref={globeRef}>
-        <mesh geometry={terrainGeometry} castShadow receiveShadow>
+        <mesh castShadow receiveShadow>
+          <icosahedronGeometry args={[PLANET_RADIUS, 5]} />
           <meshStandardMaterial
             map={texture}
+            displacementMap={reliefTexture}
+            displacementScale={PLANET_LAND_RELIEF}
             roughness={0.9}
             metalness={0}
             flatShading
@@ -2100,12 +1687,15 @@ function PlanetExperience({
 
         <DayNightShade
           solarDirection={solarDirection}
-          geometry={terrainGeometry}
+          reliefTexture={reliefTexture}
         />
 
-        <mesh geometry={terrainGeometry} scale={1.003}>
+        <mesh scale={1.003}>
+          <icosahedronGeometry args={[PLANET_RADIUS, 4]} />
           <meshStandardMaterial
             color="#ffffff"
+            displacementMap={reliefTexture}
+            displacementScale={PLANET_LAND_RELIEF}
             emissive="#ffffff"
             emissiveIntensity={0.2}
             transparent
@@ -2123,7 +1713,6 @@ function PlanetExperience({
             exploreMode={exploreMode}
             projectionRef={projectionRef}
             travelerDirectionRef={playerUpRef}
-            terrain={terrain}
             onSelect={onSelect}
           />
         ))}
@@ -2135,14 +1724,13 @@ function PlanetExperience({
           movementVelocityRef={movementVelocityRef}
           playerUpRef={playerUpRef}
           playerForwardRef={travelerForwardRef}
-          terrain={terrain}
           reduceMotion={reduceMotion}
           onFootstep={onFootstep}
         />
       ) : null}
 
-      <mesh>
-        <icosahedronGeometry args={[PLANET_ATMOSPHERE_RADIUS, 4]} />
+      <mesh scale={1.075}>
+        <icosahedronGeometry args={[PLANET_RADIUS, 4]} />
         <meshBasicMaterial
           color="#d04842"
           transparent
