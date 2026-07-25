@@ -274,13 +274,15 @@ export function PlacesGlobe() {
   const [celestialState, setCelestialState] = useState<CelestialState>(
     DEFAULT_CELESTIAL_STATE,
   );
-  const photoDialogRef = useRef<HTMLDialogElement>(null);
+  const photoGalleryRef = useRef<HTMLDivElement>(null);
   const projectionButtonRef = useRef<HTMLButtonElement>(null);
+  const photoSwipeStartRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const footstepBufferRef = useRef<AudioBuffer | null>(null);
   const waterNoiseBufferRef = useRef<AudioBuffer | null>(null);
   const waterAudioGraphRef = useRef<WaterAudioGraph | null>(null);
   const ambientMusicGraphRef = useRef<AmbientMusicGraph | null>(null);
+  const currentTraversalModeRef = useRef<TraversalMode>("land");
   const exploreInputRef = useRef<ExploreInput>({
     horizontal: 0,
     vertical: 0,
@@ -295,10 +297,6 @@ export function PlacesGlobe() {
   // current cluster, so proximity updates cannot fight the user's choice.
   const manualSelectionLockRef = useRef(false);
 
-  const nearbyPlace = useMemo(
-    () => places.find((place) => place.id === nearbyPlaceId) ?? null,
-    [nearbyPlaceId],
-  );
   // Set this to the public custom-domain root for the curated R2 photo bucket.
   const mediaBaseUrl = (
     import.meta.env.VITE_PLACES_MEDIA_URL || "https://media.josevalerio.com"
@@ -316,6 +314,9 @@ export function PlacesGlobe() {
       ) as Record<string, ResolvedPlacePhoto[]>,
     [mediaBaseUrl],
   );
+  const selectedPlace =
+    places.find((place) => place.id === selectedPlaceId) ?? places[0];
+  const selectedPhotos = photosByPlaceId[selectedPlaceId] ?? [];
   const selectedPhoto = photosByPlaceId[selectedPlaceId]?.[0] ?? null;
   const expandedPhotos = expandedGallery
     ? photosByPlaceId[expandedGallery.placeId] ?? []
@@ -563,6 +564,7 @@ export function PlacesGlobe() {
 
   const updateTraversalAudio = useCallback(
     (traversalMode: TraversalMode, movementBlend: number) => {
+      currentTraversalModeRef.current = traversalMode;
       const ambientGraph = ensureAmbientMusicGraph();
 
       if (ambientGraph) {
@@ -622,17 +624,21 @@ export function PlacesGlobe() {
   );
 
   useEffect(() => {
-    const dialog = photoDialogRef.current;
-
-    if (!dialog) {
+    if (!expandedPhoto) {
       return;
     }
 
-    if (expandedPhoto && !dialog.open) {
-      dialog.showModal();
-    } else if (!expandedPhoto && dialog.open) {
-      dialog.close();
-    }
+    pressedKeysRef.current.clear();
+    exploreInputRef.current = {
+      horizontal: 0,
+      vertical: 0,
+      cameraOrbit: 0,
+      running: false,
+      zoom: 0,
+      jumpReady: exploreInputRef.current.jumpReady,
+      jumpSequence: exploreInputRef.current.jumpSequence,
+    };
+    photoGalleryRef.current?.focus();
   }, [expandedPhoto]);
 
   useEffect(() => {
@@ -680,7 +686,8 @@ export function PlacesGlobe() {
         return;
       }
 
-      if (photoDialogRef.current?.open) {
+      if (expandedGallery) {
+        event.preventDefault();
         return;
       }
 
@@ -722,7 +729,7 @@ export function PlacesGlobe() {
         jumpSequence: exploreInputRef.current.jumpSequence,
       };
     };
-  }, [ensureAudioContext, exploreMode]);
+  }, [ensureAudioContext, expandedGallery, exploreMode]);
 
   const selectPlace = useCallback(
     (placeId: string) => {
@@ -994,7 +1001,10 @@ export function PlacesGlobe() {
   );
 
   const triggerJump = useCallback(() => {
-    if (!exploreInputRef.current.jumpReady) {
+    if (
+      currentTraversalModeRef.current === "boat" ||
+      !exploreInputRef.current.jumpReady
+    ) {
       return;
     }
 
@@ -1019,13 +1029,23 @@ export function PlacesGlobe() {
       const normalizedKey =
         event.key.length === 1 ? event.key.toLowerCase() : event.key;
 
-      if (normalizedKey === "f" && photoDialogRef.current?.open) {
+      if (
+        expandedGallery &&
+        (normalizedKey === "f" || normalizedKey === "Escape")
+      ) {
         event.preventDefault();
         setExpandedGallery(null);
         return;
       }
 
-      if (photoDialogRef.current?.open) {
+      if (expandedGallery) {
+        if (normalizedKey === "ArrowLeft") {
+          event.preventDefault();
+          showRelativePhoto(-1);
+        } else if (normalizedKey === "ArrowRight") {
+          event.preventDefault();
+          showRelativePhoto(1);
+        }
         return;
       }
 
@@ -1043,7 +1063,14 @@ export function PlacesGlobe() {
 
     window.addEventListener("keydown", handleActionKey);
     return () => window.removeEventListener("keydown", handleActionKey);
-  }, [exploreMode, nearbyPlaceId, openPlaceGallery, triggerJump]);
+  }, [
+    expandedGallery,
+    exploreMode,
+    nearbyPlaceId,
+    openPlaceGallery,
+    showRelativePhoto,
+    triggerJump,
+  ]);
 
   const startTouchMovement =
     (horizontal: number, vertical: number) =>
@@ -1116,12 +1143,12 @@ export function PlacesGlobe() {
           )}
         </div>
 
-        {selectedPhoto ? (
+        {selectedPhoto && !expandedPhoto ? (
           <button
             ref={projectionButtonRef}
             type="button"
             className="place-photo-projection"
-            aria-label={`Expand photo: ${selectedPhoto.alt}`}
+            aria-label={`View ${selectedPlace.name} photos`}
             onClick={() => openPlaceGallery(selectedPlaceId)}
           >
             <img
@@ -1130,22 +1157,30 @@ export function PlacesGlobe() {
               width={selectedPhoto.width}
               height={selectedPhoto.height}
             />
+            <span className="place-photo-projection-copy">
+              <strong>{selectedPlace.name}</strong>
+              <span>
+                F · View {selectedPhotos.length > 1 ? "photos" : "photo"}
+              </span>
+            </span>
           </button>
         ) : null}
 
-        <div className="globe-toolbar">
-          <button
-            type="button"
-            className="explore-toggle"
-            aria-pressed={exploreMode}
-            onClick={toggleExploreMode}
-          >
-            <span aria-hidden="true">{exploreMode ? "×" : "◆"}</span>
-            {exploreMode ? "Exit explore" : "Explore"}
-          </button>
-        </div>
+        {!expandedPhoto ? (
+          <div className="globe-toolbar">
+            <button
+              type="button"
+              className="explore-toggle"
+              aria-pressed={exploreMode}
+              onClick={toggleExploreMode}
+            >
+              <span aria-hidden="true">{exploreMode ? "×" : "◆"}</span>
+              {exploreMode ? "Exit explore" : "Explore"}
+            </button>
+          </div>
+        ) : null}
 
-        {exploreMode ? (
+        {exploreMode && !expandedPhoto ? (
           <div
             className="explore-dpad"
             role="group"
@@ -1203,99 +1238,110 @@ export function PlacesGlobe() {
           </div>
         ) : null}
 
-        {exploreMode && nearbyPlace ? (
-          <div className="explore-place-hud" aria-live="polite">
-            <span>Nearby</span>
-            <strong>{nearbyPlace.name}</strong>
+        <p className="globe-instructions">
+          {exploreMode
+            ? "Drag orbit · WASD move/paddle · Shift faster · Q/E orbit · Space jump · F interact · J/K zoom"
+            : "Drag to spin"}
+        </p>
+
+        {expandedPhoto && expandedPlace ? (
+          <div
+            ref={photoGalleryRef}
+            className="places-photo-viewer"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${expandedPlace.name} travel photos`}
+            tabIndex={-1}
+            onPointerDown={(event) => {
+              photoSwipeStartRef.current = event.clientX;
+            }}
+            onPointerUp={(event) => {
+              const start = photoSwipeStartRef.current;
+              photoSwipeStartRef.current = null;
+
+              if (start === null || expandedPhotos.length < 2) {
+                return;
+              }
+
+              const swipeDistance = event.clientX - start;
+
+              if (Math.abs(swipeDistance) > 48) {
+                showRelativePhoto(swipeDistance < 0 ? 1 : -1);
+              }
+            }}
+            onPointerCancel={() => {
+              photoSwipeStartRef.current = null;
+            }}
+          >
+            <div className="places-photo-viewer-vignette" aria-hidden="true" />
             <button
               type="button"
-              onClick={() => openPlaceGallery(nearbyPlace.id)}
+              className="places-photo-viewer-close"
+              aria-label="Put photos away"
+              onClick={() => setExpandedGallery(null)}
             >
-              F · View photos ↗
+              ×
             </button>
+            {expandedPhotos.length > 1 ? (
+              <button
+                type="button"
+                className="places-photo-viewer-nav places-photo-viewer-nav--previous"
+                aria-label="Show previous photo"
+                onClick={() => showRelativePhoto(-1)}
+              >
+                ←
+              </button>
+            ) : null}
+            <div className="places-held-photo-wrap">
+              <div
+                className="places-photo-hand places-photo-hand--left"
+                aria-hidden="true"
+              />
+              <figure key={expandedPhoto.src} aria-live="polite">
+                <img
+                  src={expandedPhoto.src}
+                  alt={expandedPhoto.alt}
+                  width={expandedPhoto.width}
+                  height={expandedPhoto.height}
+                />
+                <figcaption>
+                  <strong>{expandedPlace.name}</strong>
+                  <span>{expandedPhoto.alt}</span>
+                  {expandedGallery && expandedPhotos.length > 1 ? (
+                    <span className="places-photo-viewer-count">
+                      {expandedGallery.photoIndex + 1} / {expandedPhotos.length}
+                    </span>
+                  ) : null}
+                </figcaption>
+              </figure>
+              <div
+                className="places-photo-hand places-photo-hand--right"
+                aria-hidden="true"
+              />
+            </div>
+            {expandedPhotos.length > 1 ? (
+              <button
+                type="button"
+                className="places-photo-viewer-nav places-photo-viewer-nav--next"
+                aria-label="Show next photo"
+                onClick={() => showRelativePhoto(1)}
+              >
+                →
+              </button>
+            ) : null}
+            <p className="places-photo-viewer-help">
+              {expandedPhotos.length > 1
+                ? "Swipe or use ←/→ · F to put away"
+                : "F to put away"}
+            </p>
           </div>
         ) : null}
 
-        <p className="globe-instructions">
-          {exploreMode
-            ? "Drag orbit · WASD move/paddle · Shift faster · Q/E orbit · Space jump · F interact · J out · K in"
-            : "Drag to spin"}
-        </p>
         <p className="sr-only">
           Walk, swim, or paddle toward a landmark to reveal its floating photo,
           then select the photo to expand it.
         </p>
       </div>
-
-      <dialog
-        ref={photoDialogRef}
-        className="photo-lightbox"
-        aria-label={
-          expandedPlace ? `${expandedPlace.name} travel photos` : "Travel photos"
-        }
-        onClose={() => setExpandedGallery(null)}
-        onClick={(event) => {
-          if (event.target === event.currentTarget) {
-            setExpandedGallery(null);
-          }
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "ArrowLeft") {
-            event.preventDefault();
-            showRelativePhoto(-1);
-          } else if (event.key === "ArrowRight") {
-            event.preventDefault();
-            showRelativePhoto(1);
-          }
-        }}
-      >
-        <button
-          type="button"
-          className="photo-lightbox-close"
-          aria-label="Close photo gallery"
-          onClick={() => setExpandedGallery(null)}
-        >
-          ×
-        </button>
-        {expandedPhotos.length > 1 ? (
-          <button
-            type="button"
-            className="photo-lightbox-nav photo-lightbox-nav--previous"
-            aria-label="Show previous photo"
-            onClick={() => showRelativePhoto(-1)}
-          >
-            ←
-          </button>
-        ) : null}
-        {expandedPhoto ? (
-          <figure key={expandedPhoto.src} aria-live="polite">
-            <img
-              src={expandedPhoto.src}
-              alt={expandedPhoto.alt}
-              width={expandedPhoto.width}
-              height={expandedPhoto.height}
-            />
-            <figcaption>
-              <span>{expandedPhoto.alt}</span>
-              {expandedGallery && expandedPhotos.length > 1 ? (
-                <span className="photo-lightbox-count">
-                  {expandedGallery.photoIndex + 1} / {expandedPhotos.length}
-                </span>
-              ) : null}
-            </figcaption>
-          </figure>
-        ) : null}
-        {expandedPhotos.length > 1 ? (
-          <button
-            type="button"
-            className="photo-lightbox-nav photo-lightbox-nav--next"
-            aria-label="Show next photo"
-            onClick={() => showRelativePhoto(1)}
-          >
-            →
-          </button>
-        ) : null}
-      </dialog>
     </div>
   );
 }

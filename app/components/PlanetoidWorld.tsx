@@ -78,6 +78,17 @@ type LoosePropState = {
   contactCooldown: number;
 };
 
+type FishDefinition = {
+  id: string;
+  direction: Vector3;
+  orbitAxis: Vector3;
+  phase: number;
+  speed: number;
+  bobPhase: number;
+  scale: number;
+  color: string;
+};
+
 const UP = new Vector3(0, 1, 0);
 const TERRAIN_SEGMENTS = 108;
 const TERRAIN_RINGS = 36;
@@ -2075,6 +2086,159 @@ function BasePlanetoid({ skyPhase }: { skyPhase: SkyPhase }) {
   );
 }
 
+function createFishDefinitions() {
+  const random = createSeededRandom(81_527);
+  const colors = ["#e9b44c", "#e56b5d", "#63b7af", "#8ac0d0"];
+  const definitions: FishDefinition[] = [];
+
+  for (let school = 0; school < 4; school += 1) {
+    const longitude = random() * Math.PI * 2;
+    const vertical = random() * 1.5 - 0.75;
+    const horizontal = Math.sqrt(1 - vertical * vertical);
+    const center = new Vector3(
+      Math.cos(longitude) * horizontal,
+      vertical,
+      Math.sin(longitude) * horizontal,
+    ).normalize();
+    const { east, north } = tangentBasis(center);
+    const travelDirection = east
+      .clone()
+      .multiplyScalar(0.75 + random() * 0.25)
+      .addScaledVector(north, (random() - 0.5) * 0.55)
+      .normalize();
+    const orbitAxis = new Vector3()
+      .crossVectors(center, travelDirection)
+      .normalize();
+    const schoolSpeed = 0.018 + random() * 0.012;
+
+    for (let fish = 0; fish < 4; fish += 1) {
+      definitions.push({
+        id: `fish-${school}-${fish}`,
+        direction: directionFromOffset(
+          center,
+          (random() - 0.5) * 0.18,
+          (random() - 0.5) * 0.12,
+        ),
+        orbitAxis: orbitAxis.clone(),
+        phase: (random() - 0.5) * 0.08,
+        speed: schoolSpeed * (0.92 + random() * 0.16),
+        bobPhase: random() * Math.PI * 2,
+        scale: 0.78 + random() * 0.42,
+        color: colors[(school + fish) % colors.length],
+      });
+    }
+  }
+
+  return definitions;
+}
+
+function SwimmingFish({
+  definition,
+  reduceMotion,
+}: {
+  definition: FishDefinition;
+  reduceMotion: boolean;
+}) {
+  const groupRef = useRef<Group>(null);
+  const directionRef = useRef(new Vector3());
+  const positionRef = useRef(new Vector3());
+  const tangentRef = useRef(new Vector3());
+  const lookTargetRef = useRef(new Vector3());
+
+  useFrame(({ clock }) => {
+    const group = groupRef.current;
+
+    if (!group) {
+      return;
+    }
+
+    const elapsed = reduceMotion ? 0 : clock.elapsedTime;
+    const direction = directionRef.current
+      .copy(definition.direction)
+      .applyAxisAngle(
+        definition.orbitAxis,
+        definition.phase + elapsed * definition.speed,
+      )
+      .normalize();
+
+    group.visible = isOceanDirection(direction);
+
+    if (!group.visible) {
+      return;
+    }
+
+    const surfaceRipple = reduceMotion
+      ? 0
+      : Math.max(0, Math.sin(elapsed * 1.6 + definition.bobPhase)) * 0.018;
+    const position = positionRef.current
+      .copy(direction)
+      .multiplyScalar(OCEAN_SURFACE_RADIUS + 0.035 + surfaceRipple);
+    const tangent = tangentRef.current
+      .crossVectors(definition.orbitAxis, direction)
+      .normalize();
+
+    group.position.copy(position);
+    group.up.copy(direction);
+    group.lookAt(lookTargetRef.current.copy(position).add(tangent));
+    group.rotation.z = reduceMotion
+      ? 0
+      : Math.sin(elapsed * 3.2 + definition.bobPhase) * 0.08;
+  });
+
+  return (
+    <group ref={groupRef} scale={definition.scale}>
+      <mesh scale={[0.055, 0.06, 0.15]} castShadow renderOrder={4}>
+        <sphereGeometry args={[1, 10, 7]} />
+        <meshToonMaterial color={definition.color} />
+      </mesh>
+      <mesh
+        position={[0, 0, -0.16]}
+        rotation={[Math.PI / 2, 0, 0]}
+        scale={[0.075, 0.07, 0.045]}
+        castShadow
+        renderOrder={4}
+      >
+        <coneGeometry args={[1, 1, 3]} />
+        <meshToonMaterial color={definition.color} />
+      </mesh>
+      <mesh
+        position={[0, 0.055, -0.02]}
+        rotation={[0, 0, Math.PI]}
+        scale={[0.035, 0.06, 0.04]}
+        castShadow
+        renderOrder={4}
+      >
+        <coneGeometry args={[1, 1, 3]} />
+        <meshToonMaterial color="#f5df8b" />
+      </mesh>
+      <mesh position={[0.031, 0.018, 0.105]} renderOrder={5}>
+        <sphereGeometry args={[0.012, 6, 5]} />
+        <meshBasicMaterial color="#17232a" />
+      </mesh>
+      <mesh position={[-0.031, 0.018, 0.105]} renderOrder={5}>
+        <sphereGeometry args={[0.012, 6, 5]} />
+        <meshBasicMaterial color="#17232a" />
+      </mesh>
+    </group>
+  );
+}
+
+function OceanLife({ reduceMotion }: { reduceMotion: boolean }) {
+  const fish = useMemo(createFishDefinitions, []);
+
+  return (
+    <group>
+      {fish.map((definition) => (
+        <SwimmingFish
+          key={definition.id}
+          definition={definition}
+          reduceMotion={reduceMotion}
+        />
+      ))}
+    </group>
+  );
+}
+
 export function PlanetoidWorld({
   travelerDirectionRef,
   movementVelocityRef,
@@ -2092,6 +2256,7 @@ export function PlanetoidWorld({
         reduceMotion={reduceMotion}
         skyPhase={skyPhase}
       />
+      <OceanLife reduceMotion={reduceMotion} />
 
       {BIOMES.map((biome) => (
         <group key={biome.id}>

@@ -204,6 +204,7 @@ type CloudDefinition = {
   width: number;
   puffCount: number;
   altitude: number;
+  rain: boolean;
 };
 
 type CloudPuff = {
@@ -218,81 +219,21 @@ type CloudPuff = {
   phase: number;
 };
 
-const CLOUD_INTERACTION_RADIUS = 1.3;
-const CLOUD_DEFINITIONS: CloudDefinition[] = [
-  {
-    id: "western-atlantic",
-    coordinates: [-74, 31],
-    seed: 11,
-    width: 1.15,
-    puffCount: 40,
-    altitude: 0.34,
-  },
-  {
-    id: "great-lakes",
-    coordinates: [-91, 44],
-    seed: 23,
-    width: 1.05,
-    puffCount: 36,
-    altitude: 0.36,
-  },
-  {
-    id: "caribbean",
-    coordinates: [-64, 18],
-    seed: 37,
-    width: 1.25,
-    puffCount: 44,
-    altitude: 0.32,
-  },
-  {
-    id: "north-atlantic",
-    coordinates: [-18, 49],
-    seed: 41,
-    width: 1.3,
-    puffCount: 46,
-    altitude: 0.38,
-  },
-  {
-    id: "mediterranean",
-    coordinates: [24, 39],
-    seed: 53,
-    width: 1.05,
-    puffCount: 36,
-    altitude: 0.34,
-  },
-  {
-    id: "east-asia",
-    coordinates: [128, 35],
-    seed: 67,
-    width: 1.2,
-    puffCount: 42,
-    altitude: 0.36,
-  },
-  {
-    id: "north-pacific",
-    coordinates: [160, 24],
-    seed: 79,
-    width: 1.35,
-    puffCount: 48,
-    altitude: 0.38,
-  },
-  {
-    id: "indian-ocean",
-    coordinates: [78, -8],
-    seed: 97,
-    width: 1.2,
-    puffCount: 42,
-    altitude: 0.34,
-  },
-  {
-    id: "south-atlantic",
-    coordinates: [-18, -18],
-    seed: 101,
-    width: 1.15,
-    puffCount: 40,
-    altitude: 0.33,
-  },
-];
+const CLOUD_INTERACTION_RADIUS = 1.75;
+
+function createSessionCloudDefinitions(): CloudDefinition[] {
+  const cloudCount = 8 + Math.floor(Math.random() * 3);
+
+  return Array.from({ length: cloudCount }, (_, index) => ({
+    id: `session-cloud-${index}`,
+    coordinates: [Math.random() * 360 - 180, Math.random() * 116 - 58],
+    seed: Math.floor(Math.random() * 100_000) + index * 997,
+    width: 1.25 + Math.random() * 1.05,
+    puffCount: 48 + Math.floor(Math.random() * 32),
+    altitude: 0.92 + Math.random() * 0.38,
+    rain: Math.random() < 0.08,
+  }));
+}
 
 function createStarPositions(count: number) {
   const positions = new Float32Array(count * 3);
@@ -540,25 +481,19 @@ function createCloudPuffs(definition: CloudDefinition) {
     const horizontalDistribution = isCore
       ? Math.pow(random(), 0.82) * 0.72
       : 0.62 + Math.pow(random(), 0.5) * 0.38;
-    const horizontalRadius =
-      horizontalDistribution * definition.width * 0.52;
+    const horizontalRadius = horizontalDistribution * definition.width * 0.52;
     const eastOffset = Math.cos(horizontalAngle) * horizontalRadius;
-    const northOffset =
-      Math.sin(horizontalAngle) * horizontalRadius * 0.72;
-    const verticalSpread =
-      definition.width * (isCore ? 0.19 : 0.27);
+    const northOffset = Math.sin(horizontalAngle) * horizontalRadius * 0.82;
+    const verticalSpread = definition.width * (isCore ? 0.11 : 0.17);
     const radialOffset =
-      definition.altitude +
-      (random() + random() - 1) * verticalSpread;
+      definition.altitude + (random() + random() - 1) * verticalSpread;
     const basePosition = centerDirection
       .clone()
       .multiplyScalar(surfaceRadius + radialOffset)
       .addScaledVector(east, eastOffset)
       .addScaledVector(north, northOffset);
     const scatterAngle = random() * Math.PI * 2;
-    const radius = isCore
-      ? 0.2 + random() * 0.15
-      : 0.1 + random() * 0.14;
+    const radius = isCore ? 0.25 + random() * 0.2 : 0.14 + random() * 0.17;
     const rotationAxis = new Vector3(
       random() - 0.5,
       random() - 0.5,
@@ -576,9 +511,9 @@ function createCloudPuffs(definition: CloudDefinition) {
       currentPosition: basePosition.clone(),
       velocity: new Vector3(),
       baseScale: new Vector3(
-        radius * (0.88 + random() * 0.38),
-        radius * (0.78 + random() * 0.4),
-        radius * (0.88 + random() * 0.38),
+        radius * (1.05 + random() * 0.48),
+        radius * (0.7 + random() * 0.3),
+        radius * (1 + random() * 0.5),
       ),
       rotation: new Quaternion().setFromAxisAngle(
         rotationAxis,
@@ -594,14 +529,105 @@ function createCloudPuffs(definition: CloudDefinition) {
         .multiplyScalar(Math.cos(scatterAngle))
         .addScaledVector(north, Math.sin(scatterAngle))
         .normalize(),
-      opacity: isCore
-        ? 0.5 + random() * 0.2
-        : 0.24 + random() * 0.2,
+      opacity: isCore ? 0.36 + random() * 0.16 : 0.16 + random() * 0.14,
       phase: random() * Math.PI * 2,
     });
   }
 
   return { centerDirection, puffs };
+}
+
+type RainDrop = {
+  x: number;
+  z: number;
+  phase: number;
+  speed: number;
+  scale: number;
+};
+
+function RainShower({
+  definition,
+  centerDirection,
+  reduceMotion,
+}: {
+  definition: CloudDefinition;
+  centerDirection: Vector3;
+  reduceMotion: boolean;
+}) {
+  const meshRef = useRef<InstancedMesh>(null);
+  const transformRef = useRef(new Object3D());
+  const drops = useMemo(() => {
+    const random = createSeededRandom(definition.seed + 17_911);
+
+    return Array.from({ length: 38 }, (): RainDrop => {
+      const angle = random() * Math.PI * 2;
+      const radius = Math.sqrt(random()) * definition.width * 0.32;
+
+      return {
+        x: Math.cos(angle) * radius,
+        z: Math.sin(angle) * radius * 0.72,
+        phase: random(),
+        speed: 0.42 + random() * 0.48,
+        scale: 0.65 + random() * 0.65,
+      };
+    });
+  }, [definition]);
+  const surfaceRadius = traversalSurfaceRadiusAt(centerDirection);
+  const orientation = useMemo(
+    () => new Quaternion().setFromUnitVectors(UP, centerDirection),
+    [centerDirection],
+  );
+  const position = useMemo(
+    () =>
+      centerDirection
+        .clone()
+        .multiplyScalar(surfaceRadius + definition.altitude - 0.02),
+    [centerDirection, definition.altitude, surfaceRadius],
+  );
+
+  useFrame(({ clock }) => {
+    const mesh = meshRef.current;
+
+    if (!mesh) {
+      return;
+    }
+
+    const travel = definition.altitude + 0.18;
+
+    drops.forEach((drop, index) => {
+      const progress = reduceMotion
+        ? drop.phase
+        : (drop.phase + clock.elapsedTime * drop.speed) % 1;
+      const transform = transformRef.current;
+
+      transform.position.set(drop.x, 0.08 - progress * travel, drop.z);
+      transform.rotation.set(0, 0, 0);
+      transform.scale.set(drop.scale, drop.scale, drop.scale);
+      transform.updateMatrix();
+      mesh.setMatrixAt(index, transform.matrix);
+    });
+
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+
+  return (
+    <group position={position} quaternion={orientation}>
+      <instancedMesh
+        ref={meshRef}
+        args={[undefined, undefined, drops.length]}
+        frustumCulled={false}
+        renderOrder={3}
+      >
+        <cylinderGeometry args={[0.006, 0.009, 0.16, 5]} />
+        <meshBasicMaterial
+          color="#9cc9d7"
+          transparent
+          opacity={0.44}
+          depthWrite={false}
+        />
+      </instancedMesh>
+    </group>
+  );
 }
 
 function CloudCluster({
@@ -629,8 +655,11 @@ function CloudCluster({
   const targetPositionRef = useRef(new Vector3());
   const separationRef = useRef(new Vector3());
   const lateralRef = useRef(new Vector3());
-  const cloudColor =
-    skyPhase === "night"
+  const cloudColor = definition.rain
+    ? skyPhase === "night"
+      ? "#798994"
+      : "#c4cfd0"
+    : skyPhase === "night"
       ? "#b8c3ca"
       : skyPhase === "twilight"
         ? "#e8e9e6"
@@ -755,22 +784,23 @@ function CloudCluster({
   });
 
   return (
-    <instancedMesh
-      ref={cloudMeshRef}
-      args={[undefined, undefined, cloud.puffs.length]}
-      frustumCulled={false}
-      renderOrder={4}
-    >
-      <icosahedronGeometry args={[1, 1]}>
-        <instancedBufferAttribute
-          ref={opacityAttributeRef}
-          attach="attributes-instanceOpacity"
-          args={[initialOpacities, 1]}
-        />
-      </icosahedronGeometry>
-      <shaderMaterial
-        uniforms={cloudUniforms}
-        vertexShader={`
+    <>
+      <instancedMesh
+        ref={cloudMeshRef}
+        args={[undefined, undefined, cloud.puffs.length]}
+        frustumCulled={false}
+        renderOrder={4}
+      >
+        <icosahedronGeometry args={[1, 1]}>
+          <instancedBufferAttribute
+            ref={opacityAttributeRef}
+            attach="attributes-instanceOpacity"
+            args={[initialOpacities, 1]}
+          />
+        </icosahedronGeometry>
+        <shaderMaterial
+          uniforms={cloudUniforms}
+          vertexShader={`
           attribute float instanceOpacity;
           varying float vOpacity;
           varying vec3 vViewNormal;
@@ -801,7 +831,7 @@ function CloudCluster({
               projectionMatrix * viewPosition;
           }
         `}
-        fragmentShader={`
+          fragmentShader={`
           uniform vec3 cloudColor;
           uniform vec3 cloudUp;
           varying float vOpacity;
@@ -851,13 +881,13 @@ function CloudCluster({
               normalize(cloudUp + vec3(0.18, 0.3, 0.12))
             );
             float light = clamp(
-              0.68 + topLight * 0.18 + facing * 0.12,
-              0.46,
-              1.0
+              0.82 + topLight * 0.12 + facing * 0.1,
+              0.72,
+              1.06
             );
             light = floor(light * 5.0 + 0.5) / 5.0;
             vec3 shadedColor =
-              cloudColor * light * mix(0.86, 1.03, density);
+              cloudColor * light * mix(0.94, 1.06, density);
 
             gl_FragColor = vec4(
               shadedColor,
@@ -865,11 +895,19 @@ function CloudCluster({
             );
           }
         `}
-        transparent
-        depthWrite={false}
-        side={DoubleSide}
-      />
-    </instancedMesh>
+          transparent
+          depthWrite={false}
+          side={DoubleSide}
+        />
+      </instancedMesh>
+      {definition.rain ? (
+        <RainShower
+          definition={definition}
+          centerDirection={cloud.centerDirection}
+          reduceMotion={reduceMotion}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -884,9 +922,11 @@ function CloudLayer({
   reduceMotion: boolean;
   skyPhase: SkyPhase;
 }) {
+  const definitions = useMemo(createSessionCloudDefinitions, []);
+
   return (
     <group>
-      {CLOUD_DEFINITIONS.map((definition) => (
+      {definitions.map((definition) => (
         <CloudCluster
           key={definition.id}
           definition={definition}
@@ -1678,7 +1718,7 @@ function PhotoProjection({
       return;
     }
 
-    anchor.position.y = 1.74 + Math.sin(clock.elapsedTime * 1.45) * 0.025;
+    anchor.position.y = 1.42 + Math.sin(clock.elapsedTime * 1.45) * 0.025;
     anchor.updateWorldMatrix(true, false);
 
     const horizonPosition = horizonPositionRef.current;
@@ -1721,39 +1761,6 @@ function PhotoProjection({
 
     left = MathUtils.clamp(left, margin, stageWidth - cardWidth - margin);
     top = MathUtils.clamp(top, margin, stageHeight - cardHeight - margin);
-
-    const stage = projection.parentElement;
-    const nearbyHud = stage?.querySelector<HTMLElement>(
-      ".explore-place-hud",
-    );
-
-    if (stage && nearbyHud) {
-      const stageRect = stage.getBoundingClientRect();
-      const hudRect = nearbyHud.getBoundingClientRect();
-      const hudLeft = hudRect.left - stageRect.left;
-      const hudTop = hudRect.top - stageRect.top;
-      const hudRight = hudRect.right - stageRect.left;
-      const hudBottom = hudRect.bottom - stageRect.top;
-      const overlapsHud =
-        left < hudRight + gap &&
-        left + cardWidth > hudLeft - gap &&
-        top < hudBottom + gap &&
-        top + cardHeight > hudTop - gap;
-
-      if (overlapsHud) {
-        const leftOfHud = hudLeft - cardWidth - gap;
-
-        if (leftOfHud >= margin) {
-          left = leftOfHud;
-        } else {
-          top = MathUtils.clamp(
-            hudBottom + gap,
-            margin,
-            stageHeight - cardHeight - margin,
-          );
-        }
-      }
-    }
 
     if (exploreMode) {
       const travelerProjectedPosition = travelerProjectedPositionRef.current
@@ -2088,11 +2095,11 @@ function DestinationWorld({
 
         event.stopPropagation();
         setHovered(true);
-        gl.domElement.style.cursor = "pointer";
+        gl.domElement.style.cursor = exploreMode ? "none" : "pointer";
       }}
       onPointerOut={() => {
         setHovered(false);
-        gl.domElement.style.cursor = "grab";
+        gl.domElement.style.cursor = exploreMode ? "none" : "grab";
       }}
     >
       <mesh position={[0, 0.2, 0]}>
@@ -2162,6 +2169,7 @@ function Traveler({
   const modelRef = useRef<Group>(null);
   const boatRef = useRef<Group>(null);
   const paddleRef = useRef<Group>(null);
+  const seatedLegsRef = useRef<Group>(null);
   const leftLegRef = useRef<Mesh>(null);
   const rightLegRef = useRef<Mesh>(null);
   const leftArmRef = useRef<Mesh>(null);
@@ -2334,6 +2342,10 @@ function Traveler({
           : -stride * 0.55;
     }
 
+    if (seatedLegsRef.current) {
+      seatedLegsRef.current.visible = boating;
+    }
+
     if (leftArmRef.current && rightArmRef.current) {
       const leftArmTargetX = boating
         ? -0.48 + stride * 0.42
@@ -2390,13 +2402,13 @@ function Traveler({
     if (modelRef.current) {
       modelRef.current.rotation.x = MathUtils.damp(
         modelRef.current.rotation.x,
-        swimming ? 0.2 : 0,
+        swimming ? 0.2 : boating ? -0.055 : 0,
         7,
         Math.min(delta, 0.05),
       );
       modelRef.current.position.y = MathUtils.damp(
         modelRef.current.position.y,
-        boating ? 0.065 : 0,
+        boating ? -0.035 : 0,
         7,
         Math.min(delta, 0.05),
       );
@@ -2491,6 +2503,29 @@ function Traveler({
           <boxGeometry args={[0.045, 0.12, 0.05]} />
           <meshToonMaterial color="#26383e" />
         </mesh>
+        <group ref={seatedLegsRef} visible={false}>
+          {[-0.035, 0.035].map((x) => (
+            <group key={x}>
+              <mesh
+                position={[x, 0.105, 0.075]}
+                renderOrder={TRAVELER_RENDER_ORDER + 1}
+                castShadow
+              >
+                <boxGeometry args={[0.045, 0.052, 0.13]} />
+                <meshToonMaterial color="#26383e" />
+              </mesh>
+              <mesh
+                position={[x, 0.065, 0.15]}
+                rotation={[0.5, 0, 0]}
+                renderOrder={TRAVELER_RENDER_ORDER + 1}
+                castShadow
+              >
+                <boxGeometry args={[0.045, 0.09, 0.052]} />
+                <meshToonMaterial color="#202f34" />
+              </mesh>
+            </group>
+          ))}
+        </group>
         <mesh
           position={[0, 0.17, 0]}
           renderOrder={TRAVELER_RENDER_ORDER}
@@ -2653,6 +2688,7 @@ function PlanetExperience({
   const movementTargetDirectionRef = useRef(new Vector3(0, 0, 1));
   const cameraMovementForwardRef = useRef(new Vector3(0, 0, 1));
   const cameraMovementRightRef = useRef(new Vector3(1, 0, 0));
+  const movementBasisLockedRef = useRef(false);
   const travelerTurnCrossRef = useRef(new Vector3());
   const movementVelocityRef = useRef(0);
   const cameraOrbitAngleRef = useRef(0);
@@ -2706,6 +2742,7 @@ function PlanetExperience({
       targetQuaternionRef.current.identity();
       globeRef.current?.quaternion.identity();
       movementVelocityRef.current = 0;
+      movementBasisLockedRef.current = false;
       cameraOrbitAngleRef.current = 0;
       cameraOrbitTargetAngleRef.current = 0;
       cameraOrbitVelocityRef.current = 0;
@@ -2768,7 +2805,7 @@ function PlanetExperience({
 
   useEffect(() => {
     const canvas = gl.domElement;
-    canvas.style.cursor = "grab";
+    canvas.style.cursor = exploreMode ? "none" : "grab";
     canvas.style.touchAction = exploreMode ? "pan-y" : "none";
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -2782,7 +2819,7 @@ function PlanetExperience({
         y: event.clientY,
       };
       canvas.setPointerCapture(event.pointerId);
-      canvas.style.cursor = "grabbing";
+      canvas.style.cursor = exploreMode ? "none" : "grabbing";
 
       if (exploreMode) {
         cameraOrbitVelocityRef.current = 0;
@@ -2824,7 +2861,7 @@ function PlanetExperience({
       }
 
       dragRef.current = null;
-      canvas.style.cursor = "grab";
+      canvas.style.cursor = exploreMode ? "none" : "grab";
 
       if (!exploreMode) {
         idleUntilRef.current = performance.now() + 1800;
@@ -2874,21 +2911,32 @@ function PlanetExperience({
       );
       const movementTargetDirection = movementTargetDirectionRef.current;
 
-      if (movementInputMagnitude !== 0) {
-        const cameraMovementForward = cameraMovementForwardRef.current
-          .copy(camera.position)
-          .addScaledVector(playerUp, -camera.position.dot(playerUp))
-          .multiplyScalar(-1);
+      if (movementInputMagnitude === 0) {
+        movementBasisLockedRef.current = false;
+      }
 
-        if (cameraMovementForward.lengthSq() < 0.0001) {
-          cameraMovementForward.copy(playerForward);
-        } else {
-          cameraMovementForward.normalize();
+      if (movementInputMagnitude !== 0) {
+        const cameraMovementForward = cameraMovementForwardRef.current;
+        const cameraMovementRight = cameraMovementRightRef.current;
+
+        if (!movementBasisLockedRef.current) {
+          cameraMovementForward
+            .copy(camera.position)
+            .addScaledVector(playerUp, -camera.position.dot(playerUp))
+            .multiplyScalar(-1);
+
+          if (cameraMovementForward.lengthSq() < 0.0001) {
+            cameraMovementForward.copy(playerForward);
+          } else {
+            cameraMovementForward.normalize();
+          }
+
+          cameraMovementRight
+            .crossVectors(cameraMovementForward, playerUp)
+            .normalize();
+          movementBasisLockedRef.current = true;
         }
 
-        const cameraMovementRight = cameraMovementRightRef.current
-          .crossVectors(cameraMovementForward, playerUp)
-          .normalize();
         movementTargetDirection
           .copy(cameraMovementForward)
           .multiplyScalar(input.vertical)
@@ -2983,6 +3031,18 @@ function PlanetExperience({
           .applyAxisAngle(movementAxis, movementAngle)
           .addScaledVector(playerUp, -travelerForward.dot(playerUp))
           .normalize();
+        if (movementBasisLockedRef.current) {
+          cameraMovementForwardRef.current
+            .applyAxisAngle(movementAxis, movementAngle)
+            .addScaledVector(
+              playerUp,
+              -cameraMovementForwardRef.current.dot(playerUp),
+            )
+            .normalize();
+          cameraMovementRightRef.current
+            .crossVectors(cameraMovementForwardRef.current, playerUp)
+            .normalize();
+        }
         traversalModeRef.current = traversalModeAt(playerUp);
       }
 
@@ -3268,7 +3328,7 @@ export function PlacesScene(props: PlacesSceneProps) {
       shadows
       onCreated={({ gl }) => {
         gl.setClearColor(new Color("#000000"), 0);
-        gl.domElement.style.cursor = "grab";
+        gl.domElement.style.cursor = props.exploreMode ? "none" : "grab";
         gl.domElement.style.touchAction = "none";
       }}
     >
