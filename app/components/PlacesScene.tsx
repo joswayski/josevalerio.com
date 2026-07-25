@@ -1390,6 +1390,7 @@ function SurfaceParticles({
 
 const BOAT_WAKE_SAMPLE_COUNT = 44;
 const BOAT_WAKE_VERTICES_PER_SAMPLE = 6;
+const RETIRED_BOAT_WAKE_COUNT = 3;
 
 function createBoatWakeGeometry() {
   const geometry = new BufferGeometry();
@@ -1427,6 +1428,33 @@ function createBoatWakeGeometry() {
   return geometry;
 }
 
+function copyBoatWakeGeometry(
+  source: BufferGeometry,
+  target: BufferGeometry,
+) {
+  const sourcePositions = source.getAttribute(
+    "position",
+  ) as Float32BufferAttribute;
+  const sourceColors = source.getAttribute(
+    "color",
+  ) as Float32BufferAttribute;
+  const targetPositions = target.getAttribute(
+    "position",
+  ) as Float32BufferAttribute;
+  const targetColors = target.getAttribute(
+    "color",
+  ) as Float32BufferAttribute;
+
+  (targetPositions.array as Float32Array).set(
+    sourcePositions.array as Float32Array,
+  );
+  (targetColors.array as Float32Array).set(
+    sourceColors.array as Float32Array,
+  );
+  targetPositions.needsUpdate = true;
+  targetColors.needsUpdate = true;
+}
+
 function BoatWake({
   travelerDirectionRef,
   travelerForwardRef,
@@ -1442,6 +1470,19 @@ function BoatWake({
 }) {
   const meshRef = useRef<Mesh>(null);
   const geometry = useMemo(createBoatWakeGeometry, []);
+  const retiredWakeGeometries = useMemo(
+    () =>
+      Array.from(
+        { length: RETIRED_BOAT_WAKE_COUNT },
+        createBoatWakeGeometry,
+      ),
+    [],
+  );
+  const retiredWakeMeshRefs = useRef<Array<Mesh | null>>([]);
+  const retiredWakeStrengthsRef = useRef(
+    new Float32Array(RETIRED_BOAT_WAKE_COUNT),
+  );
+  const retiredWakeCursorRef = useRef(0);
   const samplesRef = useRef(
     Array.from({ length: BOAT_WAKE_SAMPLE_COUNT }, () => ({
       direction: new Vector3(0, 1, 0),
@@ -1458,7 +1499,15 @@ function BoatWake({
   const brightFoam = useMemo(() => new Color("#effff7"), []);
   const oldFoam = useMemo(() => new Color("#66aaa9"), []);
 
-  useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(
+    () => () => {
+      geometry.dispose();
+      retiredWakeGeometries.forEach((retiredGeometry) => {
+        retiredGeometry.dispose();
+      });
+    },
+    [geometry, retiredWakeGeometries],
+  );
 
   useFrame(({ clock }, delta) => {
     const frameDelta = Math.min(delta, 0.05);
@@ -1474,7 +1523,48 @@ function BoatWake({
     const samples = samplesRef.current;
     const startingBoatSession = boating && !wasBoatingRef.current;
 
+    retiredWakeStrengthsRef.current.forEach((strength, index) => {
+      const mesh = retiredWakeMeshRefs.current[index];
+      const dampedStrength = MathUtils.damp(
+        strength,
+        0,
+        1.55,
+        frameDelta,
+      );
+      const nextStrength =
+        dampedStrength < 0.001 ? 0 : dampedStrength;
+      retiredWakeStrengthsRef.current[index] = nextStrength;
+
+      if (mesh) {
+        const material = mesh.material as MeshBasicMaterial;
+        material.opacity = nextStrength * 0.68;
+        mesh.visible = nextStrength > 0.012;
+      }
+    });
+
     if (!initializedRef.current || startingBoatSession) {
+      if (startingBoatSession && strengthRef.current > 0.012) {
+        const retiredWakeIndex = retiredWakeCursorRef.current;
+        const retiredWakeGeometry =
+          retiredWakeGeometries[retiredWakeIndex];
+        const retiredWakeMesh =
+          retiredWakeMeshRefs.current[retiredWakeIndex];
+
+        copyBoatWakeGeometry(geometry, retiredWakeGeometry);
+        retiredWakeStrengthsRef.current[retiredWakeIndex] =
+          strengthRef.current;
+
+        if (retiredWakeMesh) {
+          const material =
+            retiredWakeMesh.material as MeshBasicMaterial;
+          material.opacity = strengthRef.current * 0.68;
+          retiredWakeMesh.visible = true;
+        }
+
+        retiredWakeCursorRef.current =
+          (retiredWakeIndex + 1) % RETIRED_BOAT_WAKE_COUNT;
+      }
+
       samples.forEach((sample) => {
         sample.direction.copy(travelerDirection);
         sample.forward.copy(travelerForward);
@@ -1623,21 +1713,43 @@ function BoatWake({
   });
 
   return (
-    <mesh
-      ref={meshRef}
-      geometry={geometry}
-      visible={false}
-      renderOrder={8}
-      frustumCulled={false}
-    >
-      <meshBasicMaterial
-        vertexColors
-        transparent
-        opacity={0}
-        depthWrite={false}
-        side={DoubleSide}
-      />
-    </mesh>
+    <>
+      {retiredWakeGeometries.map((retiredGeometry, index) => (
+        <mesh
+          key={`retired-boat-wake-${index}`}
+          ref={(mesh) => {
+            retiredWakeMeshRefs.current[index] = mesh;
+          }}
+          geometry={retiredGeometry}
+          visible={false}
+          renderOrder={7}
+          frustumCulled={false}
+        >
+          <meshBasicMaterial
+            vertexColors
+            transparent
+            opacity={0}
+            depthWrite={false}
+            side={DoubleSide}
+          />
+        </mesh>
+      ))}
+      <mesh
+        ref={meshRef}
+        geometry={geometry}
+        visible={false}
+        renderOrder={8}
+        frustumCulled={false}
+      >
+        <meshBasicMaterial
+          vertexColors
+          transparent
+          opacity={0}
+          depthWrite={false}
+          side={DoubleSide}
+        />
+      </mesh>
+    </>
   );
 }
 
