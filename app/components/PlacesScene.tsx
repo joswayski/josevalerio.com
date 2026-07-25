@@ -42,6 +42,7 @@ import {
   isWaterDirection,
   sphericalDirection,
   surfaceRadiusAt as planetSurfaceRadiusAt,
+  traversalSurfaceRadiusAt,
 } from "../data/planetoid";
 import { PlanetoidWorld } from "./PlanetoidWorld";
 
@@ -76,6 +77,8 @@ type PlacesSceneProps = {
 
 const WALK_SPEED = 0.32;
 const RUN_SPEED = 0.7;
+const SWIM_SPEED = 0.22;
+const FAST_SWIM_SPEED = 0.36;
 const START_DISTANCE = 0.24;
 const NEARBY_DISTANCE = Math.cos(0.075);
 const JUMP_DURATION = 0.52;
@@ -183,6 +186,7 @@ type CloudDefinition = {
 type CloudPuff = {
   basePosition: Vector3;
   currentPosition: Vector3;
+  velocity: Vector3;
   baseScale: Vector3;
   rotation: Quaternion;
   driftDirection: Vector3;
@@ -547,6 +551,7 @@ function createCloudPuffs(definition: CloudDefinition) {
     puffs.push({
       basePosition,
       currentPosition: basePosition.clone(),
+      velocity: new Vector3(),
       baseScale: new Vector3(
         radius * (0.88 + random() * 0.38),
         radius * (0.78 + random() * 0.4),
@@ -631,7 +636,7 @@ function CloudCluster({
     const travelerPosition = travelerPositionRef.current
       .copy(travelerDirection)
       .multiplyScalar(
-        planetSurfaceRadiusAt(travelerDirection) + 0.34,
+        traversalSurfaceRadiusAt(travelerDirection) + 0.34,
       );
     const easeDelta = Math.min(delta, 0.05);
 
@@ -643,7 +648,7 @@ function CloudCluster({
         .copy(puff.basePosition)
         .addScaledVector(puff.driftDirection, drift);
       const separation = separationRef.current
-        .copy(targetPosition)
+        .copy(puff.currentPosition)
         .sub(travelerPosition);
       const distance = separation.length();
       const interaction =
@@ -670,29 +675,39 @@ function CloudCluster({
           lateral.normalize();
         }
 
-        targetPosition
+        puff.velocity
           .addScaledVector(
             lateral,
-            interaction *
-              (0.54 +
-                Math.max(
-                  puff.baseScale.x,
-                  puff.baseScale.y,
-                  puff.baseScale.z,
-                ) *
-                  1.2),
+            interaction * easeDelta * 5.8,
           )
           .addScaledVector(
             cloud.centerDirection,
-            interaction * 0.2,
+            interaction * easeDelta * 1.35,
           );
       }
 
-      const response = interaction > 0.01 ? 9 : 1.45;
+      puff.velocity.multiplyScalar(
+        Math.exp(-easeDelta * 5.1),
+      );
+      puff.currentPosition.addScaledVector(
+        puff.velocity,
+        easeDelta,
+      );
+      const response = interaction > 0.01 ? 0.62 : 1.55;
       puff.currentPosition.lerp(
         targetPosition,
         1 - Math.exp(-easeDelta * response),
       );
+      const cloudOffset = separationRef.current
+        .copy(puff.currentPosition)
+        .sub(targetPosition);
+
+      if (cloudOffset.lengthSq() > 1.44) {
+        puff.currentPosition
+          .copy(targetPosition)
+          .addScaledVector(cloudOffset.normalize(), 1.2);
+        puff.velocity.multiplyScalar(0.35);
+      }
       const breathing = reduceMotion
         ? 0
         : Math.sin(clock.elapsedTime * 0.5 + puff.phase) * 0.025;
@@ -910,12 +925,12 @@ function SurfaceParticles({
     const frameDelta = Math.min(delta, 0.05);
     const travelerDirection = travelerDirectionRef.current;
     const movementSpeed = Math.abs(movementVelocityRef.current);
+    const onWater = isWaterDirection(travelerDirection);
     const movementBlend = MathUtils.clamp(
-      movementSpeed / RUN_SPEED,
+      movementSpeed / (onWater ? FAST_SWIM_SPEED : RUN_SPEED),
       0,
       1,
     );
-    const onWater = isWaterDirection(travelerDirection);
     const canSpawn = exploreMode && movementBlend > 0.08;
 
     if (canSpawn) {
@@ -938,7 +953,9 @@ function SurfaceParticles({
         const right = rightRef.current
           .crossVectors(forward, travelerDirection)
           .normalize();
-        const surfaceRadius = planetSurfaceRadiusAt(travelerDirection);
+        const surfaceRadius = onWater
+          ? traversalSurfaceRadiusAt(travelerDirection)
+          : planetSurfaceRadiusAt(travelerDirection);
 
         particle.active = true;
         particle.water = onWater;
@@ -1462,7 +1479,7 @@ function PhotoProjection({
       const travelerProjectedPosition = travelerProjectedPositionRef.current
         .copy(travelerDirectionRef.current)
         .multiplyScalar(
-          planetSurfaceRadiusAt(travelerDirectionRef.current) + 0.38,
+          traversalSurfaceRadiusAt(travelerDirectionRef.current) + 0.38,
         )
         .project(camera);
       const travelerIsOnScreen =
@@ -1692,6 +1709,7 @@ function Traveler({
   movementVelocityRef,
   playerUpRef,
   playerForwardRef,
+  swimmingRef,
   reduceMotion,
   onFootstep,
 }: {
@@ -1699,10 +1717,12 @@ function Traveler({
   movementVelocityRef: MutableRefObject<number>;
   playerUpRef: MutableRefObject<Vector3>;
   playerForwardRef: MutableRefObject<Vector3>;
+  swimmingRef: MutableRefObject<boolean>;
   reduceMotion: boolean;
   onFootstep: PlacesSceneProps["onFootstep"];
 }) {
   const groupRef = useRef<Group>(null);
+  const modelRef = useRef<Group>(null);
   const leftLegRef = useRef<Mesh>(null);
   const rightLegRef = useRef<Mesh>(null);
   const leftArmRef = useRef<Mesh>(null);
@@ -1717,13 +1737,22 @@ function Traveler({
   const lastJumpSequenceRef = useRef(inputRef.current.jumpSequence);
   const positionRef = useRef(new Vector3());
   const lookTargetRef = useRef(new Vector3());
+  const immersionRef = useRef(0);
 
   useFrame((_, delta) => {
     const movementSpeed = Math.abs(movementVelocityRef.current);
     const moving = movementSpeed > 0.002;
-    const movementBlend = MathUtils.clamp(movementSpeed / WALK_SPEED, 0, 1);
+    const swimming = swimmingRef.current;
+    const baseMovementSpeed = swimming ? SWIM_SPEED : WALK_SPEED;
+    const fastMovementSpeed = swimming ? FAST_SWIM_SPEED : RUN_SPEED;
+    const movementBlend = MathUtils.clamp(
+      movementSpeed / baseMovementSpeed,
+      0,
+      1,
+    );
     const runBlend = MathUtils.clamp(
-      (movementSpeed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED),
+      (movementSpeed - baseMovementSpeed) /
+        (fastMovementSpeed - baseMovementSpeed),
       0,
       1,
     );
@@ -1754,7 +1783,9 @@ function Traveler({
       Math.min(jumpElapsedRef.current, JUMP_DURATION) / JUMP_DURATION;
     const jumping = jumpElapsedRef.current < JUMP_DURATION;
     const jumpCurve = jumping ? Math.sin(jumpProgress * Math.PI) : 0;
-    const jumpLift = jumpCurve * (reduceMotion ? 0.08 : 0.38);
+    const jumpLift =
+      jumpCurve *
+      (swimming ? 0.07 : reduceMotion ? 0.08 : 0.38);
 
     if (moving && !wasMovingRef.current) {
       nextFootstepPhaseRef.current = phaseRef.current + Math.PI * 0.55;
@@ -1762,15 +1793,21 @@ function Traveler({
 
     if (moving) {
       const easedMovement = MathUtils.smoothstep(movementBlend, 0, 1);
-      const fullGaitSpeed = MathUtils.lerp(9.5, 16, runBlend);
-      const gaitSpeed = MathUtils.lerp(3.8, fullGaitSpeed, easedMovement);
+      const fullGaitSpeed = swimming
+        ? MathUtils.lerp(5.8, 8.8, runBlend)
+        : MathUtils.lerp(9.5, 16, runBlend);
+      const gaitSpeed = MathUtils.lerp(
+        swimming ? 3.2 : 3.8,
+        fullGaitSpeed,
+        easedMovement,
+      );
       phaseRef.current += delta * gaitSpeed;
 
       while (phaseRef.current >= nextFootstepPhaseRef.current) {
         footstepIndexRef.current += 1;
         nextFootstepPhaseRef.current += Math.PI;
 
-        if (!jumping && movementBlend >= 0.14) {
+        if (!swimming && !jumping && movementBlend >= 0.14) {
           onFootstep(movementBlend, runBlend, footstepIndexRef.current);
         }
       }
@@ -1785,15 +1822,26 @@ function Traveler({
       : 0;
     const bob = moving
       ? Math.abs(Math.sin(phaseRef.current)) *
-        MathUtils.lerp(0.018, 0.034, runBlend) *
+        (swimming
+          ? MathUtils.lerp(0.012, 0.024, runBlend)
+          : MathUtils.lerp(0.018, 0.034, runBlend)) *
         movementBlend
       : 0;
     const playerUp = playerUpRef.current;
     const playerForward = playerForwardRef.current;
+    immersionRef.current = MathUtils.damp(
+      immersionRef.current,
+      swimming ? -0.22 : 0,
+      6,
+      Math.min(delta, 0.05),
+    );
     const position = positionRef.current
       .copy(playerUp)
       .multiplyScalar(
-        planetSurfaceRadiusAt(playerUp) +
+        (swimming
+          ? traversalSurfaceRadiusAt(playerUp)
+          : planetSurfaceRadiusAt(playerUp)) +
+          immersionRef.current +
           TRAVELER_GROUND_CLEARANCE +
           bob +
           jumpLift,
@@ -1807,19 +1855,46 @@ function Traveler({
     groupRef.current.lookAt(lookTarget);
 
     if (leftLegRef.current && rightLegRef.current) {
-      leftLegRef.current.rotation.x = jumping ? -0.34 : stride * 0.55;
-      rightLegRef.current.rotation.x = jumping ? -0.34 : -stride * 0.55;
+      leftLegRef.current.rotation.x = swimming
+        ? -0.26 + stride * 0.24
+        : jumping
+          ? -0.34
+          : stride * 0.55;
+      rightLegRef.current.rotation.x = swimming
+        ? -0.26 - stride * 0.24
+        : jumping
+          ? -0.34
+          : -stride * 0.55;
     }
 
     if (leftArmRef.current && rightArmRef.current) {
-      leftArmRef.current.rotation.x = jumping ? -0.5 : -stride * 0.72;
-      rightArmRef.current.rotation.x = jumping ? -0.5 : stride * 0.72;
+      leftArmRef.current.rotation.x = swimming
+        ? stride * 1.05
+        : jumping
+          ? -0.5
+          : -stride * 0.72;
+      rightArmRef.current.rotation.x = swimming
+        ? -stride * 1.05
+        : jumping
+          ? -0.5
+          : stride * 0.72;
+      leftArmRef.current.rotation.z = swimming ? -0.32 : 0;
+      rightArmRef.current.rotation.z = swimming ? 0.32 : 0;
+    }
+
+    if (modelRef.current) {
+      modelRef.current.rotation.x = MathUtils.damp(
+        modelRef.current.rotation.x,
+        swimming ? 0.2 : 0,
+        7,
+        Math.min(delta, 0.05),
+      );
     }
   });
 
   return (
     <group ref={groupRef} scale={1.9}>
-      <group>
+      <group ref={modelRef}>
         <mesh
           ref={leftLegRef}
           position={[-0.035, 0.055, 0]}
@@ -1925,7 +2000,7 @@ function PlanetExperience({
   const cameraTargetRef = useRef(new Vector3());
   const cameraDistanceRef = useRef(DEFAULT_CAMERA_DISTANCE);
   const cameraDistanceTargetRef = useRef(DEFAULT_CAMERA_DISTANCE);
-  const tornadoDirectionRef = useRef(new Vector3(0, 1, 0));
+  const swimmingRef = useRef(false);
   const { camera, gl } = useThree();
 
   useEffect(() => {
@@ -1953,6 +2028,7 @@ function PlanetExperience({
         .copy(selectedDirection)
         .applyAxisAngle(east, START_DISTANCE)
         .normalize();
+      swimmingRef.current = isWaterDirection(playerUpRef.current);
       playerForwardRef.current
         .copy(selectedDirection)
         .addScaledVector(
@@ -2124,6 +2200,8 @@ function PlanetExperience({
       const playerUp = playerUpRef.current;
       const playerForward = playerForwardRef.current;
       const travelerForward = travelerForwardRef.current;
+      const swimming = isWaterDirection(playerUp);
+      swimmingRef.current = swimming;
       const movementInputMagnitude = Math.min(
         1,
         Math.hypot(input.horizontal, input.vertical),
@@ -2194,7 +2272,13 @@ function PlanetExperience({
       );
       const targetMovementVelocity =
         movementInputMagnitude *
-        (input.running ? RUN_SPEED : WALK_SPEED) *
+        (swimming
+          ? input.running
+            ? FAST_SWIM_SPEED
+            : SWIM_SPEED
+          : input.running
+            ? RUN_SPEED
+            : WALK_SPEED) *
         movementReadiness;
       const movementResponse = targetMovementVelocity === 0 ? 5.5 : 7;
       movementVelocityRef.current = MathUtils.damp(
@@ -2223,6 +2307,7 @@ function PlanetExperience({
           .applyAxisAngle(movementAxis, movementAngle)
           .addScaledVector(playerUp, -travelerForward.dot(playerUp))
           .normalize();
+        swimmingRef.current = isWaterDirection(playerUp);
       }
 
       cameraDistanceTargetRef.current = MathUtils.clamp(
@@ -2387,7 +2472,6 @@ function PlanetExperience({
         <PlanetoidWorld
           travelerDirectionRef={playerUpRef}
           movementVelocityRef={movementVelocityRef}
-          tornadoDirectionRef={tornadoDirectionRef}
           exploreMode={exploreMode}
           reduceMotion={reduceMotion}
           skyPhase={skyPhase}
@@ -2420,6 +2504,7 @@ function PlanetExperience({
             movementVelocityRef={movementVelocityRef}
             playerUpRef={playerUpRef}
             playerForwardRef={travelerForwardRef}
+            swimmingRef={swimmingRef}
             reduceMotion={reduceMotion}
             onFootstep={onFootstep}
           />

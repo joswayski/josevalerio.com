@@ -13,6 +13,7 @@ import {
   IcosahedronGeometry,
   MathUtils,
   Quaternion,
+  Vector2,
   Vector3,
   type Group,
   type Mesh,
@@ -28,6 +29,7 @@ import {
   isWaterDirection,
   surfaceRadiusAt,
   tangentBasis,
+  waterSurfaceRadius,
   type BiomeDefinition,
   type BiomeKind,
   type WaterFeature,
@@ -38,7 +40,6 @@ type SkyPhase = "day" | "twilight" | "night";
 type PlanetoidWorldProps = {
   travelerDirectionRef: MutableRefObject<Vector3>;
   movementVelocityRef: MutableRefObject<number>;
-  tornadoDirectionRef: MutableRefObject<Vector3>;
   exploreMode: boolean;
   reduceMotion: boolean;
   skyPhase: SkyPhase;
@@ -63,18 +64,13 @@ type LoosePropState = {
   orientation: Quaternion;
   scale: number;
   color: string;
-  phase: number;
+  contactCooldown: number;
 };
 
 const UP = new Vector3(0, 1, 0);
-const TERRAIN_SEGMENTS = 42;
-const TERRAIN_RINGS = 11;
+const TERRAIN_SEGMENTS = 84;
+const TERRAIN_RINGS = 28;
 const VEGETATION_INTERACTION_ANGLE = 0.105;
-const TORNADO_DIRECTION = directionFromOffset(
-  BIOME_BY_ID.get("suncoast")!.center,
-  -0.22,
-  -0.19,
-);
 
 function createSeededRandom(seed: number) {
   let state = seed >>> 0;
@@ -132,7 +128,7 @@ function createTerrainChunkGeometry(biome: BiomeDefinition) {
       const height = biomeHeightAt(direction, biome);
       const position = direction
         .clone()
-        .multiplyScalar(PLANET_RADIUS + height + 0.006);
+        .multiplyScalar(surfaceRadiusAt(direction) + 0.006);
       const heightMix = MathUtils.clamp(
         height / (biome.baseHeight + biome.peakHeight * 0.7),
         0,
@@ -399,14 +395,20 @@ function BiomePaths({ biome }: { biome: BiomeDefinition }) {
 function createWaterGeometry(radius: number) {
   const positions: number[] = [];
   const indices: number[] = [];
-  const rings = 12;
-  const segments = 48;
+  const rings = 24;
+  const segments = 72;
 
   for (let ring = 0; ring <= rings; ring += 1) {
-    const ringRadius = radius * (ring / rings);
+    const ringProgress = ring / rings;
 
     for (let segment = 0; segment < segments; segment += 1) {
       const angle = (segment / segments) * Math.PI * 2;
+      const edgeScale =
+        1 +
+        Math.sin(angle * 3 + 0.6) * 0.025 +
+        Math.sin(angle * 7 - 0.4) * 0.015;
+      const ringRadius = radius * ringProgress * edgeScale;
+
       positions.push(
         Math.cos(angle) * ringRadius,
         Math.sin(angle) * ringRadius,
@@ -455,28 +457,48 @@ function WaterPool({
     () => new Quaternion().setFromUnitVectors(UP, water.center),
     [water.center],
   );
-  const radius = water.angularRadius * PLANET_RADIUS * 0.92;
+  const inverseOrientation = useMemo(
+    () => orientation.clone().invert(),
+    [orientation],
+  );
+  const radius = water.angularRadius * PLANET_RADIUS * 0.98;
+  const surfaceRadius = waterSurfaceRadius(water);
   const position = useMemo(
     () =>
       water.center
         .clone()
-        .multiplyScalar(surfaceRadiusAt(water.center) + 0.035),
-    [water.center],
+        .multiplyScalar(surfaceRadius + 0.008),
+    [surfaceRadius, water.center],
   );
   const waterGeometry = useMemo(
     () => createWaterGeometry(radius),
     [radius],
   );
+  const travelerWorldPositionRef = useRef(new Vector3());
+  const travelerLocalPositionRef = useRef(new Vector3());
   const uniforms = useMemo(
     () => ({
       time: { value: 0 },
       interaction: { value: 0 },
       motion: { value: reduceMotion ? 0 : 1 },
-      waterColor: {
+      travelerPosition: { value: new Vector2(20, 20) },
+      deepColor: {
         value:
           skyPhase === "night"
-            ? new Color(water.color).multiplyScalar(0.52)
-            : new Color(water.color),
+            ? new Color("#102d42")
+            : new Color(water.color).multiplyScalar(0.58),
+      },
+      shallowColor: {
+        value:
+          skyPhase === "night"
+            ? new Color("#2c6873")
+            : new Color(water.color).lerp(new Color("#8ce1d1"), 0.46),
+      },
+      foamColor: {
+        value:
+          skyPhase === "night"
+            ? new Color("#b9d8d7")
+            : new Color("#eefcf5"),
       },
     }),
     [reduceMotion, skyPhase, water.color],
@@ -496,29 +518,30 @@ function WaterPool({
       1,
     );
     const movement = MathUtils.clamp(
-      Math.abs(movementVelocityRef.current) / 0.7,
+      Math.abs(movementVelocityRef.current) /
+        (isWaterDirection(travelerDirectionRef.current) ? 0.36 : 0.7),
       0,
       1,
     );
 
     uniforms.time.value = clock.elapsedTime;
     uniforms.interaction.value = nearby * movement;
+    const travelerWorldPosition = travelerWorldPositionRef.current
+      .copy(travelerDirectionRef.current)
+      .multiplyScalar(surfaceRadius);
+    const travelerLocalPosition = travelerLocalPositionRef.current
+      .copy(travelerWorldPosition)
+      .sub(position)
+      .applyQuaternion(inverseOrientation);
+
+    uniforms.travelerPosition.value.set(
+      travelerLocalPosition.x,
+      -travelerLocalPosition.z,
+    );
   });
 
   return (
     <group position={position} quaternion={orientation}>
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, -0.028, 0]}
-        receiveShadow
-      >
-        <circleGeometry args={[radius * 1.08, 28]} />
-        <meshStandardMaterial
-          color="#516c63"
-          roughness={1}
-          flatShading
-        />
-      </mesh>
       <mesh
         geometry={waterGeometry}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -530,36 +553,75 @@ function WaterPool({
             uniform float time;
             uniform float interaction;
             uniform float motion;
+            uniform vec2 travelerPosition;
+            varying vec3 vWorldPosition;
+            varying float vDepth;
             varying float vCrest;
-            varying float vEdge;
+            varying float vFoam;
 
             void main() {
               float radialDistance = length(position.xy);
+              float polarAngle = atan(position.y, position.x);
+              float edgeScale =
+                1.0 +
+                sin(polarAngle * 3.0 + 0.6) * 0.025 +
+                sin(polarAngle * 7.0 - 0.4) * 0.015;
+              float normalizedRadius =
+                radialDistance / (${radius.toFixed(5)} * edgeScale);
               float ambientWave = (
-                sin(position.x * 16.0 + time * 1.4) +
-                sin(position.y * 19.0 - time * 1.1) +
-                sin((position.x + position.y) * 13.0 + time * 0.8)
+                sin(position.x * 8.0 + time * 1.25) +
+                sin(position.y * 10.0 - time * 0.95) +
+                sin((position.x + position.y) * 6.5 + time * 0.72)
               ) / 3.0;
+              vec2 fromTraveler =
+                position.xy - travelerPosition;
+              float travelerDistance = length(fromTraveler);
               float wake = sin(
-                radialDistance * 42.0 - time * 8.5
-              ) * exp(-radialDistance * 2.8) * interaction;
+                travelerDistance * 29.0 - time * 8.0
+              ) * exp(-travelerDistance * 3.3) * interaction;
+              float shorelineNoise =
+                sin(polarAngle * 9.0 + time * 0.45) *
+                0.5 + 0.5;
+              float sphericalSag =
+                sqrt(max(
+                  ${surfaceRadius.toFixed(5)} *
+                    ${surfaceRadius.toFixed(5)} -
+                    radialDistance * radialDistance,
+                  0.0
+                )) -
+                ${surfaceRadius.toFixed(5)};
               float displacement = motion * (
-                ambientWave * 0.012 +
-                wake * 0.045
+                ambientWave * 0.026 +
+                wake * 0.058
               );
               vec3 displacedPosition =
-                position + normal * displacement;
+                position + normal * (sphericalSag + displacement);
+              vec4 worldPosition =
+                modelMatrix * vec4(displacedPosition, 1.0);
 
               vCrest = clamp(
-                0.5 + ambientWave * 0.28 + wake * 0.72,
+                0.5 + ambientWave * 0.24 + wake * 0.8,
                 0.0,
                 1.0
               );
-              vEdge = 1.0 - smoothstep(
-                0.65,
-                1.0,
-                radialDistance / ${radius.toFixed(5)}
+              vDepth = 1.0 - smoothstep(
+                0.15,
+                0.92,
+                normalizedRadius
               );
+              float shoreline = smoothstep(
+                0.78 + shorelineNoise * 0.035,
+                0.93 + shorelineNoise * 0.025,
+                normalizedRadius
+              );
+              float wakeFoam = smoothstep(0.52, 0.84, abs(wake));
+              vFoam = clamp(
+                shoreline * (0.58 + shorelineNoise * 0.52) +
+                wakeFoam * interaction,
+                0.0,
+                1.0
+              );
+              vWorldPosition = worldPosition.xyz;
               gl_Position = projectionMatrix * modelViewMatrix * vec4(
                 displacedPosition,
                 1.0
@@ -567,31 +629,73 @@ function WaterPool({
             }
           `}
           fragmentShader={`
-            uniform vec3 waterColor;
+            uniform vec3 deepColor;
+            uniform vec3 shallowColor;
+            uniform vec3 foamColor;
+            varying vec3 vWorldPosition;
+            varying float vDepth;
             varying float vCrest;
-            varying float vEdge;
+            varying float vFoam;
 
             void main() {
-              vec3 crest = mix(
-                waterColor * 0.72,
-                vec3(0.84, 0.96, 0.92),
-                vCrest * 0.48
+              vec3 normal = normalize(cross(
+                dFdx(vWorldPosition),
+                dFdy(vWorldPosition)
+              ));
+
+              if (!gl_FrontFacing) {
+                normal *= -1.0;
+              }
+
+              vec3 viewDirection = normalize(
+                cameraPosition - vWorldPosition
               );
-              float alpha = mix(0.58, 0.88, vCrest) * vEdge;
-              gl_FragColor = vec4(crest, alpha);
+              float fresnel = pow(
+                1.0 - abs(dot(normal, viewDirection)),
+                2.2
+              );
+              vec3 lightDirection = normalize(
+                vec3(-0.45, 0.82, 0.34)
+              );
+              float glint = pow(
+                max(
+                  dot(
+                    reflect(-lightDirection, normal),
+                    viewDirection
+                  ),
+                  0.0
+                ),
+                34.0
+              );
+              vec3 water = mix(
+                shallowColor,
+                deepColor,
+                vDepth * 0.88
+              );
+              water = mix(
+                water,
+                shallowColor * 1.16,
+                fresnel * 0.32 + vCrest * 0.12
+              );
+              water += glint * vec3(0.72, 0.9, 0.86);
+              float crestLine = smoothstep(0.66, 0.77, vCrest);
+              float foamMix = max(
+                smoothstep(0.38, 0.9, vFoam),
+                crestLine * 0.2
+              );
+              vec3 color = mix(
+                water,
+                foamColor,
+                foamMix
+              );
+              float alpha = mix(0.78, 0.94, fresnel + vFoam * 0.4);
+
+              gl_FragColor = vec4(color, alpha);
             }
           `}
           transparent
-          depthWrite={false}
+          depthWrite
           side={DoubleSide}
-        />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
-        <torusGeometry args={[radius * 1.01, 0.025, 5, 36]} />
-        <meshStandardMaterial
-          color="#d7c99d"
-          roughness={0.95}
-          flatShading
         />
       </mesh>
     </group>
@@ -744,11 +848,9 @@ function TreeModel({
 
 function VegetationField({
   travelerDirectionRef,
-  tornadoDirectionRef,
   reduceMotion,
 }: {
   travelerDirectionRef: MutableRefObject<Vector3>;
-  tornadoDirectionRef: MutableRefObject<Vector3>;
   reduceMotion: boolean;
 }) {
   const plants = useMemo(createVegetation, []);
@@ -771,10 +873,6 @@ function VegetationField({
         plant.direction,
         travelerDirectionRef.current,
       );
-      const tornadoDistance = angularDistance(
-        plant.direction,
-        tornadoDirectionRef.current,
-      );
       const travelerBend =
         1 -
         MathUtils.smoothstep(
@@ -782,19 +880,18 @@ function VegetationField({
           0.015,
           VEGETATION_INTERACTION_ANGLE,
         );
-      const tornadoBend =
-        1 -
-        MathUtils.smoothstep(tornadoDistance, 0.02, 0.2);
       const wind =
         reduceMotion
           ? 0
           : Math.sin(clock.elapsedTime * 1.2 + plant.phase) * 0.035;
       const bend = Math.min(
-        0.5,
-        wind + travelerBend * 0.32 + tornadoBend * 0.44,
+        0.34,
+        wind + travelerBend * 0.3,
       );
+      const bendTarget =
+        travelerBend > 0.01 ? travelerDirectionRef.current : UP;
       const bendAxis = bendAxisRef.current
-        .crossVectors(plant.direction, tornadoDirectionRef.current)
+        .crossVectors(plant.direction, bendTarget)
         .normalize();
 
       if (bendAxis.lengthSq() < 0.0001) {
@@ -862,7 +959,7 @@ function createLooseProps() {
             : biome.id === "suncoast"
               ? "#a77e57"
               : "#776e64",
-        phase: random() * Math.PI * 2,
+        contactCooldown: 0,
       });
     }
   });
@@ -873,13 +970,11 @@ function createLooseProps() {
 function LooseProps({
   travelerDirectionRef,
   movementVelocityRef,
-  tornadoDirectionRef,
   exploreMode,
   reduceMotion,
 }: {
   travelerDirectionRef: MutableRefObject<Vector3>;
   movementVelocityRef: MutableRefObject<number>;
-  tornadoDirectionRef: MutableRefObject<Vector3>;
   exploreMode: boolean;
   reduceMotion: boolean;
 }) {
@@ -887,9 +982,10 @@ function LooseProps({
   const propRefs = useRef<Array<Mesh | null>>([]);
   const impulseRef = useRef(new Vector3());
   const axisRef = useRef(new Vector3());
+  const nextDirectionRef = useRef(new Vector3());
   const orientationRef = useRef(new Quaternion());
 
-  useFrame(({ clock }, delta) => {
+  useFrame((_, delta) => {
     const frameDelta = Math.min(delta, 0.05);
 
     props.forEach((prop, index) => {
@@ -903,14 +999,15 @@ function LooseProps({
         prop.direction,
         travelerDirectionRef.current,
       );
-      const tornadoDistance = angularDistance(
-        prop.direction,
-        tornadoDirectionRef.current,
+      prop.contactCooldown = Math.max(
+        0,
+        prop.contactCooldown - frameDelta,
       );
 
       if (
         exploreMode &&
         travelerDistance < 0.055 &&
+        prop.contactCooldown === 0 &&
         Math.abs(movementVelocityRef.current) > 0.08
       ) {
         const impulse = impulseRef.current
@@ -927,23 +1024,20 @@ function LooseProps({
         if (impulse.lengthSq() > 0.00001) {
           prop.tangentVelocity.addScaledVector(
             impulse.normalize(),
-            0.18 + Math.abs(movementVelocityRef.current) * 0.26,
+            0.52 + Math.abs(movementVelocityRef.current) * 0.42,
+          );
+        } else {
+          prop.tangentVelocity.addScaledVector(
+            tangentBasis(prop.direction).east,
+            0.48,
           );
         }
-      }
 
-      if (tornadoDistance < 0.2) {
-        const swirl = impulseRef.current
-          .crossVectors(tornadoDirectionRef.current, prop.direction)
-          .normalize();
-        prop.tangentVelocity.addScaledVector(
-          swirl,
-          (0.2 - tornadoDistance) * frameDelta * 1.9,
-        );
+        prop.contactCooldown = 0.34;
       }
 
       prop.tangentVelocity.multiplyScalar(
-        Math.exp(-frameDelta * (reduceMotion ? 8 : 3.1)),
+        Math.exp(-frameDelta * (reduceMotion ? 9 : 4.2)),
       );
 
       if (prop.tangentVelocity.lengthSq() > 0.000001) {
@@ -952,28 +1046,34 @@ function LooseProps({
           .crossVectors(prop.tangentVelocity, prop.direction)
           .normalize();
         const angle = speed * frameDelta;
+        const nextDirection = nextDirectionRef.current
+          .copy(prop.direction)
+          .applyAxisAngle(axis, angle)
+          .normalize();
 
-        prop.direction.applyAxisAngle(axis, angle).normalize();
-        prop.tangentVelocity
-          .addScaledVector(
-            prop.direction,
-            -prop.tangentVelocity.dot(prop.direction),
-          )
-          .normalize()
-          .multiplyScalar(speed);
-        mesh.rotateX(angle * 5.4);
-        mesh.rotateZ(angle * 3.1);
+        if (isWaterDirection(nextDirection)) {
+          prop.tangentVelocity.multiplyScalar(-0.28);
+          prop.contactCooldown = Math.max(
+            prop.contactCooldown,
+            0.18,
+          );
+        } else {
+          prop.direction.copy(nextDirection);
+          prop.tangentVelocity
+            .addScaledVector(
+              prop.direction,
+              -prop.tangentVelocity.dot(prop.direction),
+            )
+            .normalize()
+            .multiplyScalar(speed);
+          mesh.rotateX(angle * 5.4);
+          mesh.rotateZ(angle * 3.1);
+        }
       }
 
-      const lift =
-        tornadoDistance < 0.16 && !reduceMotion
-          ? Math.sin(clock.elapsedTime * 4 + prop.phase) *
-              (0.16 - tornadoDistance) *
-              1.4
-          : 0;
       mesh.position
         .copy(prop.direction)
-        .multiplyScalar(surfaceRadiusAt(prop.direction) + prop.scale + lift);
+        .multiplyScalar(surfaceRadiusAt(prop.direction) + prop.scale);
       const orientation = orientationRef.current.setFromUnitVectors(
         UP,
         prop.direction,
@@ -1096,138 +1196,6 @@ function LandmarkTerrain() {
   );
 }
 
-function Tornado({
-  tornadoDirectionRef,
-  travelerDirectionRef,
-  reduceMotion,
-  skyPhase,
-}: {
-  tornadoDirectionRef: MutableRefObject<Vector3>;
-  travelerDirectionRef: MutableRefObject<Vector3>;
-  reduceMotion: boolean;
-  skyPhase: SkyPhase;
-}) {
-  const groupRef = useRef<Group>(null);
-  const puffRefs = useRef<Array<Mesh | null>>([]);
-  const dustRefs = useRef<Array<Mesh | null>>([]);
-  const orientation = useMemo(
-    () => new Quaternion().setFromUnitVectors(UP, TORNADO_DIRECTION),
-    [],
-  );
-  const basePosition = useMemo(
-    () =>
-      TORNADO_DIRECTION.clone().multiplyScalar(
-        surfaceRadiusAt(TORNADO_DIRECTION) + 0.04,
-      ),
-    [],
-  );
-  const puffs = useMemo(
-    () =>
-      Array.from({ length: 34 }, (_, index) => ({
-        height: 0.08 + index * 0.035,
-        phase: index * 2.399963,
-        radius: 0.04 + index * 0.006,
-        scale: 0.055 + (index / 34) * 0.12,
-      })),
-    [],
-  );
-
-  useFrame(({ clock }) => {
-    tornadoDirectionRef.current.copy(TORNADO_DIRECTION);
-    const travelerDistance = angularDistance(
-      travelerDirectionRef.current,
-      TORNADO_DIRECTION,
-    );
-    const agitation =
-      1 -
-      MathUtils.smoothstep(travelerDistance, 0.03, 0.24);
-    const time = reduceMotion ? 0 : clock.elapsedTime;
-
-    if (groupRef.current) {
-      groupRef.current.position.copy(basePosition);
-      groupRef.current.rotation.y = time * (0.45 + agitation * 0.75);
-    }
-
-    puffs.forEach((puff, index) => {
-      const mesh = puffRefs.current[index];
-
-      if (!mesh) {
-        return;
-      }
-
-      const widening = puff.radius + puff.height * 0.12;
-      const orbit = puff.phase + time * (2.7 + puff.height * 1.8);
-      const pulse = 1 + Math.sin(time * 2.1 + puff.phase) * 0.08;
-
-      mesh.position.set(
-        Math.cos(orbit) * widening,
-        puff.height,
-        Math.sin(orbit) * widening,
-      );
-      mesh.scale.setScalar(puff.scale * pulse);
-    });
-
-    dustRefs.current.forEach((mesh, index) => {
-      if (!mesh) {
-        return;
-      }
-
-      const phase = (index / 18) * Math.PI * 2 + time * 3.4;
-      const radius = 0.22 + Math.sin(index * 1.7) * 0.06;
-      mesh.position.set(
-        Math.cos(phase) * radius,
-        0.025 + (index % 4) * 0.025,
-        Math.sin(phase) * radius,
-      );
-      mesh.scale.setScalar(0.025 + agitation * 0.012);
-    });
-  });
-
-  return (
-    <group ref={groupRef} position={basePosition} quaternion={orientation}>
-      {puffs.map((puff, index) => (
-        <mesh
-          key={`tornado-puff-${index}`}
-          ref={(mesh) => {
-            puffRefs.current[index] = mesh;
-          }}
-          castShadow
-          renderOrder={7}
-        >
-          <icosahedronGeometry args={[1, 1]} />
-          <meshStandardMaterial
-            color={skyPhase === "night" ? "#87909a" : "#d7d8d2"}
-            emissive="#8a8f93"
-            emissiveIntensity={0.06}
-            transparent
-            opacity={0.62}
-            roughness={1}
-            depthWrite={false}
-            flatShading
-          />
-        </mesh>
-      ))}
-      {Array.from({ length: 18 }, (_, index) => (
-        <mesh
-          key={`tornado-dust-${index}`}
-          ref={(mesh) => {
-            dustRefs.current[index] = mesh;
-          }}
-        >
-          <dodecahedronGeometry args={[1, 0]} />
-          <meshStandardMaterial
-            color="#b89a70"
-            transparent
-            opacity={0.62}
-            depthWrite={false}
-            flatShading
-          />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
 function BasePlanetoid({ skyPhase }: { skyPhase: SkyPhase }) {
   const geometry = useMemo(() => {
     const nextGeometry = new IcosahedronGeometry(PLANET_RADIUS, 5);
@@ -1252,7 +1220,6 @@ function BasePlanetoid({ skyPhase }: { skyPhase: SkyPhase }) {
 export function PlanetoidWorld({
   travelerDirectionRef,
   movementVelocityRef,
-  tornadoDirectionRef,
   exploreMode,
   reduceMotion,
   skyPhase,
@@ -1282,21 +1249,13 @@ export function PlanetoidWorld({
       <LandmarkTerrain />
       <VegetationField
         travelerDirectionRef={travelerDirectionRef}
-        tornadoDirectionRef={tornadoDirectionRef}
         reduceMotion={reduceMotion}
       />
       <LooseProps
         travelerDirectionRef={travelerDirectionRef}
         movementVelocityRef={movementVelocityRef}
-        tornadoDirectionRef={tornadoDirectionRef}
         exploreMode={exploreMode}
         reduceMotion={reduceMotion}
-      />
-      <Tornado
-        tornadoDirectionRef={tornadoDirectionRef}
-        travelerDirectionRef={travelerDirectionRef}
-        reduceMotion={reduceMotion}
-        skyPhase={skyPhase}
       />
     </group>
   );

@@ -205,9 +205,9 @@ export const WATER_FEATURES: WaterFeature[] = [
       0.2,
       -0.17,
     ),
-    angularRadius: 0.105,
+    angularRadius: 0.135,
     color: "#70b5bd",
-    depth: 0.1,
+    depth: 0.32,
   },
   {
     id: "sun-lagoon",
@@ -217,9 +217,9 @@ export const WATER_FEATURES: WaterFeature[] = [
       0.12,
       0.01,
     ),
-    angularRadius: 0.125,
+    angularRadius: 0.165,
     color: "#59c3c0",
-    depth: 0.12,
+    depth: 0.38,
   },
   {
     id: "highland-spring",
@@ -229,9 +229,9 @@ export const WATER_FEATURES: WaterFeature[] = [
       -0.02,
       -0.16,
     ),
-    angularRadius: 0.075,
+    angularRadius: 0.105,
     color: "#73aeb5",
-    depth: 0.08,
+    depth: 0.26,
   },
   {
     id: "garden-pond",
@@ -241,9 +241,9 @@ export const WATER_FEATURES: WaterFeature[] = [
       -0.04,
       -0.05,
     ),
-    angularRadius: 0.09,
+    angularRadius: 0.125,
     color: "#65aaa5",
-    depth: 0.08,
+    depth: 0.3,
   },
 ];
 
@@ -340,7 +340,7 @@ function baseRockHeight(direction: Vector3) {
   );
 }
 
-export function surfaceHeightAt(direction: Vector3) {
+function landSurfaceHeightAt(direction: Vector3) {
   let height = baseRockHeight(direction);
 
   for (const biome of BIOMES) {
@@ -350,15 +350,57 @@ export function surfaceHeightAt(direction: Vector3) {
   return height;
 }
 
+export function waterFeatureForDirection(direction: Vector3) {
+  return (
+    WATER_FEATURES.find(
+      (water) =>
+        angularDistance(direction, water.center) <
+        water.angularRadius,
+    ) ?? null
+  );
+}
+
+export function waterSurfaceRadius(water: WaterFeature) {
+  return (
+    PLANET_RADIUS +
+    landSurfaceHeightAt(water.center) -
+    0.015
+  );
+}
+
+export function surfaceHeightAt(direction: Vector3) {
+  const landHeight = landSurfaceHeightAt(direction);
+  const water = waterFeatureForDirection(direction);
+
+  if (!water) {
+    return landHeight;
+  }
+
+  const normalizedDistance = MathUtils.clamp(
+    angularDistance(direction, water.center) / water.angularRadius,
+    0,
+    1,
+  );
+  const bowl = 1 - smoothstep(0.06, 0.96, normalizedDistance);
+  const waterHeight = waterSurfaceRadius(water) - PLANET_RADIUS;
+  const floorHeight =
+    waterHeight - 0.025 - water.depth * bowl;
+
+  return Math.min(landHeight, floorHeight);
+}
+
 export function surfaceRadiusAt(direction: Vector3) {
   return PLANET_RADIUS + surfaceHeightAt(direction);
 }
 
 export function isWaterDirection(direction: Vector3) {
-  return WATER_FEATURES.some(
-    (water) =>
-      angularDistance(direction, water.center) < water.angularRadius,
-  );
+  return waterFeatureForDirection(direction) !== null;
+}
+
+export function traversalSurfaceRadiusAt(direction: Vector3) {
+  const water = waterFeatureForDirection(direction);
+
+  return water ? waterSurfaceRadius(water) : surfaceRadiusAt(direction);
 }
 
 export function biomeForDirection(direction: Vector3) {
