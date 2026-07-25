@@ -1047,6 +1047,7 @@ function CloudCluster({
         args={[undefined, undefined, cloud.puffs.length]}
         frustumCulled={false}
         renderOrder={4}
+        castShadow
       >
         <icosahedronGeometry args={[1, 1]}>
           <instancedBufferAttribute
@@ -2524,6 +2525,53 @@ function DestinationWorld({
   );
 }
 
+function BasketballShoe({ side }: { side: -1 | 1 }) {
+  const outside = side * 0.031;
+
+  return (
+    <group position={[0, -0.048, 0.018]}>
+      <mesh position={[0, -0.006, 0.018]} castShadow>
+        <boxGeometry args={[0.064, 0.018, 0.11]} />
+        <meshToonMaterial color="#b7834b" />
+      </mesh>
+      <mesh
+        position={[0, 0.009, 0.021]}
+        scale={[0.62, 0.42, 1.08]}
+        castShadow
+      >
+        <dodecahedronGeometry args={[0.05, 0]} />
+        <meshToonMaterial color="#171d22" />
+      </mesh>
+      <mesh
+        position={[0, 0.03, -0.008]}
+        scale={[0.56, 0.76, 0.62]}
+        castShadow
+      >
+        <dodecahedronGeometry args={[0.05, 0]} />
+        <meshToonMaterial color="#20272e" />
+      </mesh>
+      <mesh position={[outside, 0.009, 0.018]} rotation={[0.62, 0, 0]}>
+        <boxGeometry args={[0.006, 0.01, 0.048]} />
+        <meshToonMaterial color="#f1f2ee" />
+      </mesh>
+      <mesh position={[outside, 0.012, 0.043]} rotation={[-0.52, 0, 0]}>
+        <boxGeometry args={[0.006, 0.009, 0.027]} />
+        <meshToonMaterial color="#f1f2ee" />
+      </mesh>
+      {[0.002, 0.016, 0.03].map((z) => (
+        <mesh key={z} position={[0, 0.035, z]} castShadow>
+          <boxGeometry args={[0.047, 0.005, 0.006]} />
+          <meshToonMaterial color="#e9ece8" />
+        </mesh>
+      ))}
+      <mesh position={[outside, -0.005, -0.012]}>
+        <boxGeometry args={[0.006, 0.011, 0.036]} />
+        <meshToonMaterial color="#aeb8bc" />
+      </mesh>
+    </group>
+  );
+}
+
 function Traveler({
   inputRef,
   movementVelocityRef,
@@ -2548,8 +2596,8 @@ function Traveler({
   const boatRef = useRef<Group>(null);
   const paddleRef = useRef<Group>(null);
   const seatedLegsRef = useRef<Group>(null);
-  const leftLegRef = useRef<Mesh>(null);
-  const rightLegRef = useRef<Mesh>(null);
+  const leftLegRef = useRef<Group>(null);
+  const rightLegRef = useRef<Group>(null);
   const leftArmRef = useRef<Mesh>(null);
   const rightArmRef = useRef<Mesh>(null);
   const phaseRef = useRef(0);
@@ -2863,24 +2911,26 @@ function Traveler({
   return (
     <group ref={groupRef} scale={1.9}>
       <group ref={modelRef}>
-        <mesh
+        <group
           ref={leftLegRef}
           position={[-0.035, 0.055, 0]}
-          renderOrder={TRAVELER_RENDER_ORDER}
-          castShadow
         >
-          <boxGeometry args={[0.045, 0.12, 0.05]} />
-          <meshToonMaterial color="#26383e" />
-        </mesh>
-        <mesh
+          <mesh renderOrder={TRAVELER_RENDER_ORDER} castShadow>
+            <boxGeometry args={[0.045, 0.12, 0.05]} />
+            <meshToonMaterial color="#26383e" />
+          </mesh>
+          <BasketballShoe side={-1} />
+        </group>
+        <group
           ref={rightLegRef}
           position={[0.035, 0.055, 0]}
-          renderOrder={TRAVELER_RENDER_ORDER}
-          castShadow
         >
-          <boxGeometry args={[0.045, 0.12, 0.05]} />
-          <meshToonMaterial color="#26383e" />
-        </mesh>
+          <mesh renderOrder={TRAVELER_RENDER_ORDER} castShadow>
+            <boxGeometry args={[0.045, 0.12, 0.05]} />
+            <meshToonMaterial color="#26383e" />
+          </mesh>
+          <BasketballShoe side={1} />
+        </group>
         <group ref={seatedLegsRef} visible={false}>
           {[-0.035, 0.035].map((x) => (
             <group key={x}>
@@ -2892,15 +2942,19 @@ function Traveler({
                 <boxGeometry args={[0.045, 0.052, 0.13]} />
                 <meshToonMaterial color="#26383e" />
               </mesh>
-              <mesh
+              <group
                 position={[x, 0.065, 0.15]}
                 rotation={[0.5, 0, 0]}
-                renderOrder={TRAVELER_RENDER_ORDER + 1}
-                castShadow
               >
-                <boxGeometry args={[0.045, 0.09, 0.052]} />
-                <meshToonMaterial color="#202f34" />
-              </mesh>
+                <mesh
+                  renderOrder={TRAVELER_RENDER_ORDER + 1}
+                  castShadow
+                >
+                  <boxGeometry args={[0.045, 0.09, 0.052]} />
+                  <meshToonMaterial color="#202f34" />
+                </mesh>
+                <BasketballShoe side={x < 0 ? -1 : 1} />
+              </group>
             </group>
           ))}
         </group>
@@ -2912,14 +2966,28 @@ function Traveler({
           <capsuleGeometry args={[0.065, 0.13, 4, 8]} />
           <meshToonMaterial color="#d34b42" />
         </mesh>
-        <mesh
-          position={[0, 0.235, 0.057]}
-          renderOrder={TRAVELER_RENDER_ORDER + 1}
-          castShadow
-        >
-          <boxGeometry args={[0.09, 0.035, 0.014]} />
-          <meshToonMaterial color="#f2c84f" />
-        </mesh>
+        <group position={[0, 0, 0.062]}>
+          {[-0.042, 0.042].map((x) => (
+            <mesh
+              key={x}
+              position={[x, 0.22, 0]}
+              rotation={[0, 0, x * 2.4]}
+              renderOrder={TRAVELER_RENDER_ORDER + 1}
+              castShadow
+            >
+              <boxGeometry args={[0.014, 0.105, 0.012]} />
+              <meshToonMaterial color="#c79132" />
+            </mesh>
+          ))}
+          <mesh
+            position={[0, 0.19, 0.008]}
+            renderOrder={TRAVELER_RENDER_ORDER + 2}
+            castShadow
+          >
+            <boxGeometry args={[0.045, 0.018, 0.016]} />
+            <meshToonMaterial color="#f0ce6a" />
+          </mesh>
+        </group>
         <mesh
           ref={leftArmRef}
           position={[-0.09, 0.19, 0]}
@@ -3739,7 +3807,7 @@ export function PlacesScene(props: PlacesSceneProps) {
         antialias: true,
         powerPreference: "high-performance",
       }}
-      shadows
+      shadows="soft"
       onCreated={({ gl }) => {
         gl.setClearColor(new Color("#000000"), 0);
         gl.domElement.style.cursor = props.exploreMode ? "none" : "grab";

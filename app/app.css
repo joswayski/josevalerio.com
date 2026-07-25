@@ -287,6 +287,10 @@ button {
   line-height: 1.15;
 }
 
+.section-heading--places {
+  border-bottom: 0;
+}
+
 .section-number,
 .post-meta,
 .project-meta {
