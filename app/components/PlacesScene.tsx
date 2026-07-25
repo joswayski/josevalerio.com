@@ -1449,6 +1449,7 @@ function BoatWake({
     })),
   );
   const initializedRef = useRef(false);
+  const wasBoatingRef = useRef(false);
   const lastSampleDirectionRef = useRef(new Vector3(0, 1, 0));
   const strengthRef = useRef(0);
   const rightRef = useRef(new Vector3());
@@ -1469,27 +1470,34 @@ function BoatWake({
       0,
       1,
     );
-    const targetStrength =
-      exploreMode && traversalMode === "boat"
-        ? MathUtils.smoothstep(movementBlend, 0.04, 0.9)
-        : 0;
-    strengthRef.current = MathUtils.damp(
-      strengthRef.current,
-      targetStrength,
-      targetStrength > strengthRef.current ? 3.2 : 1.55,
-      frameDelta,
-    );
-
+    const boating = exploreMode && traversalMode === "boat";
     const samples = samplesRef.current;
+    const startingBoatSession = boating && !wasBoatingRef.current;
 
-    if (!initializedRef.current) {
+    if (!initializedRef.current || startingBoatSession) {
       samples.forEach((sample) => {
         sample.direction.copy(travelerDirection);
         sample.forward.copy(travelerForward);
       });
       lastSampleDirectionRef.current.copy(travelerDirection);
       initializedRef.current = true;
+
+      if (startingBoatSession) {
+        strengthRef.current = 0;
+      }
     }
+
+    wasBoatingRef.current = boating;
+
+    const targetStrength = boating
+      ? MathUtils.smoothstep(movementBlend, 0.04, 0.9)
+      : 0;
+    strengthRef.current = MathUtils.damp(
+      strengthRef.current,
+      targetStrength,
+      targetStrength > strengthRef.current ? 3.2 : 1.55,
+      frameDelta,
+    );
 
     const sampleDistance = Math.acos(
       MathUtils.clamp(
@@ -1500,7 +1508,7 @@ function BoatWake({
     );
 
     if (
-      traversalMode === "boat" &&
+      boating &&
       movementBlend > 0.025 &&
       sampleDistance > (reduceMotion ? 0.012 : 0.006)
     ) {
