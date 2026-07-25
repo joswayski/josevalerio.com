@@ -8,16 +8,30 @@ export const PLANET_MAX_SURFACE_RADIUS = 7.12;
 export type TraversalMode = "boat" | "land" | "swim";
 
 export type BiomeKind =
-  | "harbor"
-  | "suncoast"
-  | "highlands"
-  | "garden";
+  | "united-states"
+  | "dominican-republic"
+  | "turkiye"
+  | "south-korea"
+  | "japan";
+
+export type IslandPart = {
+  east: number;
+  north: number;
+  scaleEast: number;
+  scaleNorth: number;
+  rotation: number;
+  outline: readonly number[];
+  heightScale?: number;
+};
 
 export type BiomeDefinition = {
   id: BiomeKind;
   name: string;
+  countryName: string;
   center: Vector3;
   angularRadius: number;
+  parts: readonly IslandPart[];
+  flagOffset: readonly [number, number];
   baseHeight: number;
   peakHeight: number;
   seed: number;
@@ -25,6 +39,7 @@ export type BiomeDefinition = {
   groundDark: string;
   cliff: string;
   path: string;
+  shore: string;
 };
 
 export type WaterFeature = {
@@ -104,56 +119,181 @@ export function directionFromOffset(
 
 export const BIOMES: BiomeDefinition[] = [
   {
-    id: "harbor",
-    name: "Harbor Commons",
-    center: sphericalDirection(-18, 34),
-    angularRadius: 0.6,
-    baseHeight: 0.3,
-    peakHeight: 0.42,
+    id: "united-states",
+    name: "United States",
+    countryName: "United States",
+    center: sphericalDirection(-18, 32),
+    angularRadius: 0.64,
+    parts: [
+      {
+        east: 0,
+        north: 0,
+        scaleEast: 0.55,
+        scaleNorth: 0.31,
+        rotation: -0.08,
+        // A broad continental silhouette with a northeastern shoulder,
+        // Texas-like southwest weight, and a narrow Florida-like tail.
+        outline: [
+          0.92, 0.96, 0.98, 0.93, 0.88, 0.9, 0.94, 1, 0.97, 0.91,
+          0.9, 0.94, 1.04, 1, 0.9, 0.84, 0.8, 0.86, 0.96, 1.08,
+          1.02, 0.9, 0.84, 0.86, 0.92, 0.88, 0.8, 0.76, 0.84, 0.92,
+          0.96, 0.94,
+        ],
+      },
+    ],
+    flagOffset: [-0.04, 0.02],
+    baseHeight: 0.29,
+    peakHeight: 0.5,
     seed: 11,
-    ground: "#8cab72",
-    groundDark: "#67885d",
-    cliff: "#82715f",
-    path: "#d8c39f",
+    ground: "#79aa68",
+    groundDark: "#47754f",
+    cliff: "#806c55",
+    path: "#e0c48e",
+    shore: "#e9d09a",
   },
   {
-    id: "suncoast",
-    name: "Sun Coast",
-    center: sphericalDirection(73, 5),
-    angularRadius: 0.58,
-    baseHeight: 0.24,
-    peakHeight: 0.32,
+    id: "dominican-republic",
+    name: "Dominican Republic",
+    countryName: "Dominican Republic",
+    center: sphericalDirection(70, 18),
+    angularRadius: 0.34,
+    parts: [
+      {
+        east: 0,
+        north: 0,
+        scaleEast: 0.29,
+        scaleNorth: 0.12,
+        rotation: -0.05,
+        outline: [
+          0.98, 0.92, 0.88, 0.94, 1.04, 0.98, 0.9, 0.86, 0.9, 0.97,
+          1.02, 0.96, 0.9, 0.86, 0.92, 1.02, 1.06, 0.98, 0.9, 0.88,
+          0.94, 1, 1.04, 1,
+        ],
+      },
+    ],
+    flagOffset: [-0.02, 0],
+    baseHeight: 0.22,
+    peakHeight: 0.35,
     seed: 29,
-    ground: "#b7b96d",
-    groundDark: "#7c965f",
-    cliff: "#a07d5d",
-    path: "#e6c584",
+    ground: "#7fc46a",
+    groundDark: "#3d855c",
+    cliff: "#a97b50",
+    path: "#f1ce83",
+    shore: "#f0d78e",
   },
   {
-    id: "highlands",
-    name: "Anatolian Highlands",
-    center: sphericalDirection(157, 25),
-    angularRadius: 0.65,
-    baseHeight: 0.32,
+    id: "turkiye",
+    name: "Türkiye",
+    countryName: "Türkiye",
+    center: sphericalDirection(154, 27),
+    angularRadius: 0.5,
+    parts: [
+      {
+        east: 0,
+        north: 0,
+        scaleEast: 0.43,
+        scaleNorth: 0.18,
+        rotation: 0.04,
+        outline: [
+          0.96, 0.92, 0.94, 1.02, 0.98, 0.9, 0.86, 0.9, 0.96, 1.02,
+          1.06, 1, 0.92, 0.88, 0.84, 0.9, 1, 1.08, 1.02, 0.94,
+          0.9, 0.94, 1.02, 1,
+        ],
+      },
+    ],
+    flagOffset: [0.01, 0.01],
+    baseHeight: 0.31,
     peakHeight: 0.72,
     seed: 47,
-    ground: "#9ca775",
-    groundDark: "#6d775f",
-    cliff: "#8d7965",
-    path: "#d9bd8d",
+    ground: "#a4ad69",
+    groundDark: "#6c7550",
+    cliff: "#97735a",
+    path: "#dcb878",
+    shore: "#ddc28d",
   },
   {
-    id: "garden",
-    name: "Lantern Gardens",
-    center: sphericalDirection(-116, -8),
-    angularRadius: 0.6,
-    baseHeight: 0.28,
-    peakHeight: 0.5,
+    id: "south-korea",
+    name: "South Korea",
+    countryName: "South Korea",
+    center: sphericalDirection(-132, 4),
+    angularRadius: 0.36,
+    parts: [
+      {
+        east: 0,
+        north: 0,
+        scaleEast: 0.16,
+        scaleNorth: 0.29,
+        rotation: -0.18,
+        outline: [
+          0.9, 0.96, 1.04, 1, 0.92, 0.88, 0.9, 0.96, 1, 0.94,
+          0.86, 0.82, 0.88, 0.98, 1.06, 1.02, 0.94, 0.88, 0.84, 0.9,
+          1, 1.04, 0.98, 0.92,
+        ],
+      },
+    ],
+    flagOffset: [0, -0.01],
+    baseHeight: 0.3,
+    peakHeight: 0.56,
+    seed: 61,
+    ground: "#6ca46c",
+    groundDark: "#416c55",
+    cliff: "#746c60",
+    path: "#d8c59e",
+    shore: "#d8c79f",
+  },
+  {
+    id: "japan",
+    name: "Japan",
+    countryName: "Japan",
+    center: sphericalDirection(-93, -31),
+    angularRadius: 0.48,
+    parts: [
+      {
+        east: 0,
+        north: 0,
+        scaleEast: 0.14,
+        scaleNorth: 0.31,
+        rotation: -0.38,
+        outline: [
+          0.9, 0.96, 1.02, 0.98, 0.9, 0.86, 0.9, 1, 1.05, 0.98,
+          0.9, 0.84, 0.88, 0.96, 1.04, 1, 0.92, 0.86, 0.9, 0.98,
+          1.03, 0.98, 0.92, 0.88,
+        ],
+      },
+      {
+        east: 0.09,
+        north: 0.29,
+        scaleEast: 0.1,
+        scaleNorth: 0.1,
+        rotation: 0.1,
+        outline: [
+          0.94, 1.02, 0.96, 0.9, 0.94, 1.04, 1, 0.92, 0.88, 0.94,
+          1.03, 0.98, 0.9, 0.92, 1, 0.98,
+        ],
+        heightScale: 0.82,
+      },
+      {
+        east: -0.08,
+        north: -0.28,
+        scaleEast: 0.09,
+        scaleNorth: 0.12,
+        rotation: -0.22,
+        outline: [
+          0.96, 1.04, 0.96, 0.9, 0.94, 1.02, 0.98, 0.9, 0.92, 1,
+          1.04, 0.96, 0.9, 0.94, 1, 0.98,
+        ],
+        heightScale: 0.74,
+      },
+    ],
+    flagOffset: [0.01, -0.01],
+    baseHeight: 0.27,
+    peakHeight: 0.49,
     seed: 71,
-    ground: "#7faa72",
-    groundDark: "#557b65",
-    cliff: "#766f67",
-    path: "#cdb99a",
+    ground: "#73a86f",
+    groundDark: "#456f5b",
+    cliff: "#766b64",
+    path: "#d5b79d",
+    shore: "#e4d0ad",
   },
 ];
 
@@ -162,30 +302,85 @@ export const BIOME_BY_ID = new Map(
 );
 
 const PLACE_LAYOUT: Record<string, PlaceLayout> = {
-  "new-york": { biomeId: "harbor", east: -0.13, north: 0.09 },
-  "new-jersey": { biomeId: "harbor", east: 0.05, north: 0.13 },
-  "rhode-island": { biomeId: "harbor", east: 0.17, north: 0.02 },
-  chicago: { biomeId: "harbor", east: -0.04, north: -0.13 },
-  austin: { biomeId: "suncoast", east: -0.14, north: 0.1 },
-  "central-florida": { biomeId: "suncoast", east: 0.05, north: -0.08 },
-  "dominican-republic": {
-    biomeId: "suncoast",
-    east: 0.16,
-    north: 0.1,
+  "new-york": {
+    biomeId: "united-states",
+    east: 0.31,
+    north: 0.08,
   },
-  istanbul: { biomeId: "highlands", east: -0.17, north: 0.13 },
-  ankara: { biomeId: "highlands", east: 0.01, north: 0.08 },
-  izmir: { biomeId: "highlands", east: -0.13, north: -0.08 },
-  bodrum: { biomeId: "highlands", east: 0.08, north: -0.16 },
-  malatya: { biomeId: "highlands", east: 0.18, north: 0.02 },
-  seoul: { biomeId: "garden", east: -0.16, north: 0.08 },
-  tokyo: { biomeId: "garden", east: 0.02, north: 0.13 },
-  osaka: { biomeId: "garden", east: 0.15, north: -0.07 },
+  "new-jersey": {
+    biomeId: "united-states",
+    east: 0.27,
+    north: 0.015,
+  },
+  "rhode-island": {
+    biomeId: "united-states",
+    east: 0.38,
+    north: 0.105,
+  },
+  chicago: {
+    biomeId: "united-states",
+    east: -0.08,
+    north: 0.08,
+  },
+  austin: {
+    biomeId: "united-states",
+    east: -0.07,
+    north: -0.17,
+  },
+  "central-florida": {
+    biomeId: "united-states",
+    east: 0.28,
+    north: -0.16,
+  },
+  "dominican-republic": {
+    biomeId: "dominican-republic",
+    east: 0,
+    north: 0,
+  },
+  istanbul: {
+    biomeId: "turkiye",
+    east: -0.27,
+    north: 0.075,
+  },
+  ankara: {
+    biomeId: "turkiye",
+    east: -0.01,
+    north: 0.035,
+  },
+  izmir: {
+    biomeId: "turkiye",
+    east: -0.26,
+    north: -0.055,
+  },
+  bodrum: {
+    biomeId: "turkiye",
+    east: -0.13,
+    north: -0.12,
+  },
+  malatya: {
+    biomeId: "turkiye",
+    east: 0.25,
+    north: 0.015,
+  },
+  seoul: { biomeId: "south-korea", east: 0, north: 0.02 },
+  tokyo: { biomeId: "japan", east: 0.035, north: -0.105 },
+  osaka: { biomeId: "japan", east: -0.045, north: -0.015 },
 };
 
 export const PLACE_DIRECTIONS = new Map(
   places.map((place) => {
     const layout = PLACE_LAYOUT[place.id];
+
+    if (!layout) {
+      throw new Error(`Missing island layout for ${place.id}`);
+    }
+
+    if (layout.biomeId !== place.countryId) {
+      throw new Error(
+        `${place.name} must stay on the ${place.countryName} island`,
+      );
+    }
+
     const biome = BIOME_BY_ID.get(layout.biomeId);
 
     if (!biome) {
@@ -201,52 +396,16 @@ export const PLACE_DIRECTIONS = new Map(
 
 export const WATER_FEATURES: WaterFeature[] = [
   {
-    id: "harbor-inlet",
-    biomeId: "harbor",
+    id: "great-lake",
+    biomeId: "united-states",
     center: directionFromOffset(
-      BIOME_BY_ID.get("harbor")!.center,
-      0.2,
-      -0.17,
+      BIOME_BY_ID.get("united-states")!.center,
+      0.02,
+      0.105,
     ),
-    angularRadius: 0.135,
-    color: "#70b5bd",
-    depth: 0.32,
-  },
-  {
-    id: "sun-lagoon",
-    biomeId: "suncoast",
-    center: directionFromOffset(
-      BIOME_BY_ID.get("suncoast")!.center,
-      0.12,
-      0.01,
-    ),
-    angularRadius: 0.165,
-    color: "#59c3c0",
-    depth: 0.38,
-  },
-  {
-    id: "highland-spring",
-    biomeId: "highlands",
-    center: directionFromOffset(
-      BIOME_BY_ID.get("highlands")!.center,
-      -0.02,
-      -0.16,
-    ),
-    angularRadius: 0.105,
-    color: "#73aeb5",
-    depth: 0.26,
-  },
-  {
-    id: "garden-pond",
-    biomeId: "garden",
-    center: directionFromOffset(
-      BIOME_BY_ID.get("garden")!.center,
-      -0.04,
-      -0.05,
-    ),
-    angularRadius: 0.125,
-    color: "#65aaa5",
-    depth: 0.3,
+    angularRadius: 0.08,
+    color: "#66aeb7",
+    depth: 0.24,
   },
 ];
 
@@ -268,6 +427,107 @@ function angularDistance(a: Vector3, b: Vector3) {
       1,
     ),
   );
+}
+
+function wrapAngle(angle: number) {
+  const fullTurn = Math.PI * 2;
+  return ((angle % fullTurn) + fullTurn) % fullTurn;
+}
+
+export function islandOutlineRadius(
+  part: IslandPart,
+  angle: number,
+) {
+  const wrapped = wrapAngle(angle);
+  const scaledIndex =
+    (wrapped / (Math.PI * 2)) * part.outline.length;
+  const currentIndex = Math.floor(scaledIndex) % part.outline.length;
+  const nextIndex = (currentIndex + 1) % part.outline.length;
+  const blend = scaledIndex - Math.floor(scaledIndex);
+
+  return MathUtils.lerp(
+    part.outline[currentIndex],
+    part.outline[nextIndex],
+    blend,
+  );
+}
+
+export function islandPartDirection(
+  biome: BiomeDefinition,
+  part: IslandPart,
+  radialProgress: number,
+  angle: number,
+) {
+  const outlineRadius = islandOutlineRadius(part, angle);
+  const localEast =
+    Math.cos(angle) *
+    part.scaleEast *
+    outlineRadius *
+    radialProgress;
+  const localNorth =
+    Math.sin(angle) *
+    part.scaleNorth *
+    outlineRadius *
+    radialProgress;
+  const cosine = Math.cos(part.rotation);
+  const sine = Math.sin(part.rotation);
+  const east = localEast * cosine - localNorth * sine;
+  const north = localEast * sine + localNorth * cosine;
+
+  return directionFromOffset(
+    biome.center,
+    part.east + east,
+    part.north + north,
+  );
+}
+
+function tangentOffsetFromCenter(
+  center: Vector3,
+  direction: Vector3,
+) {
+  const normalizedCenter = center.clone().normalize();
+  const normalizedDirection = direction.clone().normalize();
+  const cosine = MathUtils.clamp(
+    normalizedCenter.dot(normalizedDirection),
+    -1,
+    1,
+  );
+  const distance = Math.acos(cosine);
+
+  if (distance < 0.000001) {
+    return { east: 0, north: 0 };
+  }
+
+  const { east, north } = tangentBasis(normalizedCenter);
+  const tangent = normalizedDirection
+    .addScaledVector(normalizedCenter, -cosine)
+    .normalize();
+
+  return {
+    east: tangent.dot(east) * distance,
+    north: tangent.dot(north) * distance,
+  };
+}
+
+function islandPartProgress(
+  direction: Vector3,
+  biome: BiomeDefinition,
+  part: IslandPart,
+) {
+  const offset = tangentOffsetFromCenter(biome.center, direction);
+  const east = offset.east - part.east;
+  const north = offset.north - part.north;
+  const cosine = Math.cos(part.rotation);
+  const sine = Math.sin(part.rotation);
+  const localEast = east * cosine + north * sine;
+  const localNorth = -east * sine + north * cosine;
+  const normalizedEast = localEast / part.scaleEast;
+  const normalizedNorth = localNorth / part.scaleNorth;
+  const angle = Math.atan2(normalizedNorth, normalizedEast);
+  const radius = Math.hypot(normalizedEast, normalizedNorth);
+  const boundary = islandOutlineRadius(part, angle);
+
+  return radius / Math.max(boundary, 0.0001);
 }
 
 function terrainNoise(direction: Vector3, seed: number) {
@@ -294,25 +554,10 @@ export function biomeHeightAt(
   direction: Vector3,
   biome: BiomeDefinition,
 ) {
-  const distance = angularDistance(direction, biome.center);
-
-  if (distance >= biome.angularRadius) {
-    return 0;
-  }
-
-  const edge = 1 - smoothstep(
-    biome.angularRadius * 0.76,
-    biome.angularRadius,
-    distance,
-  );
-  const centerRise = Math.pow(
-    Math.max(0, 1 - distance / biome.angularRadius),
-    biome.id === "highlands" ? 1.05 : 1.8,
-  );
   const noise = terrainNoise(direction, biome.seed);
   const rolling = Math.pow(Math.max(0, noise - 0.26), 1.45);
   const ridge =
-    biome.id === "highlands"
+    biome.id === "turkiye" || biome.id === "south-korea"
       ? Math.pow(
           Math.max(
             0,
@@ -326,12 +571,31 @@ export function biomeHeightAt(
         ) * 0.28
       : 0;
 
-  return (
-    edge *
-    (biome.baseHeight +
-      biome.peakHeight *
-        (rolling * 0.62 + centerRise * 0.38 + ridge))
-  );
+  let height = 0;
+
+  for (const part of biome.parts) {
+    const progress = islandPartProgress(direction, biome, part);
+
+    if (progress >= 1) {
+      continue;
+    }
+
+    const edge = 1 - smoothstep(0.78, 1, progress);
+    const centerRise = Math.pow(
+      Math.max(0, 1 - progress),
+      biome.id === "turkiye" ? 1.05 : 1.72,
+    );
+    const partHeight =
+      edge *
+      (biome.baseHeight +
+        biome.peakHeight *
+          (rolling * 0.62 + centerRise * 0.38 + ridge)) *
+      (part.heightScale ?? 1);
+
+    height = Math.max(height, partHeight);
+  }
+
+  return height;
 }
 
 function baseRockHeight(direction: Vector3) {
@@ -433,17 +697,14 @@ export function traversalSurfaceRadiusAt(direction: Vector3) {
 
 export function biomeForDirection(direction: Vector3) {
   let nearest: BiomeDefinition | null = null;
-  let nearestDistance = Number.POSITIVE_INFINITY;
+  let greatestHeight = 0;
 
   for (const biome of BIOMES) {
-    const distance = angularDistance(direction, biome.center);
+    const height = biomeHeightAt(direction, biome);
 
-    if (
-      distance < biome.angularRadius &&
-      distance < nearestDistance
-    ) {
+    if (height > greatestHeight) {
       nearest = biome;
-      nearestDistance = distance;
+      greatestHeight = height;
     }
   }
 

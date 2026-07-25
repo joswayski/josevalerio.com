@@ -13,6 +13,7 @@ import {
   IcosahedronGeometry,
   MathUtils,
   Quaternion,
+  Shape,
   Vector2,
   Vector3,
   type Group,
@@ -25,8 +26,10 @@ import {
   PLACE_DIRECTIONS,
   PLANET_RADIUS,
   WATER_FEATURES,
+  biomeForDirection,
   biomeHeightAt,
   directionFromOffset,
+  islandPartDirection,
   isOceanDirection,
   isWaterDirection,
   surfaceRadiusAt,
@@ -56,7 +59,13 @@ type VegetationDefinition = {
   scale: number;
   rotation: number;
   phase: number;
-  style: "blossom" | "broadleaf" | "conifer" | "palm";
+  style:
+    | "blossom"
+    | "broadleaf"
+    | "conifer"
+    | "cypress"
+    | "palm"
+    | "pine";
 };
 
 type LoosePropState = {
@@ -73,6 +82,25 @@ const UP = new Vector3(0, 1, 0);
 const TERRAIN_SEGMENTS = 84;
 const TERRAIN_RINGS = 28;
 const VEGETATION_INTERACTION_ANGLE = 0.105;
+const FLAG_STAR = (() => {
+  const shape = new Shape();
+
+  for (let point = 0; point < 10; point += 1) {
+    const angle = Math.PI / 2 + (point / 10) * Math.PI * 2;
+    const radius = point % 2 === 0 ? 0.033 : 0.014;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+
+    if (point === 0) {
+      shape.moveTo(x, y);
+    } else {
+      shape.lineTo(x, y);
+    }
+  }
+
+  shape.closePath();
+  return shape;
+})();
 
 function createSeededRandom(seed: number) {
   let state = seed >>> 0;
@@ -89,18 +117,6 @@ function angularDistance(a: Vector3, b: Vector3) {
   );
 }
 
-function directionForPolarOffset(
-  center: Vector3,
-  distance: number,
-  angle: number,
-) {
-  return directionFromOffset(
-    center,
-    Math.cos(angle) * distance,
-    Math.sin(angle) * distance,
-  );
-}
-
 function createTerrainChunkGeometry(biome: BiomeDefinition) {
   const positions: number[] = [];
   const colors: number[] = [];
@@ -110,64 +126,80 @@ function createTerrainChunkGeometry(biome: BiomeDefinition) {
   const highlight = new Color("#d2d38d");
   const random = createSeededRandom(biome.seed);
 
-  for (let ring = 0; ring <= TERRAIN_RINGS; ring += 1) {
-    const ringProgress = ring / TERRAIN_RINGS;
-    const angularRadius = biome.angularRadius * ringProgress;
+  biome.parts.forEach((part, partIndex) => {
+    const vertexOffset = positions.length / 3;
 
-    for (let segment = 0; segment < TERRAIN_SEGMENTS; segment += 1) {
-      const angle =
-        (segment / TERRAIN_SEGMENTS) * Math.PI * 2 +
-        (ring % 2) * 0.038;
-      const edgeJitter =
-        ring === TERRAIN_RINGS
-          ? (random() - 0.5) * biome.angularRadius * 0.035
-          : 0;
-      const direction = directionForPolarOffset(
-        biome.center,
-        Math.max(0, angularRadius + edgeJitter),
-        angle,
-      );
-      const height = biomeHeightAt(direction, biome);
-      const position = direction
-        .clone()
-        .multiplyScalar(surfaceRadiusAt(direction) + 0.006);
-      const heightMix = MathUtils.clamp(
-        height / (biome.baseHeight + biome.peakHeight * 0.7),
-        0,
-        1,
-      );
-      const color = groundDark
-        .clone()
-        .lerp(ground, 0.5 + heightMix * 0.42)
-        .lerp(
-          highlight,
-          biome.id === "highlands"
-            ? Math.max(0, heightMix - 0.7) * 0.55
-            : Math.max(0, heightMix - 0.82) * 0.25,
-        )
-        .multiplyScalar(0.92 + random() * 0.12);
+    for (let ring = 0; ring <= TERRAIN_RINGS; ring += 1) {
+      const ringProgress = ring / TERRAIN_RINGS;
 
-      positions.push(position.x, position.y, position.z);
-      colors.push(color.r, color.g, color.b);
-    }
-  }
+      for (let segment = 0; segment < TERRAIN_SEGMENTS; segment += 1) {
+        const angle =
+          (segment / TERRAIN_SEGMENTS) * Math.PI * 2 +
+          (ring % 2) * 0.026;
+        const edgeJitter =
+          ring === TERRAIN_RINGS ? (random() - 0.5) * 0.018 : 0;
+        const direction = islandPartDirection(
+          biome,
+          part,
+          Math.max(0, ringProgress + edgeJitter),
+          angle,
+        );
+        const height = biomeHeightAt(direction, biome);
+        const position = direction
+          .clone()
+          .multiplyScalar(surfaceRadiusAt(direction) + 0.006);
+        const heightMix = MathUtils.clamp(
+          height / (biome.baseHeight + biome.peakHeight * 0.7),
+          0,
+          1,
+        );
+        const color = groundDark
+          .clone()
+          .lerp(ground, 0.48 + heightMix * 0.46)
+          .lerp(
+            highlight,
+            biome.id === "turkiye" || biome.id === "south-korea"
+              ? Math.max(0, heightMix - 0.64) * 0.62
+              : Math.max(0, heightMix - 0.8) * 0.28,
+          )
+          .multiplyScalar(
+            0.9 + random() * 0.14 + partIndex * 0.012,
+          );
 
-  for (let ring = 0; ring < TERRAIN_RINGS; ring += 1) {
-    for (let segment = 0; segment < TERRAIN_SEGMENTS; segment += 1) {
-      const nextSegment = (segment + 1) % TERRAIN_SEGMENTS;
-      const current = ring * TERRAIN_SEGMENTS + segment;
-      const next = ring * TERRAIN_SEGMENTS + nextSegment;
-      const outer = (ring + 1) * TERRAIN_SEGMENTS + segment;
-      const outerNext =
-        (ring + 1) * TERRAIN_SEGMENTS + nextSegment;
-
-      if ((ring + segment) % 2 === 0) {
-        indices.push(current, outer, next, next, outer, outerNext);
-      } else {
-        indices.push(current, outer, outerNext, current, outerNext, next);
+        positions.push(position.x, position.y, position.z);
+        colors.push(color.r, color.g, color.b);
       }
     }
-  }
+
+    for (let ring = 0; ring < TERRAIN_RINGS; ring += 1) {
+      for (let segment = 0; segment < TERRAIN_SEGMENTS; segment += 1) {
+        const nextSegment = (segment + 1) % TERRAIN_SEGMENTS;
+        const current =
+          vertexOffset + ring * TERRAIN_SEGMENTS + segment;
+        const next =
+          vertexOffset + ring * TERRAIN_SEGMENTS + nextSegment;
+        const outer =
+          vertexOffset + (ring + 1) * TERRAIN_SEGMENTS + segment;
+        const outerNext =
+          vertexOffset +
+          (ring + 1) * TERRAIN_SEGMENTS +
+          nextSegment;
+
+        if ((ring + segment + partIndex) % 2 === 0) {
+          indices.push(current, outer, next, next, outer, outerNext);
+        } else {
+          indices.push(
+            current,
+            outer,
+            outerNext,
+            current,
+            outerNext,
+            next,
+          );
+        }
+      }
+    }
+  });
 
   const geometry = new BufferGeometry();
   geometry.setAttribute(
@@ -191,47 +223,47 @@ function createEscarpmentGeometry(biome: BiomeDefinition) {
   const indices: number[] = [];
   const cliff = new Color(biome.cliff);
   const cliffDark = cliff.clone().multiplyScalar(0.62);
-  const ringRadius = biome.angularRadius * 0.81;
+  biome.parts.forEach((part, partIndex) => {
+    const vertexOffset = positions.length / 3;
 
-  for (let segment = 0; segment < TERRAIN_SEGMENTS; segment += 1) {
-    const angle = (segment / TERRAIN_SEGMENTS) * Math.PI * 2;
-    const direction = directionForPolarOffset(
-      biome.center,
-      ringRadius +
-        Math.sin(segment * 2.17 + biome.seed) *
-          biome.angularRadius *
-          0.012,
-      angle,
-    );
-    const topRadius =
-      PLANET_RADIUS + biomeHeightAt(direction, biome) + 0.005;
-    const bottomRadius = PLANET_RADIUS + 0.012;
-    const top = direction.clone().multiplyScalar(topRadius);
-    const bottom = direction.clone().multiplyScalar(bottomRadius);
-    const shade = 0.78 + (segment % 5) * 0.035;
-    const topColor = cliff.clone().multiplyScalar(shade);
-    const bottomColor = cliffDark.clone().multiplyScalar(shade);
+    for (let segment = 0; segment < TERRAIN_SEGMENTS; segment += 1) {
+      const angle = (segment / TERRAIN_SEGMENTS) * Math.PI * 2;
+      const direction = islandPartDirection(
+        biome,
+        part,
+        0.86 +
+          Math.sin(segment * 2.17 + biome.seed + partIndex) * 0.008,
+        angle,
+      );
+      const topRadius = surfaceRadiusAt(direction) + 0.005;
+      const bottomRadius = OCEAN_SURFACE_RADIUS - 0.045;
+      const top = direction.clone().multiplyScalar(topRadius);
+      const bottom = direction.clone().multiplyScalar(bottomRadius);
+      const shade = 0.75 + (segment % 6) * 0.035;
+      const topColor = cliff.clone().multiplyScalar(shade);
+      const bottomColor = cliffDark.clone().multiplyScalar(shade);
 
-    positions.push(top.x, top.y, top.z, bottom.x, bottom.y, bottom.z);
-    colors.push(
-      topColor.r,
-      topColor.g,
-      topColor.b,
-      bottomColor.r,
-      bottomColor.g,
-      bottomColor.b,
-    );
-  }
+      positions.push(top.x, top.y, top.z, bottom.x, bottom.y, bottom.z);
+      colors.push(
+        topColor.r,
+        topColor.g,
+        topColor.b,
+        bottomColor.r,
+        bottomColor.g,
+        bottomColor.b,
+      );
+    }
 
-  for (let segment = 0; segment < TERRAIN_SEGMENTS; segment += 1) {
-    const next = (segment + 1) % TERRAIN_SEGMENTS;
-    const top = segment * 2;
-    const bottom = top + 1;
-    const nextTop = next * 2;
-    const nextBottom = nextTop + 1;
+    for (let segment = 0; segment < TERRAIN_SEGMENTS; segment += 1) {
+      const next = (segment + 1) % TERRAIN_SEGMENTS;
+      const top = vertexOffset + segment * 2;
+      const bottom = top + 1;
+      const nextTop = vertexOffset + next * 2;
+      const nextBottom = nextTop + 1;
 
-    indices.push(top, bottom, nextTop, nextTop, bottom, nextBottom);
-  }
+      indices.push(top, bottom, nextTop, nextTop, bottom, nextBottom);
+    }
+  });
 
   const geometry = new BufferGeometry();
   geometry.setAttribute(
@@ -275,11 +307,8 @@ function TerrainChunk({ biome }: { biome: BiomeDefinition }) {
         receiveShadow
         renderOrder={2}
       >
-        <meshStandardMaterial
+        <meshToonMaterial
           vertexColors
-          roughness={0.95}
-          metalness={0}
-          flatShading
         />
       </mesh>
       <mesh
@@ -288,11 +317,8 @@ function TerrainChunk({ biome }: { biome: BiomeDefinition }) {
         receiveShadow
         renderOrder={1}
       >
-        <meshStandardMaterial
+        <meshToonMaterial
           vertexColors
-          roughness={1}
-          metalness={0}
-          flatShading
           side={DoubleSide}
         />
       </mesh>
@@ -382,9 +408,8 @@ function BiomePaths({ biome }: { biome: BiomeDefinition }) {
           receiveShadow
           renderOrder={3}
         >
-          <meshStandardMaterial
+          <meshToonMaterial
             color={biome.path}
-            roughness={1}
             polygonOffset
             polygonOffsetFactor={-2}
           />
@@ -614,64 +639,140 @@ function OceanSurface({
 function createCoastlineFoamGeometry(biome: BiomeDefinition) {
   const positions: number[] = [];
   const indices: number[] = [];
-  const segments = 120;
+  const segments = 112;
   const oceanHeight = OCEAN_SURFACE_RADIUS - PLANET_RADIUS;
 
-  for (let segment = 0; segment < segments; segment += 1) {
-    const angle = (segment / segments) * Math.PI * 2;
-    let shoreDistance = biome.angularRadius * 0.66;
+  biome.parts.forEach((part, partIndex) => {
+    const vertexOffset = positions.length / 3;
 
-    for (let sample = 0; sample <= 36; sample += 1) {
-      const distance =
-        biome.angularRadius * (0.66 + (sample / 36) * 0.34);
-      const direction = directionForPolarOffset(
-        biome.center,
-        distance,
-        angle,
-      );
+    for (let segment = 0; segment < segments; segment += 1) {
+      const angle = (segment / segments) * Math.PI * 2;
+      let shoreProgress = 0.68;
 
-      if (biomeHeightAt(direction, biome) > oceanHeight + 0.008) {
-        shoreDistance = distance;
-      } else {
-        break;
+      for (let sample = 0; sample <= 40; sample += 1) {
+        const progress = 0.68 + (sample / 40) * 0.32;
+        const direction = islandPartDirection(
+          biome,
+          part,
+          progress,
+          angle,
+        );
+
+        if (biomeHeightAt(direction, biome) > oceanHeight + 0.006) {
+          shoreProgress = progress;
+        } else {
+          break;
+        }
+      }
+
+      const ripple =
+        Math.sin(segment * 1.91 + biome.seed + partIndex) * 0.004;
+
+      for (const offset of [-0.008, 0.008]) {
+        const direction = islandPartDirection(
+          biome,
+          part,
+          shoreProgress + ripple + offset,
+          angle,
+        );
+        const position = direction
+          .clone()
+          .multiplyScalar(OCEAN_SURFACE_RADIUS + 0.014);
+
+        positions.push(position.x, position.y, position.z);
       }
     }
 
-    const ripple =
-      Math.sin(segment * 1.91 + biome.seed) *
-      biome.angularRadius *
-      0.004;
+    for (let segment = 0; segment < segments; segment += 1) {
+      const next = (segment + 1) % segments;
+      const inner = vertexOffset + segment * 2;
+      const outer = inner + 1;
+      const nextInner = vertexOffset + next * 2;
+      const nextOuter = nextInner + 1;
 
-    for (const offset of [-0.006, 0.006]) {
-      const direction = directionForPolarOffset(
-        biome.center,
-        shoreDistance + ripple + offset,
-        angle,
+      indices.push(
+        inner,
+        outer,
+        nextInner,
+        nextInner,
+        outer,
+        nextOuter,
       );
-      const position = direction
-        .clone()
-        .multiplyScalar(OCEAN_SURFACE_RADIUS + 0.014);
-
-      positions.push(position.x, position.y, position.z);
     }
-  }
+  });
 
-  for (let segment = 0; segment < segments; segment += 1) {
-    const next = (segment + 1) % segments;
-    const inner = segment * 2;
-    const outer = inner + 1;
-    const nextInner = next * 2;
-    const nextOuter = nextInner + 1;
+  const geometry = new BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new Float32BufferAttribute(positions, 3),
+  );
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
 
-    indices.push(
-      inner,
-      outer,
-      nextInner,
-      nextInner,
-      outer,
-      nextOuter,
-    );
-  }
+  return geometry;
+}
+
+function createBeachGeometry(biome: BiomeDefinition) {
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const segments = 112;
+  const oceanHeight = OCEAN_SURFACE_RADIUS - PLANET_RADIUS;
+
+  biome.parts.forEach((part) => {
+    const vertexOffset = positions.length / 3;
+
+    for (let segment = 0; segment < segments; segment += 1) {
+      const angle = (segment / segments) * Math.PI * 2;
+      let shoreProgress = 0.68;
+
+      for (let sample = 0; sample <= 40; sample += 1) {
+        const progress = 0.68 + (sample / 40) * 0.32;
+        const direction = islandPartDirection(
+          biome,
+          part,
+          progress,
+          angle,
+        );
+
+        if (biomeHeightAt(direction, biome) > oceanHeight + 0.008) {
+          shoreProgress = progress;
+        } else {
+          break;
+        }
+      }
+
+      for (const offset of [-0.055, -0.008]) {
+        const direction = islandPartDirection(
+          biome,
+          part,
+          Math.max(0.55, shoreProgress + offset),
+          angle,
+        );
+        const position = direction
+          .clone()
+          .multiplyScalar(surfaceRadiusAt(direction) + 0.011);
+
+        positions.push(position.x, position.y, position.z);
+      }
+    }
+
+    for (let segment = 0; segment < segments; segment += 1) {
+      const next = (segment + 1) % segments;
+      const inner = vertexOffset + segment * 2;
+      const outer = inner + 1;
+      const nextInner = vertexOffset + next * 2;
+      const nextOuter = nextInner + 1;
+
+      indices.push(
+        inner,
+        outer,
+        nextInner,
+        nextInner,
+        outer,
+        nextOuter,
+      );
+    }
+  });
 
   const geometry = new BufferGeometry();
   geometry.setAttribute(
@@ -685,23 +786,47 @@ function createCoastlineFoamGeometry(biome: BiomeDefinition) {
 }
 
 function CoastlineFoam({ biome }: { biome: BiomeDefinition }) {
-  const geometry = useMemo(
+  const foamGeometry = useMemo(
     () => createCoastlineFoamGeometry(biome),
     [biome],
   );
+  const beachGeometry = useMemo(
+    () => createBeachGeometry(biome),
+    [biome],
+  );
 
-  useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(
+    () => () => {
+      foamGeometry.dispose();
+      beachGeometry.dispose();
+    },
+    [beachGeometry, foamGeometry],
+  );
 
   return (
-    <mesh geometry={geometry} renderOrder={4}>
-      <meshBasicMaterial
-        color="#effaf0"
-        transparent
-        opacity={0.58}
-        depthWrite={false}
-        side={DoubleSide}
-      />
-    </mesh>
+    <group>
+      <mesh
+        geometry={beachGeometry}
+        receiveShadow
+        renderOrder={3}
+      >
+        <meshToonMaterial
+          color={biome.shore}
+          side={DoubleSide}
+          polygonOffset
+          polygonOffsetFactor={-1}
+        />
+      </mesh>
+      <mesh geometry={foamGeometry} renderOrder={4}>
+        <meshBasicMaterial
+          color="#effaf0"
+          transparent
+          opacity={0.68}
+          depthWrite={false}
+          side={DoubleSide}
+        />
+      </mesh>
+    </group>
   );
 }
 
@@ -971,11 +1096,13 @@ function vegetationStyleForBiome(
   biomeId: BiomeKind,
 ): VegetationDefinition["style"] {
   switch (biomeId) {
-    case "suncoast":
+    case "dominican-republic":
       return "palm";
-    case "highlands":
-      return "conifer";
-    case "garden":
+    case "turkiye":
+      return "cypress";
+    case "south-korea":
+      return "pine";
+    case "japan":
       return "blossom";
     default:
       return "broadleaf";
@@ -986,27 +1113,36 @@ function createVegetation() {
   return BIOMES.flatMap((biome) => {
     const random = createSeededRandom(biome.seed * 101);
     const plants: VegetationDefinition[] = [];
-    const count = biome.id === "garden" ? 26 : 22;
+    const count =
+      biome.id === "united-states"
+        ? 38
+        : biome.id === "turkiye"
+          ? 28
+          : biome.id === "japan"
+            ? 30
+            : biome.id === "south-korea"
+              ? 24
+              : 20;
 
     for (let index = 0; index < count; index += 1) {
       let direction = biome.center;
 
-      for (let attempt = 0; attempt < 8; attempt += 1) {
-        const distance =
-          (0.18 + Math.pow(random(), 0.72) * 0.68) *
-          biome.angularRadius;
-        const angle = random() * Math.PI * 2;
-        const candidate = directionForPolarOffset(
+      for (let attempt = 0; attempt < 18; attempt += 1) {
+        const candidate = directionFromOffset(
           biome.center,
-          distance,
-          angle,
+          (random() - 0.5) * biome.angularRadius * 1.8,
+          (random() - 0.5) * biome.angularRadius * 1.8,
         );
         const farFromPlaces = Array.from(PLACE_DIRECTIONS.values()).every(
           (placeDirection) =>
             angularDistance(candidate, placeDirection) > 0.075,
         );
 
-        if (!isWaterDirection(candidate) && farFromPlaces) {
+        if (
+          biomeForDirection(candidate)?.id === biome.id &&
+          !isWaterDirection(candidate) &&
+          farFromPlaces
+        ) {
           direction = candidate;
           break;
         }
@@ -1039,74 +1175,140 @@ function TreeModel({
   if (style === "palm") {
     return (
       <>
-        <mesh position={[0, 0.17, 0]} castShadow>
-          <cylinderGeometry args={[0.027, 0.042, 0.34, 6]} />
-          <meshStandardMaterial color="#8a6344" flatShading />
+        <mesh
+          position={[0.015, 0.2, 0]}
+          rotation={[0, 0, -0.08]}
+          castShadow
+        >
+          <cylinderGeometry args={[0.025, 0.048, 0.4, 8]} />
+          <meshToonMaterial color="#93633e" />
         </mesh>
-        {[0, 1, 2, 3, 4].map((leaf) => (
+        {[0, 1, 2, 3, 4, 5, 6].map((leaf) => (
           <mesh
             key={leaf}
-            position={[0, 0.36, 0]}
+            position={[0.03, 0.405, 0]}
             rotation={[
-              0.15,
-              (leaf / 5) * Math.PI * 2,
-              Math.PI / 2.9,
+              0.08 + (leaf % 2) * 0.12,
+              (leaf / 7) * Math.PI * 2,
+              Math.PI / 2.75,
             ]}
             castShadow
           >
-            <coneGeometry args={[0.065, 0.25, 4]} />
-            <meshStandardMaterial color="#43856b" flatShading />
+            <coneGeometry args={[0.068, 0.3, 5]} />
+            <meshToonMaterial
+              color={leaf % 2 === 0 ? "#3f8c64" : "#58a76e"}
+            />
+          </mesh>
+        ))}
+        {[0, 1, 2].map((coconut) => (
+          <mesh
+            key={`coconut-${coconut}`}
+            position={[
+              -0.015 + coconut * 0.025,
+              0.385 - (coconut % 2) * 0.018,
+              0.015,
+            ]}
+            castShadow
+          >
+            <dodecahedronGeometry args={[0.026, 0]} />
+            <meshToonMaterial color="#6e4932" />
           </mesh>
         ))}
       </>
     );
   }
 
-  if (style === "conifer") {
+  if (style === "conifer" || style === "pine") {
+    const pine = style === "pine";
+
     return (
       <>
-        <mesh position={[0, 0.13, 0]} castShadow>
-          <cylinderGeometry args={[0.024, 0.04, 0.26, 6]} />
-          <meshStandardMaterial color="#74543f" flatShading />
+        <mesh position={[0, 0.16, 0]} castShadow>
+          <cylinderGeometry args={[0.023, 0.044, 0.32, 7]} />
+          <meshToonMaterial color="#76513a" />
         </mesh>
-        <mesh position={[0, 0.28, 0]} castShadow>
-          <coneGeometry args={[0.14, 0.4, 7]} />
-          <meshStandardMaterial color="#3e6f5e" flatShading />
+        {[
+          [0.23, 0.18, 0.24],
+          [0.34, 0.15, 0.23],
+          [0.44, 0.115, 0.2],
+        ].map(([height, radius, length], tier) => (
+          <mesh key={tier} position={[0, height, 0]} castShadow>
+            <coneGeometry args={[radius, length, pine ? 9 : 7]} />
+            <meshToonMaterial
+              color={
+                pine
+                  ? tier === 1
+                    ? "#39725a"
+                    : "#4c8263"
+                  : tier === 1
+                    ? "#416e59"
+                    : "#537c63"
+              }
+            />
+          </mesh>
+        ))}
+      </>
+    );
+  }
+
+  if (style === "cypress") {
+    return (
+      <>
+        <mesh position={[0, 0.17, 0]} castShadow>
+          <cylinderGeometry args={[0.018, 0.035, 0.34, 7]} />
+          <meshToonMaterial color="#70513b" />
         </mesh>
-        <mesh position={[0, 0.43, 0]} castShadow>
-          <coneGeometry args={[0.105, 0.3, 7]} />
-          <meshStandardMaterial color="#527d68" flatShading />
+        <mesh position={[0, 0.32, 0]} scale={[0.7, 1.55, 0.7]} castShadow>
+          <dodecahedronGeometry args={[0.12, 1]} />
+          <meshToonMaterial color="#3d684f" />
+        </mesh>
+        <mesh position={[0.01, 0.47, 0]} scale={[0.48, 1.25, 0.48]} castShadow>
+          <dodecahedronGeometry args={[0.1, 1]} />
+          <meshToonMaterial color="#52785a" />
         </mesh>
       </>
     );
   }
 
   const blossom = style === "blossom";
+  const crownColors = blossom
+    ? ["#e795a7", "#f0afb7", "#f6c5c4", "#dc829d"]
+    : ["#4f8a5c", "#639c64", "#78aa69", "#5a9460"];
+  const crownPositions: [number, number, number, number][] = [
+    [-0.055, 0.34, 0.01, 0.12],
+    [0.065, 0.355, -0.025, 0.135],
+    [0.005, 0.43, 0.015, 0.13],
+    [0.105, 0.41, 0.035, 0.095],
+  ];
 
   return (
     <>
-      <mesh position={[0, 0.14, 0]} castShadow>
-        <cylinderGeometry args={[0.025, 0.044, 0.28, 6]} />
-        <meshStandardMaterial color="#785644" flatShading />
+      <mesh position={[0, 0.17, 0]} castShadow>
+        <cylinderGeometry args={[0.025, 0.047, 0.34, 8]} />
+        <meshToonMaterial color="#78513d" />
       </mesh>
-      <mesh position={[0, 0.34, 0]} scale={[1.15, 0.82, 1]} castShadow>
-        <dodecahedronGeometry args={[0.15, 0]} />
-        <meshStandardMaterial
-          color={blossom ? "#e9a7ad" : "#5d966b"}
-          flatShading
-        />
-      </mesh>
-      <mesh
-        position={[0.09, 0.38, -0.03]}
-        scale={[0.75, 0.65, 0.72]}
-        castShadow
-      >
-        <dodecahedronGeometry args={[0.12, 0]} />
-        <meshStandardMaterial
-          color={blossom ? "#f1c2bd" : "#78a66c"}
-          flatShading
-        />
-      </mesh>
+      {[-1, 1].map((side) => (
+        <mesh
+          key={side}
+          position={[side * 0.045, 0.27, 0]}
+          rotation={[0, 0, side * -0.62]}
+          castShadow
+        >
+          <cylinderGeometry args={[0.012, 0.016, 0.16, 6]} />
+          <meshToonMaterial color="#78513d" />
+        </mesh>
+      ))}
+      {crownPositions.map(([x, y, z, radius], index) => (
+        <mesh
+          key={index}
+          position={[x, y, z]}
+          scale={[1.12, 0.86, 1]}
+          castShadow
+        >
+          <dodecahedronGeometry args={[radius, 1]} />
+          <meshToonMaterial color={crownColors[index]} />
+        </mesh>
+      ))}
     </>
   );
 }
@@ -1201,12 +1403,24 @@ function createLooseProps() {
   BIOMES.forEach((biome) => {
     const random = createSeededRandom(biome.seed * 307);
 
-    for (let index = 0; index < 5; index += 1) {
-      const direction = directionForPolarOffset(
-        biome.center,
-        biome.angularRadius * (0.22 + random() * 0.55),
-        random() * Math.PI * 2,
-      );
+    for (let index = 0; index < 6; index += 1) {
+      let direction = biome.center;
+
+      for (let attempt = 0; attempt < 16; attempt += 1) {
+        const candidate = directionFromOffset(
+          biome.center,
+          (random() - 0.5) * biome.angularRadius * 1.65,
+          (random() - 0.5) * biome.angularRadius * 1.65,
+        );
+
+        if (
+          biomeForDirection(candidate)?.id === biome.id &&
+          !isWaterDirection(candidate)
+        ) {
+          direction = candidate;
+          break;
+        }
+      }
 
       if (isWaterDirection(direction)) {
         continue;
@@ -1219,10 +1433,12 @@ function createLooseProps() {
         orientation: new Quaternion().setFromUnitVectors(UP, direction),
         scale: 0.1 + random() * 0.11,
         color:
-          biome.id === "garden"
+          biome.id === "japan"
             ? "#8e817a"
-            : biome.id === "suncoast"
+            : biome.id === "dominican-republic"
               ? "#a77e57"
+              : biome.id === "turkiye"
+                ? "#8e7460"
               : "#776e64",
         contactCooldown: 0,
       });
@@ -1366,10 +1582,8 @@ function LooseProps({
           castShadow
         >
           <dodecahedronGeometry args={[1, 0]} />
-          <meshStandardMaterial
+          <meshToonMaterial
             color={prop.color}
-            roughness={1}
-            flatShading
           />
         </mesh>
       ))}
@@ -1377,21 +1591,324 @@ function LooseProps({
   );
 }
 
+function FlagRectangle({
+  color,
+  position,
+  size,
+  rotation = 0,
+}: {
+  color: string;
+  position: [number, number, number];
+  size: [number, number];
+  rotation?: number;
+}) {
+  return (
+    <mesh
+      position={position}
+      rotation={[0, 0, rotation]}
+      renderOrder={position[2] > 0 ? 30 + Math.round(position[2] * 1000) : 20}
+    >
+      <planeGeometry args={size} />
+      <meshToonMaterial
+        color={color}
+        side={DoubleSide}
+        depthTest={position[2] <= 0}
+        depthWrite={position[2] <= 0}
+      />
+    </mesh>
+  );
+}
+
+function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
+  if (biomeId === "united-states") {
+    return (
+      <>
+        <FlagRectangle
+          color="#f7f2e8"
+          position={[0, 0, 0]}
+          size={[0.56, 0.34]}
+        />
+        {Array.from({ length: 7 }, (_, stripe) => (
+          <FlagRectangle
+            key={stripe}
+            color="#c73c43"
+            position={[0, 0.145 - stripe * 0.048, 0.003]}
+            size={[0.56, 0.024]}
+          />
+        ))}
+        <FlagRectangle
+          color="#315487"
+          position={[-0.17, 0.075, 0.006]}
+          size={[0.22, 0.17]}
+        />
+        {[
+          [-0.225, 0.105],
+          [-0.17, 0.105],
+          [-0.115, 0.105],
+          [-0.2, 0.055],
+          [-0.145, 0.055],
+          [-0.09, 0.055],
+        ].map(([x, y], star) => (
+          <mesh key={star} position={[x, y, 0.009]} renderOrder={42}>
+            <circleGeometry args={[0.009, 5]} />
+            <meshBasicMaterial
+              color="#ffffff"
+              side={DoubleSide}
+              depthTest={false}
+              depthWrite={false}
+            />
+          </mesh>
+        ))}
+      </>
+    );
+  }
+
+  if (biomeId === "dominican-republic") {
+    return (
+      <>
+        <FlagRectangle
+          color="#ffffff"
+          position={[0, 0, 0]}
+          size={[0.56, 0.34]}
+        />
+        {[
+          [-0.155, 0.095, "#224a93"],
+          [0.155, 0.095, "#c63842"],
+          [-0.155, -0.095, "#c63842"],
+          [0.155, -0.095, "#224a93"],
+        ].map(([x, y, color], panel) => (
+          <FlagRectangle
+            key={panel}
+            color={color as string}
+            position={[x as number, y as number, 0.003]}
+            size={[0.23, 0.12]}
+          />
+        ))}
+        <mesh position={[0, 0, 0.007]} renderOrder={41}>
+          <circleGeometry args={[0.032, 12]} />
+          <meshToonMaterial
+            color="#438459"
+            side={DoubleSide}
+            depthTest={false}
+            depthWrite={false}
+          />
+        </mesh>
+      </>
+    );
+  }
+
+  if (biomeId === "turkiye") {
+    return (
+      <>
+        <FlagRectangle
+          color="#cf343c"
+          position={[0, 0, 0]}
+          size={[0.56, 0.34]}
+        />
+        <mesh position={[-0.07, 0, 0.004]} renderOrder={38}>
+          <circleGeometry args={[0.09, 24]} />
+          <meshBasicMaterial
+            color="#ffffff"
+            side={DoubleSide}
+            depthTest={false}
+            depthWrite={false}
+          />
+        </mesh>
+        <mesh position={[-0.035, 0.012, 0.007]} renderOrder={40}>
+          <circleGeometry args={[0.072, 24]} />
+          <meshBasicMaterial
+            color="#cf343c"
+            side={DoubleSide}
+            depthTest={false}
+            depthWrite={false}
+          />
+        </mesh>
+        <mesh
+          position={[0.075, 0, 0.008]}
+          rotation={[0, 0, -Math.PI / 2]}
+        >
+          <shapeGeometry args={[FLAG_STAR]} />
+          <meshBasicMaterial
+            color="#ffffff"
+            side={DoubleSide}
+            depthTest={false}
+            depthWrite={false}
+          />
+        </mesh>
+      </>
+    );
+  }
+
+  if (biomeId === "south-korea") {
+    return (
+      <>
+        <FlagRectangle
+          color="#fbfaf5"
+          position={[0, 0, 0]}
+          size={[0.56, 0.34]}
+        />
+        <mesh position={[0, 0.018, 0.004]} renderOrder={38}>
+          <circleGeometry args={[0.078, 24, 0, Math.PI]} />
+          <meshBasicMaterial
+            color="#c83e48"
+            side={DoubleSide}
+            depthTest={false}
+            depthWrite={false}
+          />
+        </mesh>
+        <mesh
+          position={[0, -0.018, 0.004]}
+          rotation={[0, 0, Math.PI]}
+          renderOrder={39}
+        >
+          <circleGeometry args={[0.078, 24, 0, Math.PI]} />
+          <meshBasicMaterial
+            color="#31578f"
+            side={DoubleSide}
+            depthTest={false}
+            depthWrite={false}
+          />
+        </mesh>
+        {[
+          [-0.19, 0.085, -0.42],
+          [-0.19, 0.045, -0.42],
+          [0.19, -0.045, -0.42],
+          [0.19, -0.085, -0.42],
+        ].map(([x, y, rotation], bar) => (
+          <FlagRectangle
+            key={bar}
+            color="#26272a"
+            position={[x, y, 0.006]}
+            size={[0.09, 0.014]}
+            rotation={rotation}
+          />
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <FlagRectangle
+        color="#fffdf6"
+        position={[0, 0, 0]}
+        size={[0.56, 0.34]}
+      />
+      <mesh position={[0, 0, 0.004]} renderOrder={38}>
+        <circleGeometry args={[0.092, 28]} />
+        <meshBasicMaterial
+          color="#cf3f47"
+          side={DoubleSide}
+          depthTest={false}
+          depthWrite={false}
+        />
+      </mesh>
+    </>
+  );
+}
+
+function CountryFlag({
+  biome,
+  reduceMotion,
+}: {
+  biome: BiomeDefinition;
+  reduceMotion: boolean;
+}) {
+  const clothRef = useRef<Group>(null);
+  const direction = useMemo(
+    () =>
+      directionFromOffset(
+        biome.center,
+        biome.flagOffset[0],
+        biome.flagOffset[1],
+      ),
+    [biome],
+  );
+  const position = useMemo(
+    () =>
+      direction
+        .clone()
+        .multiplyScalar(surfaceRadiusAt(direction) + 0.005),
+    [direction],
+  );
+  const orientation = useMemo(
+    () => new Quaternion().setFromUnitVectors(UP, direction),
+    [direction],
+  );
+
+  useFrame(({ clock }) => {
+    if (!clothRef.current) {
+      return;
+    }
+
+    clothRef.current.rotation.y = reduceMotion
+      ? 0
+      : Math.sin(clock.elapsedTime * 1.45 + biome.seed) * 0.12;
+    clothRef.current.rotation.z = reduceMotion
+      ? 0
+      : Math.sin(clock.elapsedTime * 1.1 + biome.seed * 0.2) * 0.025;
+  });
+
+  return (
+    <group position={position} quaternion={orientation}>
+      <mesh position={[0, 0.035, 0]} receiveShadow castShadow>
+        <cylinderGeometry args={[0.13, 0.17, 0.07, 12]} />
+        <meshToonMaterial color={biome.cliff} />
+      </mesh>
+      <mesh position={[0, 0.58, 0]} castShadow>
+        <cylinderGeometry args={[0.017, 0.026, 1.1, 10]} />
+        <meshToonMaterial color="#4e5154" />
+      </mesh>
+      <mesh position={[0, 1.15, 0]} castShadow>
+        <sphereGeometry args={[0.045, 12, 8]} />
+        <meshToonMaterial color="#d9ad4c" />
+      </mesh>
+      <group ref={clothRef} position={[0.3, 0.92, 0]}>
+        <CountryFlagPattern biomeId={biome.id} />
+        <mesh
+          position={[-0.286, 0, 0]}
+          rotation={[0, 0, Math.PI / 2]}
+          castShadow
+        >
+          <cylinderGeometry args={[0.009, 0.009, 0.34, 6]} />
+          <meshToonMaterial color="#d5d0c1" />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
 function LandmarkTerrain() {
-  const highlands = BIOME_BY_ID.get("highlands")!;
-  const garden = BIOME_BY_ID.get("garden")!;
-  const suncoast = BIOME_BY_ID.get("suncoast")!;
+  const unitedStates = BIOME_BY_ID.get("united-states")!;
+  const dominicanRepublic = BIOME_BY_ID.get("dominican-republic")!;
+  const turkiye = BIOME_BY_ID.get("turkiye")!;
+  const southKorea = BIOME_BY_ID.get("south-korea")!;
+  const japan = BIOME_BY_ID.get("japan")!;
   const mountainDirections = [
-    directionFromOffset(highlands.center, 0.2, 0.2),
-    directionFromOffset(highlands.center, 0.27, 0.11),
-    directionFromOffset(highlands.center, 0.13, 0.27),
+    directionFromOffset(turkiye.center, 0.15, 0.1),
+    directionFromOffset(turkiye.center, 0.24, 0.065),
+    directionFromOffset(turkiye.center, 0.32, 0.03),
   ];
   const beachDirection = directionFromOffset(
-    suncoast.center,
-    0.26,
-    -0.05,
+    dominicanRepublic.center,
+    0.1,
+    -0.025,
   );
-  const gardenHill = directionFromOffset(garden.center, 0.23, -0.2);
+  const barnDirection = directionFromOffset(
+    unitedStates.center,
+    -0.29,
+    -0.07,
+  );
+  const koreaDirection = directionFromOffset(
+    southKorea.center,
+    0.03,
+    0.14,
+  );
+  const gardenHill = directionFromOffset(
+    japan.center,
+    -0.025,
+    0.13,
+  );
 
   return (
     <group>
@@ -1409,22 +1926,50 @@ function LandmarkTerrain() {
             castShadow
             receiveShadow
           >
-            <coneGeometry args={[0.32 - index * 0.03, 0.65 + index * 0.15, 7]} />
-            <meshStandardMaterial
+            <coneGeometry
+              args={[0.28 - index * 0.025, 0.58 + index * 0.14, 9]}
+            />
+            <meshToonMaterial
               color={index === 1 ? "#7d766b" : "#8c816d"}
-              roughness={1}
-              flatShading
             />
           </mesh>
           <mesh
-            position={[0, 0.55 + index * 0.08, 0]}
+            position={[0, 0.49 + index * 0.09, 0]}
             rotation={[0, index * 0.8, 0]}
           >
-            <coneGeometry args={[0.13, 0.25, 7]} />
-            <meshStandardMaterial color="#e8ded0" flatShading />
+            <coneGeometry args={[0.11, 0.21, 9]} />
+            <meshToonMaterial color="#e8ded0" />
           </mesh>
         </group>
       ))}
+
+      <group
+        position={barnDirection
+          .clone()
+          .multiplyScalar(surfaceRadiusAt(barnDirection))}
+        quaternion={new Quaternion().setFromUnitVectors(UP, barnDirection)}
+      >
+        <mesh position={[0, 0.11, 0]} castShadow receiveShadow>
+          <boxGeometry args={[0.26, 0.2, 0.2]} />
+          <meshToonMaterial color="#a94a3e" />
+        </mesh>
+        <mesh position={[0, 0.245, 0]} rotation={[0, Math.PI / 4, 0]}>
+          <coneGeometry args={[0.19, 0.15, 4]} />
+          <meshToonMaterial color="#e3d4b9" />
+        </mesh>
+        <mesh position={[0, 0.1, 0.102]}>
+          <planeGeometry args={[0.075, 0.11]} />
+          <meshToonMaterial color="#f3e8d2" />
+        </mesh>
+        <mesh position={[0.22, 0.16, 0]} castShadow>
+          <cylinderGeometry args={[0.055, 0.07, 0.32, 10]} />
+          <meshToonMaterial color="#b6c0b8" />
+        </mesh>
+        <mesh position={[0.22, 0.34, 0]}>
+          <coneGeometry args={[0.08, 0.08, 10]} />
+          <meshToonMaterial color="#8d9895" />
+        </mesh>
+      </group>
 
       <group
         position={beachDirection
@@ -1433,13 +1978,47 @@ function LandmarkTerrain() {
         quaternion={new Quaternion().setFromUnitVectors(UP, beachDirection)}
       >
         <mesh position={[0, 0.025, 0]} receiveShadow>
-          <cylinderGeometry args={[0.32, 0.38, 0.05, 12]} />
-          <meshStandardMaterial color="#e4c47e" flatShading />
+          <cylinderGeometry args={[0.22, 0.26, 0.05, 16]} />
+          <meshToonMaterial color="#edd08a" />
         </mesh>
-        <mesh position={[0.12, 0.12, -0.04]} rotation={[0, 0, -0.35]}>
-          <boxGeometry args={[0.24, 0.025, 0.13]} />
-          <meshStandardMaterial color="#db6956" />
+        <mesh position={[0.08, 0.13, -0.02]} rotation={[0, 0, -0.18]}>
+          <cylinderGeometry args={[0.009, 0.012, 0.25, 7]} />
+          <meshToonMaterial color="#80624d" />
         </mesh>
+        <mesh position={[0.08, 0.25, -0.02]} rotation={[0, 0, -0.18]}>
+          <coneGeometry args={[0.14, 0.07, 12]} />
+          <meshToonMaterial color="#e35d58" />
+        </mesh>
+      </group>
+
+      <group
+        position={koreaDirection
+          .clone()
+          .multiplyScalar(surfaceRadiusAt(koreaDirection))}
+        quaternion={new Quaternion().setFromUnitVectors(UP, koreaDirection)}
+      >
+        {[0, 1, 2].map((tier) => (
+          <group key={tier} position={[0, 0.08 + tier * 0.105, 0]}>
+            <mesh castShadow>
+              <boxGeometry
+                args={[
+                  0.2 - tier * 0.045,
+                  0.07,
+                  0.17 - tier * 0.035,
+                ]}
+              />
+              <meshToonMaterial
+                color={tier % 2 === 0 ? "#78766d" : "#918b7e"}
+              />
+            </mesh>
+            <mesh position={[0, 0.055, 0]} rotation={[0, Math.PI / 4, 0]}>
+              <coneGeometry
+                args={[0.15 - tier * 0.035, 0.055, 4]}
+              />
+              <meshToonMaterial color="#4f6e5d" />
+            </mesh>
+          </group>
+        ))}
       </group>
 
       <group
@@ -1450,11 +2029,23 @@ function LandmarkTerrain() {
       >
         <mesh position={[0, 0.12, 0]} castShadow>
           <cylinderGeometry args={[0.16, 0.25, 0.24, 8]} />
-          <meshStandardMaterial color="#657965" flatShading />
+          <meshToonMaterial color="#657965" />
         </mesh>
-        <mesh position={[0, 0.25, 0]} castShadow>
-          <torusGeometry args={[0.13, 0.025, 5, 10, Math.PI]} />
-          <meshStandardMaterial color="#d45248" flatShading />
+        <mesh position={[-0.12, 0.34, 0]} castShadow>
+          <boxGeometry args={[0.035, 0.34, 0.045]} />
+          <meshToonMaterial color="#c94a42" />
+        </mesh>
+        <mesh position={[0.12, 0.34, 0]} castShadow>
+          <boxGeometry args={[0.035, 0.34, 0.045]} />
+          <meshToonMaterial color="#c94a42" />
+        </mesh>
+        <mesh position={[0, 0.49, 0]} castShadow>
+          <boxGeometry args={[0.32, 0.04, 0.055]} />
+          <meshToonMaterial color="#d45449" />
+        </mesh>
+        <mesh position={[0, 0.445, 0]} castShadow>
+          <boxGeometry args={[0.25, 0.035, 0.05]} />
+          <meshToonMaterial color="#e16858" />
         </mesh>
       </group>
     </group>
@@ -1516,6 +2107,14 @@ export function PlanetoidWorld({
           movementVelocityRef={movementVelocityRef}
           reduceMotion={reduceMotion}
           skyPhase={skyPhase}
+        />
+      ))}
+
+      {BIOMES.map((biome) => (
+        <CountryFlag
+          key={`${biome.id}-flag`}
+          biome={biome}
+          reduceMotion={reduceMotion}
         />
       ))}
 

@@ -22,8 +22,11 @@ import {
 } from "react";
 import {
   BackSide,
+  BufferGeometry,
   Color,
   DoubleSide,
+  DynamicDrawUsage,
+  Float32BufferAttribute,
   MathUtils,
   Object3D,
   Quaternion,
@@ -32,6 +35,7 @@ import {
   type InstancedBufferAttribute,
   type InstancedMesh,
   type Mesh,
+  type MeshBasicMaterial,
   type MeshStandardMaterial,
   type Points,
 } from "three";
@@ -73,6 +77,15 @@ type PlacesSceneProps = {
     movementBlend: number,
     runBlend: number,
     stepIndex: number,
+  ) => void;
+  onTraversalAudio: (
+    traversalMode: TraversalMode,
+    movementBlend: number,
+  ) => void;
+  onWaterStroke: (
+    traversalMode: Extract<TraversalMode, "boat" | "swim">,
+    movementBlend: number,
+    strokeIndex: number,
   ) => void;
   skyPhase: SkyPhase;
   solarDirection: [number, number, number];
@@ -942,7 +955,10 @@ function SurfaceParticles({
       0,
       1,
     );
-    const canSpawn = exploreMode && movementBlend > 0.08;
+    const canSpawn =
+      exploreMode &&
+      traversalMode !== "boat" &&
+      movementBlend > 0.08;
 
     if (canSpawn) {
       spawnAccumulatorRef.current += frameDelta;
@@ -1067,6 +1083,251 @@ function SurfaceParticles({
         </mesh>
       ))}
     </group>
+  );
+}
+
+const BOAT_WAKE_SAMPLE_COUNT = 36;
+const BOAT_WAKE_VERTICES_PER_SAMPLE = 6;
+
+function createBoatWakeGeometry() {
+  const geometry = new BufferGeometry();
+  const positions = new Float32Array(
+    BOAT_WAKE_SAMPLE_COUNT * BOAT_WAKE_VERTICES_PER_SAMPLE * 3,
+  );
+  const colors = new Float32Array(positions.length);
+  const indices: number[] = [];
+  const positionAttribute = new Float32BufferAttribute(positions, 3);
+  const colorAttribute = new Float32BufferAttribute(colors, 3);
+  positionAttribute.setUsage(DynamicDrawUsage);
+  colorAttribute.setUsage(DynamicDrawUsage);
+  geometry.setAttribute("position", positionAttribute);
+  geometry.setAttribute("color", colorAttribute);
+
+  for (let sample = 0; sample < BOAT_WAKE_SAMPLE_COUNT - 1; sample += 1) {
+    const current = sample * BOAT_WAKE_VERTICES_PER_SAMPLE;
+    const next = (sample + 1) * BOAT_WAKE_VERTICES_PER_SAMPLE;
+
+    for (let strip = 0; strip < 3; strip += 1) {
+      const offset = strip * 2;
+      indices.push(
+        current + offset,
+        next + offset,
+        current + offset + 1,
+        current + offset + 1,
+        next + offset,
+        next + offset + 1,
+      );
+    }
+  }
+
+  geometry.setIndex(indices);
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+function BoatWake({
+  travelerDirectionRef,
+  travelerForwardRef,
+  movementVelocityRef,
+  exploreMode,
+  reduceMotion,
+}: {
+  travelerDirectionRef: MutableRefObject<Vector3>;
+  travelerForwardRef: MutableRefObject<Vector3>;
+  movementVelocityRef: MutableRefObject<number>;
+  exploreMode: boolean;
+  reduceMotion: boolean;
+}) {
+  const meshRef = useRef<Mesh>(null);
+  const geometry = useMemo(createBoatWakeGeometry, []);
+  const samplesRef = useRef(
+    Array.from({ length: BOAT_WAKE_SAMPLE_COUNT }, () => ({
+      direction: new Vector3(0, 1, 0),
+      forward: new Vector3(0, 0, 1),
+    })),
+  );
+  const initializedRef = useRef(false);
+  const lastSampleDirectionRef = useRef(new Vector3(0, 1, 0));
+  const strengthRef = useRef(0);
+  const rightRef = useRef(new Vector3());
+  const vertexDirectionRef = useRef(new Vector3());
+  const foamColorRef = useRef(new Color());
+  const brightFoam = useMemo(() => new Color("#effff7"), []);
+  const oldFoam = useMemo(() => new Color("#66aaa9"), []);
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  useFrame(({ clock }, delta) => {
+    const frameDelta = Math.min(delta, 0.05);
+    const travelerDirection = travelerDirectionRef.current;
+    const travelerForward = travelerForwardRef.current;
+    const traversalMode = traversalModeAt(travelerDirection);
+    const movementBlend = MathUtils.clamp(
+      Math.abs(movementVelocityRef.current) / FAST_BOAT_SPEED,
+      0,
+      1,
+    );
+    const targetStrength =
+      exploreMode && traversalMode === "boat"
+        ? MathUtils.smoothstep(movementBlend, 0.04, 0.9)
+        : 0;
+    strengthRef.current = MathUtils.damp(
+      strengthRef.current,
+      targetStrength,
+      targetStrength > strengthRef.current ? 5.5 : 2.3,
+      frameDelta,
+    );
+
+    const samples = samplesRef.current;
+
+    if (!initializedRef.current) {
+      samples.forEach((sample) => {
+        sample.direction.copy(travelerDirection);
+        sample.forward.copy(travelerForward);
+      });
+      lastSampleDirectionRef.current.copy(travelerDirection);
+      initializedRef.current = true;
+    }
+
+    const sampleDistance = Math.acos(
+      MathUtils.clamp(
+        lastSampleDirectionRef.current.dot(travelerDirection),
+        -1,
+        1,
+      ),
+    );
+
+    if (
+      traversalMode === "boat" &&
+      movementBlend > 0.025 &&
+      sampleDistance > (reduceMotion ? 0.014 : 0.008)
+    ) {
+      for (let index = samples.length - 1; index > 0; index -= 1) {
+        samples[index].direction.copy(samples[index - 1].direction);
+        samples[index].forward.copy(samples[index - 1].forward);
+      }
+
+      samples[0].direction.copy(travelerDirection);
+      samples[0].forward.copy(travelerForward);
+      lastSampleDirectionRef.current.copy(travelerDirection);
+    }
+
+    const positions = geometry.getAttribute(
+      "position",
+    ) as Float32BufferAttribute;
+    const colors = geometry.getAttribute("color") as Float32BufferAttribute;
+    const wakeRadius = OCEAN_SURFACE_RADIUS + 0.035;
+
+    const setWakeVertex = (
+      vertexIndex: number,
+      direction: Vector3,
+      right: Vector3,
+      lateralOffset: number,
+      color: Color,
+    ) => {
+      const vertex = vertexDirectionRef.current
+        .copy(direction)
+        .addScaledVector(right, lateralOffset / OCEAN_SURFACE_RADIUS)
+        .normalize()
+        .multiplyScalar(wakeRadius);
+      positions.setXYZ(vertexIndex, vertex.x, vertex.y, vertex.z);
+      colors.setXYZ(vertexIndex, color.r, color.g, color.b);
+    };
+
+    samples.forEach((sample, sampleIndex) => {
+      const progress = sampleIndex / (BOAT_WAKE_SAMPLE_COUNT - 1);
+      const right = rightRef.current
+        .crossVectors(sample.forward, sample.direction)
+        .normalize();
+      const spread = 0.052 + progress * 0.34;
+      const branchWidth =
+        MathUtils.lerp(0.018, 0.008, progress) *
+        (0.8 + strengthRef.current * 0.35);
+      const turbulence =
+        Math.sin(
+          sampleIndex * 1.61 -
+            clock.elapsedTime * (reduceMotion ? 0 : 2.4),
+        ) *
+        0.018 *
+        progress;
+      const centerWidth = MathUtils.lerp(0.035, 0.006, progress);
+      const color = foamColorRef.current
+        .copy(brightFoam)
+        .lerp(oldFoam, progress * 0.88)
+        .multiplyScalar(1 - progress * 0.23);
+      const vertexOffset =
+        sampleIndex * BOAT_WAKE_VERTICES_PER_SAMPLE;
+
+      setWakeVertex(
+        vertexOffset,
+        sample.direction,
+        right,
+        -spread - branchWidth,
+        color,
+      );
+      setWakeVertex(
+        vertexOffset + 1,
+        sample.direction,
+        right,
+        -spread + branchWidth,
+        color,
+      );
+      setWakeVertex(
+        vertexOffset + 2,
+        sample.direction,
+        right,
+        spread - branchWidth,
+        color,
+      );
+      setWakeVertex(
+        vertexOffset + 3,
+        sample.direction,
+        right,
+        spread + branchWidth,
+        color,
+      );
+      setWakeVertex(
+        vertexOffset + 4,
+        sample.direction,
+        right,
+        turbulence - centerWidth,
+        color,
+      );
+      setWakeVertex(
+        vertexOffset + 5,
+        sample.direction,
+        right,
+        turbulence + centerWidth,
+        color,
+      );
+    });
+
+    positions.needsUpdate = true;
+    colors.needsUpdate = true;
+
+    if (meshRef.current) {
+      const material = meshRef.current.material as MeshBasicMaterial;
+      material.opacity = strengthRef.current * 0.76;
+      meshRef.current.visible = strengthRef.current > 0.012;
+    }
+  });
+
+  return (
+    <mesh
+      ref={meshRef}
+      geometry={geometry}
+      visible={false}
+      renderOrder={8}
+      frustumCulled={false}
+    >
+      <meshBasicMaterial
+        vertexColors
+        transparent
+        opacity={0}
+        depthWrite={false}
+        side={DoubleSide}
+      />
+    </mesh>
   );
 }
 
@@ -1726,6 +1987,7 @@ function Traveler({
   traversalModeRef,
   reduceMotion,
   onFootstep,
+  onWaterStroke,
 }: {
   inputRef: MutableRefObject<ExploreInput>;
   movementVelocityRef: MutableRefObject<number>;
@@ -1734,6 +1996,7 @@ function Traveler({
   traversalModeRef: MutableRefObject<TraversalMode>;
   reduceMotion: boolean;
   onFootstep: PlacesSceneProps["onFootstep"];
+  onWaterStroke: PlacesSceneProps["onWaterStroke"];
 }) {
   const groupRef = useRef<Group>(null);
   const modelRef = useRef<Group>(null);
@@ -1842,6 +2105,15 @@ function Traveler({
           movementBlend >= 0.14
         ) {
           onFootstep(movementBlend, runBlend, footstepIndexRef.current);
+        } else if (
+          traversalMode !== "land" &&
+          movementBlend >= 0.12
+        ) {
+          onWaterStroke(
+            traversalMode,
+            MathUtils.clamp(movementBlend + runBlend * 0.28, 0, 1),
+            footstepIndexRef.current,
+          );
         }
       }
     }
@@ -1983,7 +2255,7 @@ function Traveler({
           castShadow
         >
           <boxGeometry args={[0.045, 0.12, 0.05]} />
-          <meshStandardMaterial color="#2c3b40" flatShading />
+          <meshToonMaterial color="#26383e" />
         </mesh>
         <mesh
           ref={rightLegRef}
@@ -1992,7 +2264,7 @@ function Traveler({
           castShadow
         >
           <boxGeometry args={[0.045, 0.12, 0.05]} />
-          <meshStandardMaterial color="#2c3b40" flatShading />
+          <meshToonMaterial color="#26383e" />
         </mesh>
         <mesh
           position={[0, 0.17, 0]}
@@ -2000,7 +2272,15 @@ function Traveler({
           castShadow
         >
           <capsuleGeometry args={[0.065, 0.13, 4, 8]} />
-          <meshStandardMaterial color="#d04842" flatShading />
+          <meshToonMaterial color="#d34b42" />
+        </mesh>
+        <mesh
+          position={[0, 0.235, 0.057]}
+          renderOrder={TRAVELER_RENDER_ORDER + 1}
+          castShadow
+        >
+          <boxGeometry args={[0.09, 0.035, 0.014]} />
+          <meshToonMaterial color="#f2c84f" />
         </mesh>
         <mesh
           ref={leftArmRef}
@@ -2009,7 +2289,7 @@ function Traveler({
           castShadow
         >
           <boxGeometry args={[0.035, 0.16, 0.04]} />
-          <meshStandardMaterial color="#e9c5a4" flatShading />
+          <meshToonMaterial color="#e9c5a4" />
         </mesh>
         <mesh
           ref={rightArmRef}
@@ -2018,7 +2298,7 @@ function Traveler({
           castShadow
         >
           <boxGeometry args={[0.035, 0.16, 0.04]} />
-          <meshStandardMaterial color="#e9c5a4" flatShading />
+          <meshToonMaterial color="#e9c5a4" />
         </mesh>
         <mesh
           position={[0, 0.32, 0]}
@@ -2026,7 +2306,16 @@ function Traveler({
           castShadow
         >
           <icosahedronGeometry args={[0.078, 1]} />
-          <meshStandardMaterial color="#e9c5a4" flatShading />
+          <meshToonMaterial color="#e9c5a4" />
+        </mesh>
+        <mesh
+          position={[0, 0.365, -0.012]}
+          scale={[1.04, 0.5, 1.02]}
+          renderOrder={TRAVELER_RENDER_ORDER + 1}
+          castShadow
+        >
+          <icosahedronGeometry args={[0.078, 1]} />
+          <meshToonMaterial color="#6f513d" />
         </mesh>
         <mesh
           position={[0, 0.2, -0.065]}
@@ -2034,7 +2323,15 @@ function Traveler({
           castShadow
         >
           <boxGeometry args={[0.105, 0.13, 0.055]} />
-          <meshStandardMaterial color="#d4a64c" flatShading />
+          <meshToonMaterial color="#d7a83f" />
+        </mesh>
+        <mesh
+          position={[0, 0.26, -0.095]}
+          rotation={[Math.PI / 2, 0, 0]}
+          renderOrder={TRAVELER_RENDER_ORDER + 1}
+        >
+          <torusGeometry args={[0.052, 0.008, 6, 16, Math.PI]} />
+          <meshToonMaterial color="#f0ce6a" />
         </mesh>
       </group>
       <group ref={boatRef} visible={false} position={[0, -0.025, 0.015]}>
@@ -2045,11 +2342,7 @@ function Traveler({
           renderOrder={TRAVELER_RENDER_ORDER - 1}
         >
           <sphereGeometry args={[0.18, 14, 8]} />
-          <meshStandardMaterial
-            color="#9f5f3f"
-            roughness={0.86}
-            flatShading
-          />
+          <meshToonMaterial color="#b8643f" />
         </mesh>
         <mesh
           position={[0, 0.055, -0.015]}
@@ -2057,11 +2350,25 @@ function Traveler({
           renderOrder={TRAVELER_RENDER_ORDER}
         >
           <sphereGeometry args={[0.15, 12, 7]} />
-          <meshStandardMaterial
-            color="#3c302b"
-            roughness={1}
-            flatShading
-          />
+          <meshToonMaterial color="#2f3433" />
+        </mesh>
+        <mesh
+          position={[0, 0.08, -0.02]}
+          rotation={[Math.PI / 2, 0, 0]}
+          scale={[1.08, 2.25, 1]}
+          castShadow
+          renderOrder={TRAVELER_RENDER_ORDER + 1}
+        >
+          <torusGeometry args={[0.13, 0.012, 7, 24]} />
+          <meshToonMaterial color="#e4914f" />
+        </mesh>
+        <mesh
+          position={[0, 0.065, -0.045]}
+          scale={[0.13, 0.025, 0.13]}
+          castShadow
+        >
+          <boxGeometry args={[1, 1, 1]} />
+          <meshToonMaterial color="#d1b07a" />
         </mesh>
         <mesh
           position={[0, 0.055, 0.3]}
@@ -2069,20 +2376,20 @@ function Traveler({
           castShadow
         >
           <coneGeometry args={[0.105, 0.2, 8]} />
-          <meshStandardMaterial
-            color="#bd7550"
-            roughness={0.82}
-            flatShading
-          />
+          <meshToonMaterial color="#d47a47" />
         </mesh>
         <group ref={paddleRef} position={[0.13, 0.13, 0.02]}>
           <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
             <cylinderGeometry args={[0.008, 0.008, 0.44, 6]} />
-            <meshStandardMaterial color="#d6b275" flatShading />
+            <meshToonMaterial color="#d6b275" />
           </mesh>
           <mesh position={[0, 0, -0.23]} scale={[0.035, 0.012, 0.075]}>
             <boxGeometry args={[1, 1, 1]} />
-            <meshStandardMaterial color="#c68d58" flatShading />
+            <meshToonMaterial color="#c68d58" />
+          </mesh>
+          <mesh position={[0, 0, 0.23]} scale={[0.035, 0.012, 0.075]}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshToonMaterial color="#c68d58" />
           </mesh>
         </group>
       </group>
@@ -2099,6 +2406,8 @@ function PlanetExperience({
   onSelect,
   onNearbyChange,
   onFootstep,
+  onTraversalAudio,
+  onWaterStroke,
   skyPhase,
 }: PlacesSceneProps) {
   const globeRef = useRef<Group>(null);
@@ -2446,6 +2755,22 @@ function PlanetExperience({
         traversalModeRef.current = traversalModeAt(playerUp);
       }
 
+      const currentTraversalMode = traversalModeRef.current;
+      const traversalTopSpeed =
+        currentTraversalMode === "boat"
+          ? FAST_BOAT_SPEED
+          : currentTraversalMode === "swim"
+            ? FAST_SWIM_SPEED
+            : RUN_SPEED;
+      onTraversalAudio(
+        currentTraversalMode,
+        MathUtils.clamp(
+          Math.abs(movementVelocityRef.current) / traversalTopSpeed,
+          0,
+          1,
+        ),
+      );
+
       cameraDistanceTargetRef.current = MathUtils.clamp(
         cameraDistanceTargetRef.current -
           input.zoom * CAMERA_DISTANCE_RATE * frameDelta,
@@ -2572,6 +2897,8 @@ function PlanetExperience({
       return;
     }
 
+    onTraversalAudio("land", 0);
+
     if (
       !reduceMotion &&
       !dragRef.current &&
@@ -2643,6 +2970,14 @@ function PlanetExperience({
             traversalModeRef={traversalModeRef}
             reduceMotion={reduceMotion}
             onFootstep={onFootstep}
+            onWaterStroke={onWaterStroke}
+          />
+          <BoatWake
+            travelerDirectionRef={playerUpRef}
+            travelerForwardRef={travelerForwardRef}
+            movementVelocityRef={movementVelocityRef}
+            exploreMode={exploreMode}
+            reduceMotion={reduceMotion}
           />
           <SurfaceParticles
             travelerDirectionRef={playerUpRef}

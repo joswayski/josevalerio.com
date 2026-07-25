@@ -12,7 +12,11 @@ import {
   type ReactNode,
 } from "react";
 import { places, type PlacePhoto } from "../data/places";
-import type { ExploreInput, SkyPhase } from "./PlacesScene";
+import type {
+  ExploreInput,
+  SkyPhase,
+} from "./PlacesScene";
+import type { TraversalMode } from "../data/planetoid";
 
 type ResolvedPlacePhoto = PlacePhoto & { src: string };
 
@@ -24,6 +28,19 @@ type ExpandedGallery = {
 type CelestialState = {
   skyPhase: SkyPhase;
   solarDirection: [number, number, number];
+};
+
+type WaterAudioGraph = {
+  context: AudioContext;
+  oceanSource: AudioBufferSourceNode;
+  foamSource: AudioBufferSourceNode;
+  oceanFilter: BiquadFilterNode;
+  foamFilter: BiquadFilterNode;
+  oceanGain: GainNode;
+  foamGain: GainNode;
+  masterGain: GainNode;
+  lfo: OscillatorNode;
+  lfoGain: GainNode;
 };
 
 const DAY_IN_MILLISECONDS = 86_400_000;
@@ -178,6 +195,8 @@ export function PlacesGlobe() {
   const projectionButtonRef = useRef<HTMLButtonElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const footstepBufferRef = useRef<AudioBuffer | null>(null);
+  const waterNoiseBufferRef = useRef<AudioBuffer | null>(null);
+  const waterAudioGraphRef = useRef<WaterAudioGraph | null>(null);
   const exploreInputRef = useRef<ExploreInput>({
     horizontal: 0,
     vertical: 0,
@@ -247,7 +266,26 @@ export function PlacesGlobe() {
 
   useEffect(
     () => () => {
+      const waterGraph = waterAudioGraphRef.current;
+
+      if (waterGraph) {
+        waterGraph.oceanSource.stop();
+        waterGraph.foamSource.stop();
+        waterGraph.lfo.stop();
+        waterGraph.oceanSource.disconnect();
+        waterGraph.foamSource.disconnect();
+        waterGraph.oceanFilter.disconnect();
+        waterGraph.foamFilter.disconnect();
+        waterGraph.oceanGain.disconnect();
+        waterGraph.foamGain.disconnect();
+        waterGraph.masterGain.disconnect();
+        waterGraph.lfo.disconnect();
+        waterGraph.lfoGain.disconnect();
+      }
+
       footstepBufferRef.current = null;
+      waterNoiseBufferRef.current = null;
+      waterAudioGraphRef.current = null;
       void audioContextRef.current?.close();
     },
     [],
@@ -264,9 +302,151 @@ export function PlacesGlobe() {
     const context = new AudioContext();
     audioContextRef.current = context;
     footstepBufferRef.current = null;
+    waterNoiseBufferRef.current = null;
+    waterAudioGraphRef.current = null;
     void context.resume();
     return context;
   }, []);
+
+  const ensureWaterAudioGraph = useCallback(() => {
+    const context = audioContextRef.current;
+
+    if (!context || context.state === "closed") {
+      return null;
+    }
+
+    const currentGraph = waterAudioGraphRef.current;
+
+    if (currentGraph?.context === context) {
+      return currentGraph;
+    }
+
+    const duration = 3;
+    const buffer = context.createBuffer(
+      1,
+      Math.ceil(context.sampleRate * duration),
+      context.sampleRate,
+    );
+    const samples = buffer.getChannelData(0);
+    let brown = 0;
+
+    for (let index = 0; index < samples.length; index += 1) {
+      const white = Math.random() * 2 - 1;
+      brown = (brown + white * 0.055) / 1.035;
+      samples[index] = brown * 2.3 + white * 0.12;
+    }
+
+    const oceanSource = context.createBufferSource();
+    const foamSource = context.createBufferSource();
+    const oceanFilter = context.createBiquadFilter();
+    const foamFilter = context.createBiquadFilter();
+    const oceanGain = context.createGain();
+    const foamGain = context.createGain();
+    const masterGain = context.createGain();
+    const lfo = context.createOscillator();
+    const lfoGain = context.createGain();
+
+    oceanSource.buffer = buffer;
+    oceanSource.loop = true;
+    oceanSource.playbackRate.value = 0.72;
+    foamSource.buffer = buffer;
+    foamSource.loop = true;
+    foamSource.playbackRate.value = 1.18;
+    oceanFilter.type = "lowpass";
+    oceanFilter.frequency.value = 520;
+    oceanFilter.Q.value = 0.7;
+    foamFilter.type = "bandpass";
+    foamFilter.frequency.value = 1450;
+    foamFilter.Q.value = 0.52;
+    oceanGain.gain.value = 0.0001;
+    foamGain.gain.value = 0.0001;
+    masterGain.gain.value = 0.68;
+    lfo.type = "sine";
+    lfo.frequency.value = 0.16;
+    lfoGain.gain.value = 0;
+
+    oceanSource.connect(oceanFilter);
+    oceanFilter.connect(oceanGain);
+    foamSource.connect(foamFilter);
+    foamFilter.connect(foamGain);
+    oceanGain.connect(masterGain);
+    foamGain.connect(masterGain);
+    masterGain.connect(context.destination);
+    lfo.connect(lfoGain);
+    lfoGain.connect(oceanGain.gain);
+    oceanSource.start();
+    foamSource.start();
+    lfo.start();
+
+    const graph: WaterAudioGraph = {
+      context,
+      oceanSource,
+      foamSource,
+      oceanFilter,
+      foamFilter,
+      oceanGain,
+      foamGain,
+      masterGain,
+      lfo,
+      lfoGain,
+    };
+    waterAudioGraphRef.current = graph;
+    return graph;
+  }, []);
+
+  const updateTraversalAudio = useCallback(
+    (traversalMode: TraversalMode, movementBlend: number) => {
+      const graph = ensureWaterAudioGraph();
+
+      if (!graph) {
+        return;
+      }
+
+      const now = graph.context.currentTime;
+      const onWater = traversalMode !== "land";
+      const oceanTarget = onWater
+        ? traversalMode === "boat"
+          ? 0.022
+          : 0.029
+        : 0.0001;
+      const foamTarget = onWater
+        ? 0.004 +
+          movementBlend *
+            (traversalMode === "boat" ? 0.05 : 0.034)
+        : 0.0001;
+      const filterTarget =
+        traversalMode === "boat"
+          ? 620 + movementBlend * 560
+          : 480 + movementBlend * 330;
+
+      graph.oceanGain.gain.setTargetAtTime(
+        oceanTarget,
+        now,
+        onWater ? 0.3 : 0.55,
+      );
+      graph.foamGain.gain.setTargetAtTime(
+        foamTarget,
+        now,
+        movementBlend > 0 ? 0.16 : 0.38,
+      );
+      graph.oceanFilter.frequency.setTargetAtTime(
+        filterTarget,
+        now,
+        0.22,
+      );
+      graph.foamFilter.frequency.setTargetAtTime(
+        1100 + movementBlend * 1050,
+        now,
+        0.18,
+      );
+      graph.lfoGain.gain.setTargetAtTime(
+        onWater ? 0.0035 : 0,
+        now,
+        0.4,
+      );
+    },
+    [ensureWaterAudioGraph],
+  );
 
   useEffect(() => {
     const dialog = photoDialogRef.current;
@@ -531,6 +711,115 @@ export function PlacesGlobe() {
     [ensureAudioContext],
   );
 
+  const playWaterStrokeSound = useCallback(
+    (
+      traversalMode: Extract<TraversalMode, "boat" | "swim">,
+      movementBlend: number,
+      strokeIndex: number,
+    ) => {
+      const context = ensureAudioContext();
+      let buffer = waterNoiseBufferRef.current;
+
+      if (!buffer) {
+        const duration = 0.18;
+        buffer = context.createBuffer(
+          1,
+          Math.ceil(context.sampleRate * duration),
+          context.sampleRate,
+        );
+        const samples = buffer.getChannelData(0);
+
+        for (let index = 0; index < samples.length; index += 1) {
+          const progress = index / samples.length;
+          const envelope =
+            Math.sin(Math.min(1, progress * 5.5) * Math.PI * 0.5) *
+            Math.pow(1 - progress, 2.3);
+          samples[index] =
+            (Math.random() * 2 - 1) * envelope;
+        }
+
+        waterNoiseBufferRef.current = buffer;
+      }
+
+      const start = context.currentTime;
+      const strength =
+        Math.max(0.12, movementBlend) *
+        (traversalMode === "boat" ? 1 : 0.72);
+      const side = strokeIndex % 2 === 0 ? -0.28 : 0.28;
+      const noise = context.createBufferSource();
+      const bandpass = context.createBiquadFilter();
+      const lowpass = context.createBiquadFilter();
+      const gain = context.createGain();
+      const bubble = context.createOscillator();
+      const bubbleGain = context.createGain();
+      const panner = context.createStereoPanner();
+
+      noise.buffer = buffer;
+      noise.playbackRate.setValueAtTime(
+        traversalMode === "boat"
+          ? 0.82 + movementBlend * 0.28
+          : 1.05 + movementBlend * 0.35,
+        start,
+      );
+      bandpass.type = "bandpass";
+      bandpass.frequency.setValueAtTime(
+        traversalMode === "boat" ? 780 : 1050,
+        start,
+      );
+      bandpass.frequency.exponentialRampToValueAtTime(
+        traversalMode === "boat" ? 470 : 660,
+        start + 0.15,
+      );
+      bandpass.Q.value = 0.62;
+      lowpass.type = "lowpass";
+      lowpass.frequency.value = 2600;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(
+        0.032 * strength,
+        start + 0.012,
+      );
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.17);
+      bubble.type = "sine";
+      bubble.frequency.setValueAtTime(
+        traversalMode === "boat" ? 150 : 195,
+        start,
+      );
+      bubble.frequency.exponentialRampToValueAtTime(82, start + 0.12);
+      bubbleGain.gain.setValueAtTime(0.0001, start);
+      bubbleGain.gain.exponentialRampToValueAtTime(
+        0.012 * strength,
+        start + 0.009,
+      );
+      bubbleGain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        start + 0.13,
+      );
+      panner.pan.setValueAtTime(side, start);
+
+      noise.connect(bandpass);
+      bandpass.connect(lowpass);
+      lowpass.connect(gain);
+      gain.connect(panner);
+      bubble.connect(bubbleGain);
+      bubbleGain.connect(panner);
+      panner.connect(context.destination);
+      noise.start(start);
+      bubble.start(start);
+      noise.stop(start + 0.18);
+      bubble.stop(start + 0.14);
+      noise.addEventListener("ended", () => {
+        noise.disconnect();
+        bandpass.disconnect();
+        lowpass.disconnect();
+        gain.disconnect();
+        bubble.disconnect();
+        bubbleGain.disconnect();
+        panner.disconnect();
+      });
+    },
+    [ensureAudioContext],
+  );
+
   const triggerJump = useCallback(() => {
     if (!exploreInputRef.current.jumpReady) {
       return;
@@ -642,6 +931,8 @@ export function PlacesGlobe() {
                   onSelect={selectPlace}
                   onNearbyChange={handleNearbyChange}
                   onFootstep={playFootstepSound}
+                  onTraversalAudio={updateTraversalAudio}
+                  onWaterStroke={playWaterStrokeSound}
                   skyPhase={celestialState.skyPhase}
                   solarDirection={celestialState.solarDirection}
                 />
@@ -754,11 +1045,11 @@ export function PlacesGlobe() {
 
         <p className="globe-instructions">
           {exploreMode
-            ? "Drag orbit · WASD move/sail · Shift faster · Q/E orbit · Space jump · F interact · J out · K in"
+            ? "Drag orbit · WASD move/paddle · Shift faster · Q/E orbit · Space jump · F interact · J out · K in"
             : "Drag to spin"}
         </p>
         <p className="sr-only">
-          Walk, swim, or sail toward a landmark to reveal its floating photo,
+          Walk, swim, or paddle toward a landmark to reveal its floating photo,
           then select the photo to expand it.
         </p>
       </div>
