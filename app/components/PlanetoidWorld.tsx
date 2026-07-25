@@ -14,6 +14,7 @@ import {
   MathUtils,
   Quaternion,
   Shape,
+  SphereGeometry,
   Vector2,
   Vector3,
   type Group,
@@ -32,6 +33,7 @@ import {
   islandPartDirection,
   isOceanDirection,
   isWaterDirection,
+  oceanShoreProximityAt,
   surfaceRadiusAt,
   tangentBasis,
   waterSurfaceRadius,
@@ -89,6 +91,20 @@ type FishDefinition = {
   scale: number;
   color: string;
   reactsToTraveler: boolean;
+};
+
+type BirdDefinition = {
+  id: string;
+  direction: Vector3;
+  orbitAxis: Vector3;
+  phase: number;
+  speed: number;
+  altitude: number;
+  scale: number;
+  color: string;
+  cycleDuration: number;
+  activeDuration: number;
+  cycleOffset: number;
 };
 
 const UP = new Vector3(0, 1, 0);
@@ -483,6 +499,36 @@ function createWaterGeometry(radius: number) {
   return geometry;
 }
 
+function createOceanSurfaceGeometry() {
+  const geometry = new SphereGeometry(
+    OCEAN_SURFACE_RADIUS,
+    160,
+    80,
+  );
+  const positionAttribute = geometry.getAttribute("position");
+  const shoreProximity = new Float32Array(positionAttribute.count);
+  const direction = new Vector3();
+
+  for (let vertex = 0; vertex < positionAttribute.count; vertex += 1) {
+    direction
+      .set(
+        positionAttribute.getX(vertex),
+        positionAttribute.getY(vertex),
+        positionAttribute.getZ(vertex),
+      )
+      .normalize();
+    shoreProximity[vertex] = oceanShoreProximityAt(direction);
+  }
+
+  geometry.setAttribute(
+    "shoreProximity",
+    new Float32BufferAttribute(shoreProximity, 1),
+  );
+  geometry.computeVertexNormals();
+
+  return geometry;
+}
+
 function OceanSurface({
   travelerDirectionRef,
   movementVelocityRef,
@@ -490,6 +536,7 @@ function OceanSurface({
   reduceMotion,
   skyPhase,
 }: PlanetoidWorldProps) {
+  const geometry = useMemo(createOceanSurfaceGeometry, []);
   const uniforms = useMemo(
     () => ({
       time: { value: 0 },
@@ -499,14 +546,14 @@ function OceanSurface({
       deepColor: {
         value:
           skyPhase === "night"
-            ? new Color("#102b42")
-            : new Color("#1f7387"),
+            ? new Color("#061a30")
+            : new Color("#073c5b"),
       },
       shallowColor: {
         value:
           skyPhase === "night"
-            ? new Color("#285a70")
-            : new Color("#62c4c0"),
+            ? new Color("#174b63")
+            : new Color("#35a7ad"),
       },
       foamColor: {
         value:
@@ -517,6 +564,8 @@ function OceanSurface({
     }),
     [reduceMotion, skyPhase],
   );
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
 
   useFrame(({ clock }) => {
     const travelerDirection = travelerDirectionRef.current;
@@ -535,121 +584,162 @@ function OceanSurface({
   });
 
   return (
-    <mesh renderOrder={1} receiveShadow>
-      <sphereGeometry args={[OCEAN_SURFACE_RADIUS, 160, 80]} />
-      <shaderMaterial
-        uniforms={uniforms}
-        vertexShader={`
-          uniform float time;
-          uniform float motion;
-          uniform float interaction;
-          uniform vec3 travelerDirection;
-          varying vec3 vWorldPosition;
-          varying vec3 vWorldNormal;
-          varying float vWave;
-          varying float vWake;
+    <group>
+      <mesh renderOrder={0} receiveShadow>
+        <sphereGeometry
+          args={[PLANET_RADIUS + 0.012, 128, 64]}
+        />
+        <meshStandardMaterial
+          color={skyPhase === "night" ? "#041526" : "#062f4a"}
+          roughness={0.72}
+          metalness={0}
+          depthWrite
+        />
+      </mesh>
+      <mesh geometry={geometry} renderOrder={1} receiveShadow>
+        <shaderMaterial
+          uniforms={uniforms}
+          vertexShader={`
+            uniform float time;
+            uniform float motion;
+            uniform float interaction;
+            uniform vec3 travelerDirection;
+            attribute float shoreProximity;
+            varying vec3 vWorldPosition;
+            varying vec3 vWorldNormal;
+            varying float vWave;
+            varying float vWake;
+            varying float vShoreProximity;
 
-          void main() {
-            vec3 direction = normalize(position);
-            float radius = length(position);
-            float broadWave = (
-              sin(direction.x * 19.0 + time * 0.72) +
-              sin(direction.z * 23.0 - time * 0.58) +
-              sin((direction.x + direction.y) * 17.0 + time * 0.44)
-            ) / 3.0;
-            float detailWave = (
-              sin(direction.y * 41.0 - time * 1.15) +
-              sin((direction.z - direction.x) * 37.0 + time * 0.92)
-            ) * 0.5;
-            float travelerDistance = acos(clamp(
-              dot(direction, normalize(travelerDirection)),
-              -1.0,
-              1.0
-            ));
-            float wake = sin(
-              travelerDistance * 105.0 - time * 9.0
-            ) * exp(-travelerDistance * 34.0) * interaction;
-            float displacement = motion * (
-              broadWave * 0.028 +
-              detailWave * 0.01 +
-              wake * 0.052
-            );
-            vec3 displacedPosition =
-              direction * (radius + displacement);
-            vec4 worldPosition =
-              modelMatrix * vec4(displacedPosition, 1.0);
+            void main() {
+              vec3 direction = normalize(position);
+              float radius = length(position);
+              float swell = (
+                sin(direction.x * 11.0 + direction.z * 5.0 + time * 0.34) +
+                sin(direction.y * 13.0 - direction.x * 4.0 - time * 0.29)
+              ) * 0.5;
+              float broadWave = (
+                sin(direction.x * 21.0 + time * 0.76) +
+                sin(direction.z * 25.0 - time * 0.61) +
+                sin((direction.x + direction.y) * 18.0 + time * 0.47)
+              ) / 3.0;
+              float detailWave = (
+                sin(direction.y * 48.0 - time * 1.22) +
+                sin((direction.z - direction.x) * 43.0 + time * 0.97)
+              ) * 0.5;
+              float travelerDistance = acos(clamp(
+                dot(direction, normalize(travelerDirection)),
+                -1.0,
+                1.0
+              ));
+              float wake = sin(
+                travelerDistance * 105.0 - time * 9.0
+              ) * exp(-travelerDistance * 34.0) * interaction;
+              float openWater = mix(1.0, 0.42, shoreProximity);
+              float displacement = motion * (
+                swell * 0.034 +
+                broadWave * 0.025 +
+                detailWave * 0.009
+              ) * openWater + wake * 0.045 * openWater;
+              vec3 displacedPosition =
+                direction * (radius + displacement);
+              vec4 worldPosition =
+                modelMatrix * vec4(displacedPosition, 1.0);
 
-            vWave = clamp(
-              0.5 + broadWave * 0.34 + detailWave * 0.12,
-              0.0,
-              1.0
-            );
-            vWake = wake;
-            vWorldPosition = worldPosition.xyz;
-            vWorldNormal = normalize(
-              mat3(modelMatrix) * direction
-            );
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(
-              displacedPosition,
-              1.0
-            );
-          }
-        `}
-        fragmentShader={`
-          uniform vec3 deepColor;
-          uniform vec3 shallowColor;
-          uniform vec3 foamColor;
-          varying vec3 vWorldPosition;
-          varying vec3 vWorldNormal;
-          varying float vWave;
-          varying float vWake;
+              vWave = clamp(
+                0.5 +
+                swell * 0.2 +
+                broadWave * 0.31 +
+                detailWave * 0.13,
+                0.0,
+                1.0
+              );
+              vWake = wake;
+              vShoreProximity = shoreProximity;
+              vWorldPosition = worldPosition.xyz;
+              vWorldNormal = normalize(
+                mat3(modelMatrix) * direction
+              );
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(
+                displacedPosition,
+                1.0
+              );
+            }
+          `}
+          fragmentShader={`
+            uniform vec3 deepColor;
+            uniform vec3 shallowColor;
+            uniform vec3 foamColor;
+            varying vec3 vWorldPosition;
+            varying vec3 vWorldNormal;
+            varying float vWave;
+            varying float vWake;
+            varying float vShoreProximity;
 
-          void main() {
-            vec3 normal = normalize(vWorldNormal);
-            vec3 viewDirection = normalize(
-              cameraPosition - vWorldPosition
-            );
-            float fresnel = pow(
-              1.0 - abs(dot(normal, viewDirection)),
-              2.25
-            );
-            vec3 lightDirection = normalize(
-              vec3(-0.45, 0.82, 0.34)
-            );
-            float glint = pow(
-              max(
-                dot(
-                  reflect(-lightDirection, normal),
-                  viewDirection
+            void main() {
+              vec3 normal = normalize(cross(
+                dFdx(vWorldPosition),
+                dFdy(vWorldPosition)
+              ));
+
+              if (dot(normal, vWorldNormal) < 0.0) {
+                normal *= -1.0;
+              }
+
+              vec3 viewDirection = normalize(
+                cameraPosition - vWorldPosition
+              );
+              float fresnel = pow(
+                1.0 - abs(dot(normal, viewDirection)),
+                2.25
+              );
+              vec3 lightDirection = normalize(
+                vec3(-0.45, 0.82, 0.34)
+              );
+              float glint = pow(
+                max(
+                  dot(
+                    reflect(-lightDirection, normal),
+                    viewDirection
+                  ),
+                  0.0
                 ),
-                0.0
-              ),
-              38.0
-            );
-            float crest = smoothstep(0.67, 0.82, vWave);
-            float wakeFoam = smoothstep(0.36, 0.82, abs(vWake));
-            vec3 water = mix(
-              deepColor,
-              shallowColor,
-              0.22 + fresnel * 0.44 + vWave * 0.12
-            );
-            water += glint * vec3(0.74, 0.94, 0.9);
-            water = mix(
-              water,
-              foamColor,
-              max(crest * 0.08, wakeFoam * 0.72)
-            );
+                38.0
+              );
+              float crest = smoothstep(0.68, 0.84, vWave);
+              float wakeFoam = smoothstep(0.36, 0.82, abs(vWake));
+              float deepWater = pow(
+                clamp(1.0 - vShoreProximity, 0.0, 1.0),
+                0.72
+              );
+              vec3 water = mix(
+                shallowColor,
+                deepColor,
+                deepWater * 0.94
+              );
+              water = mix(
+                water,
+                shallowColor * 1.08,
+                fresnel * 0.3 + vWave * 0.04
+              );
+              water += glint * vec3(0.72, 0.94, 0.94);
+              water = mix(
+                water,
+                foamColor,
+                max(crest * 0.07, wakeFoam * 0.72)
+              );
 
-            gl_FragColor = vec4(
-              water,
-              0.7 + fresnel * 0.18 + crest * 0.025
-            );
-          }
-        `}
-        transparent
-        depthWrite
-      />
-    </mesh>
+              gl_FragColor = vec4(
+                water,
+                0.82 + fresnel * 0.1 + crest * 0.025
+              );
+            }
+          `}
+          transparent
+          depthWrite
+        />
+      </mesh>
+    </group>
   );
 }
 
@@ -1624,13 +1714,14 @@ function FlagRectangle({
       position={position}
       rotation={[0, 0, rotation]}
       renderOrder={position[2] > 0 ? 30 + Math.round(position[2] * 1000) : 20}
+      castShadow
     >
       <planeGeometry args={size} />
       <meshToonMaterial
         color={color}
         side={DoubleSide}
         depthTest
-        depthWrite={false}
+        depthWrite
       />
     </mesh>
   );
@@ -1671,7 +1762,7 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
             <meshBasicMaterial
               color="#ffffff"
               side={DoubleSide}
-              depthWrite={false}
+              depthWrite
             />
           </mesh>
         ))}
@@ -1705,7 +1796,7 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
           <meshToonMaterial
             color="#438459"
             side={DoubleSide}
-            depthWrite={false}
+            depthWrite
           />
         </mesh>
       </>
@@ -1725,7 +1816,7 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
           <meshBasicMaterial
             color="#ffffff"
             side={DoubleSide}
-            depthWrite={false}
+            depthWrite
           />
         </mesh>
         <mesh position={[-0.035, 0.012, 0.007]} renderOrder={40}>
@@ -1733,7 +1824,7 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
           <meshBasicMaterial
             color="#cf343c"
             side={DoubleSide}
-            depthWrite={false}
+            depthWrite
           />
         </mesh>
         <mesh
@@ -1744,7 +1835,7 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
           <meshBasicMaterial
             color="#ffffff"
             side={DoubleSide}
-            depthWrite={false}
+            depthWrite
           />
         </mesh>
       </>
@@ -1764,7 +1855,7 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
           <meshBasicMaterial
             color="#c83e48"
             side={DoubleSide}
-            depthWrite={false}
+            depthWrite
           />
         </mesh>
         <mesh
@@ -1776,7 +1867,7 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
           <meshBasicMaterial
             color="#31578f"
             side={DoubleSide}
-            depthWrite={false}
+            depthWrite
           />
         </mesh>
         {[
@@ -1809,7 +1900,7 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
         <meshBasicMaterial
           color="#cf3f47"
           side={DoubleSide}
-          depthWrite={false}
+          depthWrite
         />
       </mesh>
     </>
@@ -2507,6 +2598,216 @@ function OceanLife({
   );
 }
 
+function createBirdDefinitions() {
+  const random = createSeededRandom(47_119);
+  const colors = ["#f2eee2", "#d7d2c8", "#5e6970", "#8b7767"];
+  const definitions: BirdDefinition[] = [];
+
+  for (let flock = 0; flock < 4; flock += 1) {
+    const longitude = random() * Math.PI * 2;
+    const vertical = random() * 1.4 - 0.7;
+    const horizontal = Math.sqrt(1 - vertical * vertical);
+    const center = new Vector3(
+      Math.cos(longitude) * horizontal,
+      vertical,
+      Math.sin(longitude) * horizontal,
+    ).normalize();
+    const { east, north } = tangentBasis(center);
+    const travelDirection = east
+      .clone()
+      .multiplyScalar(0.76 + random() * 0.22)
+      .addScaledVector(north, (random() - 0.5) * 0.56)
+      .normalize();
+    const orbitAxis = new Vector3()
+      .crossVectors(center, travelDirection)
+      .normalize();
+    const cycleDuration = 42 + random() * 24;
+    const activeDuration = 15 + random() * 7;
+    const flightSpeed = 0.024 + random() * 0.012;
+    const cycleOffset =
+      flock === 0 ? 1.4 : random() * cycleDuration;
+
+    for (let bird = 0; bird < 3; bird += 1) {
+      definitions.push({
+        id: `bird-${flock}-${bird}`,
+        direction: directionFromOffset(
+          center,
+          (bird - 1) * 0.024 + (random() - 0.5) * 0.012,
+          Math.abs(bird - 1) * -0.018 + (random() - 0.5) * 0.01,
+        ),
+        orbitAxis: orbitAxis.clone(),
+        phase: (bird - 1) * -0.018,
+        speed: flightSpeed,
+        altitude: 0.72 + random() * 0.48,
+        scale: 0.82 + random() * 0.26,
+        color: colors[(flock + bird) % colors.length],
+        cycleDuration,
+        activeDuration,
+        cycleOffset,
+      });
+    }
+  }
+
+  return definitions;
+}
+
+function FlyingBird({
+  definition,
+  reduceMotion,
+  skyPhase,
+}: {
+  definition: BirdDefinition;
+  reduceMotion: boolean;
+  skyPhase: SkyPhase;
+}) {
+  const groupRef = useRef<Group>(null);
+  const leftWingRef = useRef<Group>(null);
+  const rightWingRef = useRef<Group>(null);
+  const directionRef = useRef(new Vector3());
+  const positionRef = useRef(new Vector3());
+  const tangentRef = useRef(new Vector3());
+  const lookTargetRef = useRef(new Vector3());
+
+  useFrame(({ clock }) => {
+    const group = groupRef.current;
+
+    if (!group) {
+      return;
+    }
+
+    const elapsed = clock.elapsedTime;
+    const cycle =
+      (elapsed + definition.cycleOffset) %
+      definition.cycleDuration;
+    const active =
+      !reduceMotion &&
+      skyPhase !== "night" &&
+      cycle < definition.activeDuration;
+
+    group.visible = active;
+
+    if (!active) {
+      return;
+    }
+
+    const fade = Math.min(
+      1,
+      cycle / 1.4,
+      (definition.activeDuration - cycle) / 1.9,
+    );
+    const direction = directionRef.current
+      .copy(definition.direction)
+      .applyAxisAngle(
+        definition.orbitAxis,
+        elapsed * definition.speed + definition.phase,
+      )
+      .normalize();
+    const surfaceRadius = Math.max(
+      OCEAN_SURFACE_RADIUS,
+      surfaceRadiusAt(direction),
+    );
+    const altitude =
+      definition.altitude +
+      Math.sin(elapsed * 1.15 + definition.phase * 20) * 0.035;
+    const position = positionRef.current
+      .copy(direction)
+      .multiplyScalar(surfaceRadius + altitude);
+    const tangent = tangentRef.current
+      .crossVectors(definition.orbitAxis, direction)
+      .normalize();
+
+    group.position.copy(position);
+    group.up.copy(direction);
+    group.lookAt(lookTargetRef.current.copy(position).add(tangent));
+    group.scale.setScalar(definition.scale * Math.max(0, fade));
+
+    const flap =
+      Math.sin(elapsed * 8.6 + definition.phase * 37) * 0.5 + 0.5;
+
+    if (leftWingRef.current) {
+      leftWingRef.current.rotation.z = -0.18 - flap * 0.72;
+    }
+
+    if (rightWingRef.current) {
+      rightWingRef.current.rotation.z = 0.18 + flap * 0.72;
+    }
+  });
+
+  return (
+    <group ref={groupRef} visible={false}>
+      <mesh scale={[0.045, 0.042, 0.12]} castShadow>
+        <sphereGeometry args={[1, 12, 7]} />
+        <meshToonMaterial color={definition.color} />
+      </mesh>
+      <mesh position={[0, 0.012, 0.105]} castShadow>
+        <sphereGeometry args={[0.043, 10, 7]} />
+        <meshToonMaterial color={definition.color} />
+      </mesh>
+      <mesh
+        position={[0, 0.004, 0.162]}
+        rotation={[Math.PI / 2, 0, 0]}
+        scale={[0.026, 0.055, 0.026]}
+      >
+        <coneGeometry args={[1, 1, 8]} />
+        <meshToonMaterial color="#d7a744" />
+      </mesh>
+      <group ref={leftWingRef} position={[-0.035, 0.012, 0]}>
+        <mesh
+          position={[-0.065, 0, -0.005]}
+          rotation={[0, 0.1, 0]}
+          scale={[0.13, 0.015, 0.07]}
+          castShadow
+        >
+          <sphereGeometry args={[1, 8, 5]} />
+          <meshToonMaterial color={definition.color} />
+        </mesh>
+      </group>
+      <group ref={rightWingRef} position={[0.035, 0.012, 0]}>
+        <mesh
+          position={[0.065, 0, -0.005]}
+          rotation={[0, -0.1, 0]}
+          scale={[0.13, 0.015, 0.07]}
+          castShadow
+        >
+          <sphereGeometry args={[1, 8, 5]} />
+          <meshToonMaterial color={definition.color} />
+        </mesh>
+      </group>
+      <mesh
+        position={[0, 0.015, -0.115]}
+        rotation={[Math.PI / 2, 0, 0]}
+        scale={[0.052, 0.065, 0.028]}
+      >
+        <coneGeometry args={[1, 1, 3]} />
+        <meshToonMaterial color={definition.color} />
+      </mesh>
+    </group>
+  );
+}
+
+function AmbientBirds({
+  reduceMotion,
+  skyPhase,
+}: {
+  reduceMotion: boolean;
+  skyPhase: SkyPhase;
+}) {
+  const birds = useMemo(createBirdDefinitions, []);
+
+  return (
+    <group>
+      {birds.map((definition) => (
+        <FlyingBird
+          key={definition.id}
+          definition={definition}
+          reduceMotion={reduceMotion}
+          skyPhase={skyPhase}
+        />
+      ))}
+    </group>
+  );
+}
+
 export function PlanetoidWorld({
   travelerDirectionRef,
   movementVelocityRef,
@@ -2528,6 +2829,10 @@ export function PlanetoidWorld({
         reduceMotion={reduceMotion}
         exploreMode={exploreMode}
         travelerDirectionRef={travelerDirectionRef}
+      />
+      <AmbientBirds
+        reduceMotion={reduceMotion}
+        skyPhase={skyPhase}
       />
 
       {BIOMES.map((biome) => (

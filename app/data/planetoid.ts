@@ -585,6 +585,53 @@ function islandPartProgress(
   return radius / Math.max(boundary, 0.0001);
 }
 
+function islandPartCoastDistance(
+  direction: Vector3,
+  biome: BiomeDefinition,
+  part: IslandPart,
+) {
+  const offset = tangentOffsetFromCenter(biome.center, direction);
+  const east = offset.east - part.east;
+  const north = offset.north - part.north;
+  const cosine = Math.cos(part.rotation);
+  const sine = Math.sin(part.rotation);
+  const localEast = east * cosine + north * sine;
+  const localNorth = -east * sine + north * cosine;
+  const normalizedEast = localEast / part.scaleEast;
+  const normalizedNorth = localNorth / part.scaleNorth;
+  const normalizedRadius = Math.hypot(
+    normalizedEast,
+    normalizedNorth,
+  );
+  const angle = Math.atan2(normalizedNorth, normalizedEast);
+  const boundary = islandOutlineRadius(part, angle);
+
+  if (normalizedRadius <= boundary) {
+    return 0;
+  }
+
+  const tangentDistance = Math.hypot(localEast, localNorth);
+  const boundaryFraction =
+    boundary / Math.max(normalizedRadius, 0.0001);
+
+  return tangentDistance * (1 - boundaryFraction);
+}
+
+export function oceanShoreProximityAt(direction: Vector3) {
+  let nearestCoast = Number.POSITIVE_INFINITY;
+
+  for (const biome of BIOMES) {
+    for (const part of biome.parts) {
+      nearestCoast = Math.min(
+        nearestCoast,
+        islandPartCoastDistance(direction, biome, part),
+      );
+    }
+  }
+
+  return 1 - smoothstep(0.012, 0.3, nearestCoast);
+}
+
 function terrainNoise(direction: Vector3, seed: number) {
   const seedOffset = seed * 0.173;
   const broad =
