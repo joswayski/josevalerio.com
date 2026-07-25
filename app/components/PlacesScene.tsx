@@ -2447,12 +2447,125 @@ function RocketScenery() {
   );
 }
 
+function DmzObservationScenery() {
+  const fencePosts = [-0.2, -0.1, 0, 0.1, 0.2];
+
+  return (
+    <group>
+      <mesh position={[0, 0.018, 0]} receiveShadow>
+        <boxGeometry args={[0.52, 0.035, 0.34]} />
+        <meshStandardMaterial color="#7c846f" roughness={0.86} />
+      </mesh>
+
+      <group position={[0, 0, -0.075]}>
+        {fencePosts.map((x) => (
+          <mesh key={x} position={[x, 0.13, 0]} castShadow>
+            <cylinderGeometry args={[0.009, 0.011, 0.26, 10]} />
+            <meshStandardMaterial
+              color="#555f61"
+              metalness={0.55}
+              roughness={0.5}
+            />
+          </mesh>
+        ))}
+        {[0.065, 0.12, 0.175].map((y) => (
+          <mesh
+            key={y}
+            position={[0, y, 0]}
+            rotation={[0, 0, Math.PI / 2]}
+          >
+            <cylinderGeometry args={[0.004, 0.004, 0.42, 8]} />
+            <meshStandardMaterial
+              color="#818a8a"
+              metalness={0.62}
+              roughness={0.42}
+            />
+          </mesh>
+        ))}
+        {[-0.15, -0.05, 0.05, 0.15].map((x, index) => (
+          <mesh
+            key={x}
+            position={[x, 0.12, 0.002]}
+            rotation={[0, 0, index % 2 === 0 ? -0.73 : 0.73]}
+          >
+            <boxGeometry args={[0.008, 0.145, 0.007]} />
+            <meshStandardMaterial
+              color="#697274"
+              metalness={0.45}
+              roughness={0.48}
+            />
+          </mesh>
+        ))}
+      </group>
+
+      <group position={[0.135, 0, 0.08]}>
+        {[-1, 1].flatMap((x) =>
+          [-1, 1].map((z) => (
+            <mesh
+              key={`${x}-${z}`}
+              position={[x * 0.052, 0.13, z * 0.038]}
+              rotation={[0, 0, x * -0.08]}
+              castShadow
+            >
+              <boxGeometry args={[0.018, 0.24, 0.018]} />
+              <meshStandardMaterial
+                color="#4f5c5c"
+                metalness={0.35}
+                roughness={0.58}
+              />
+            </mesh>
+          )),
+        )}
+        <mesh position={[0, 0.265, 0]} castShadow>
+          <boxGeometry args={[0.145, 0.105, 0.12]} />
+          <meshStandardMaterial color="#6d9ba2" roughness={0.48} />
+        </mesh>
+        {[-0.045, 0.045].map((x) => (
+          <mesh key={x} position={[x, 0.27, 0.061]}>
+            <boxGeometry args={[0.048, 0.045, 0.006]} />
+            <meshStandardMaterial
+              color="#23383e"
+              roughness={0.25}
+              metalness={0.12}
+            />
+          </mesh>
+        ))}
+        <mesh position={[0, 0.338, 0]} castShadow>
+          <boxGeometry args={[0.18, 0.025, 0.15]} />
+          <meshStandardMaterial color="#3f4b4b" roughness={0.62} />
+        </mesh>
+        <mesh position={[-0.095, 0.11, 0.07]} rotation={[0, 0, -0.58]}>
+          <boxGeometry args={[0.018, 0.25, 0.025]} />
+          <meshStandardMaterial color="#8a765a" roughness={0.72} />
+        </mesh>
+      </group>
+
+      <group position={[-0.14, 0, 0.07]}>
+        <mesh position={[0, 0.1, 0]} castShadow>
+          <cylinderGeometry args={[0.009, 0.012, 0.2, 10]} />
+          <meshStandardMaterial color="#545d5e" metalness={0.4} />
+        </mesh>
+        <mesh position={[0, 0.21, 0]} castShadow>
+          <boxGeometry args={[0.13, 0.075, 0.018]} />
+          <meshStandardMaterial color="#ece7d9" roughness={0.58} />
+        </mesh>
+        <mesh position={[0, 0.21, 0.011]}>
+          <boxGeometry args={[0.09, 0.012, 0.004]} />
+          <meshStandardMaterial color="#436d78" roughness={0.46} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
 function ApricotTreeScenery() {
   const canopy = [
     [-0.07, 0.29, 0],
     [0.055, 0.31, 0.02],
     [0, 0.36, -0.025],
     [0.015, 0.27, 0.075],
+    [-0.08, 0.34, -0.055],
+    [0.085, 0.355, -0.04],
   ] as const;
   const fruit = [
     [-0.075, 0.305, 0.055],
@@ -2461,6 +2574,9 @@ function ApricotTreeScenery() {
     [0.09, 0.285, 0.025],
     [0.01, 0.285, 0.1],
     [-0.055, 0.34, -0.045],
+    [0.075, 0.385, -0.035],
+    [-0.1, 0.35, -0.015],
+    [0.035, 0.325, -0.09],
   ] as const;
 
   return (
@@ -2500,6 +2616,28 @@ function ApricotTreeScenery() {
           <meshStandardMaterial color="#e79a3e" roughness={0.52} />
         </mesh>
       ))}
+      <group position={[0.13, 0.055, 0.055]} rotation={[0, -0.28, 0]}>
+        <mesh castShadow>
+          <boxGeometry args={[0.14, 0.1, 0.12]} />
+          <meshStandardMaterial color="#a96f3e" roughness={0.78} />
+        </mesh>
+        {[-0.043, 0, 0.043].map((x) => (
+          <mesh key={x} position={[x, 0, 0.061]}>
+            <boxGeometry args={[0.018, 0.075, 0.008]} />
+            <meshStandardMaterial color="#d49b5e" roughness={0.72} />
+          </mesh>
+        ))}
+        {[
+          [-0.04, 0.066, -0.02],
+          [0.012, 0.072, 0.018],
+          [0.052, 0.064, -0.012],
+        ].map(([x, y, z], index) => (
+          <mesh key={index} position={[x, y, z]} castShadow>
+            <sphereGeometry args={[0.025, 12, 8]} />
+            <meshStandardMaterial color="#efa34a" roughness={0.48} />
+          </mesh>
+        ))}
+      </group>
     </group>
   );
 }
@@ -2587,6 +2725,8 @@ function PlaceSceneryModel({ placeId }: { placeId: string }) {
       return <GuitarScenery />;
     case "central-florida":
       return <RocketScenery />;
+    case "korean-dmz":
+      return <DmzObservationScenery />;
     case "malatya":
       return <ApricotTreeScenery />;
     case "osaka":
@@ -2611,7 +2751,8 @@ const PLACE_SCENERY_LAYOUT: Partial<
   chicago: { yaw: 0.3, scale: 1.1 },
   austin: { yaw: -0.15, scale: 1.08 },
   "central-florida": { yaw: 0.12, scale: 1.08 },
-  malatya: { yaw: -0.12, scale: 1.05 },
+  "korean-dmz": { yaw: 0.18, scale: 1.15 },
+  malatya: { yaw: -0.12, scale: 1.22 },
   osaka: { yaw: 0.22, scale: 1.02 },
 };
 
@@ -3610,7 +3751,7 @@ function Traveler({
           castShadow
         >
           <icosahedronGeometry args={[0.078, 1]} />
-          <meshToonMaterial color="#6f513d" />
+          <meshToonMaterial color="#151719" />
         </mesh>
         <mesh
           position={[0, 0.2, -0.065]}

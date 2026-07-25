@@ -192,6 +192,14 @@ export const placeCountries: PlaceCountry[] = [
       landmark: "tower",
       photos: [placeholderPhoto],
     },
+    {
+      id: "korean-dmz",
+      name: "Korean DMZ",
+      areaType: "region",
+      terrain: "mountain",
+      landmark: "mountain",
+      photos: [placeholderPhoto],
+    },
   ]),
   defineCountry("japan", "Japan", [
     {

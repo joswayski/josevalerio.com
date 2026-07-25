@@ -77,6 +77,7 @@ type LoosePropState = {
   orientation: Quaternion;
   scale: number;
   color: string;
+  accentColor: string;
   contactCooldown: number;
 };
 
@@ -1546,7 +1547,15 @@ function createLooseProps() {
               ? "#a77e57"
               : biome.id === "turkiye"
                 ? "#8e7460"
-              : "#776e64",
+                : biome.id === "south-korea"
+                  ? "#747770"
+                  : "#74716b",
+        accentColor:
+          biome.id === "dominican-republic"
+            ? "#80684a"
+            : biome.id === "turkiye"
+              ? "#665d4e"
+              : "#59645a",
         contactCooldown: 0,
       });
     }
@@ -1567,7 +1576,7 @@ function LooseProps({
   reduceMotion: boolean;
 }) {
   const props = useMemo(createLooseProps, []);
-  const propRefs = useRef<Array<Mesh | null>>([]);
+  const propRefs = useRef<Array<Group | null>>([]);
   const impulseRef = useRef(new Vector3());
   const axisRef = useRef(new Vector3());
   const nextDirectionRef = useRef(new Vector3());
@@ -1676,23 +1685,43 @@ function LooseProps({
   return (
     <group>
       {props.map((prop, index) => (
-        <mesh
+        <group
           key={prop.id}
-          ref={(mesh) => {
-            propRefs.current[index] = mesh;
+          ref={(group) => {
+            propRefs.current[index] = group;
           }}
           position={prop.direction
             .clone()
             .multiplyScalar(surfaceRadiusAt(prop.direction) + prop.scale)}
           quaternion={prop.orientation}
-          scale={[prop.scale * 1.15, prop.scale, prop.scale * 0.9]}
-          castShadow
         >
-          <dodecahedronGeometry args={[1, 0]} />
-          <meshToonMaterial
-            color={prop.color}
-          />
-        </mesh>
+          <mesh
+            rotation={[0.08, index * 1.17, -0.05]}
+            scale={[prop.scale * 1.15, prop.scale, prop.scale * 0.9]}
+            castShadow
+            receiveShadow
+          >
+            <dodecahedronGeometry args={[1, 1]} />
+            <meshToonMaterial color={prop.color} />
+          </mesh>
+          <mesh
+            position={[
+              prop.scale * 0.34,
+              prop.scale * 0.48,
+              prop.scale * -0.18,
+            ]}
+            rotation={[0.22, index * -0.81, 0.16]}
+            scale={[
+              prop.scale * 0.46,
+              prop.scale * 0.29,
+              prop.scale * 0.38,
+            ]}
+            castShadow
+          >
+            <dodecahedronGeometry args={[1, 1]} />
+            <meshToonMaterial color={prop.accentColor} />
+          </mesh>
+        </group>
       ))}
     </group>
   );
@@ -2001,8 +2030,8 @@ function LandmarkTerrain() {
   );
   const koreaDirection = directionFromOffset(
     southKorea.center,
-    0.03,
-    0.14,
+    0.12,
+    -0.11,
   );
   const gardenHill = directionFromOffset(
     japan.center,

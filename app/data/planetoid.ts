@@ -365,6 +365,11 @@ const PLACE_LAYOUT: Record<string, PlaceLayout> = {
     north: 0.02,
   },
   seoul: { biomeId: "south-korea", east: 0, north: 0.025 },
+  "korean-dmz": {
+    biomeId: "south-korea",
+    east: -0.055,
+    north: 0.205,
+  },
   tokyo: { biomeId: "japan", east: 0.035, north: -0.1 },
   osaka: { biomeId: "japan", east: -0.06, north: -0.02 },
 };
@@ -407,6 +412,7 @@ const PLACE_SCENERY_OFFSETS: Record<
   austin: { inward: 0.07, side: 0.03 },
   "central-florida": { inward: 0.075, side: -0.02 },
   malatya: { inward: 0.07, side: 0.025 },
+  "korean-dmz": { inward: 0.075, side: -0.045 },
   osaka: { inward: 0.055, side: 0.05 },
 };
 
