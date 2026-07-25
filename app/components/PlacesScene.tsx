@@ -306,7 +306,7 @@ function StarField({
   const pointsRef = useRef<Points>(null);
   const positions = useMemo(() => createStarPositions(520), []);
   const opacity =
-    skyPhase === "night" ? 0.88 : skyPhase === "twilight" ? 0.58 : 0.3;
+    skyPhase === "night" ? 0.88 : skyPhase === "twilight" ? 0.26 : 0.035;
 
   useFrame((_, delta) => {
     if (pointsRef.current && !reduceMotion) {
@@ -338,12 +338,14 @@ function CelestialBodyModel({
   exploreMode,
   observerDirectionRef,
   solarDirection,
+  occlusionVisibilityRef,
 }: {
   definition: CelestialBodyDefinition;
   skyPhase: SkyPhase;
   exploreMode: boolean;
   observerDirectionRef: MutableRefObject<Vector3>;
   solarDirection: [number, number, number];
+  occlusionVisibilityRef: MutableRefObject<number>;
 }) {
   const bodyMaterialRef = useRef<MeshStandardMaterial>(null);
   const haloMaterialRef = useRef<MeshBasicMaterial>(null);
@@ -353,8 +355,7 @@ function CelestialBodyModel({
     () => new Vector3(...solarDirection).normalize(),
     [solarDirection],
   );
-  const initialVisibility =
-    skyPhase === "night" ? 1 : skyPhase === "twilight" ? 0.45 : 0.03;
+  const initialVisibility = 0;
 
   useFrame(({ camera }, delta) => {
     const bodyMaterial = bodyMaterialRef.current;
@@ -374,7 +375,11 @@ function CelestialBodyModel({
     const sunlight = observer.dot(normalizedSolarDirection);
     const nightVisibility =
       1 - MathUtils.smoothstep(sunlight, -0.08, 0.22);
-    const targetOpacity = MathUtils.lerp(0.015, 1, nightVisibility);
+    const skyVisibility =
+      skyPhase === "night" ? 1 : skyPhase === "twilight" ? 0.2 : 0.002;
+    const targetOpacity =
+      MathUtils.lerp(0.001, skyVisibility, nightVisibility) *
+      occlusionVisibilityRef.current;
     const opacity = MathUtils.damp(
       bodyMaterial.opacity,
       targetOpacity,
@@ -476,6 +481,11 @@ function CelestialSky({
   const bodyWasInitializedRef = useRef(
     CELESTIAL_BODIES.map(() => false),
   );
+  const bodyOcclusionVisibilityRefs = useRef(
+    CELESTIAL_BODIES.map(() => ({ current: 0 })),
+  );
+  const cameraToBodyRef = useRef(new Vector3());
+  const closestApproachRef = useRef(new Vector3());
   const lastUpdateRef = useRef(Number.NEGATIVE_INFINITY);
   const { camera } = useThree();
 
@@ -535,6 +545,43 @@ function CelestialSky({
 
       group.position.lerp(bodyTargetPositionsRef.current[index], ease);
 
+      const cameraToBody = cameraToBodyRef.current
+        .copy(group.position)
+        .sub(camera.position);
+      const bodyDistance = cameraToBody.length();
+      let targetOcclusionVisibility = 1;
+
+      if (bodyDistance > 0.0001) {
+        cameraToBody.multiplyScalar(1 / bodyDistance);
+        const closestDistanceAlongRay = -camera.position.dot(cameraToBody);
+
+        if (
+          closestDistanceAlongRay > 0 &&
+          closestDistanceAlongRay < bodyDistance
+        ) {
+          const closestApproach = closestApproachRef.current
+            .copy(camera.position)
+            .addScaledVector(cameraToBody, closestDistanceAlongRay);
+          const globeClearance =
+            closestApproach.length() -
+            (OCEAN_SURFACE_RADIUS + HORIZON_CLIP_MARGIN);
+
+          targetOcclusionVisibility = MathUtils.smoothstep(
+            globeClearance,
+            0,
+            definition.radius + 0.5,
+          );
+        }
+      }
+
+      const visibilityRef = bodyOcclusionVisibilityRefs.current[index];
+      visibilityRef.current = MathUtils.damp(
+        visibilityRef.current,
+        targetOcclusionVisibility,
+        9,
+        Math.min(delta, 0.05),
+      );
+
       if (definition.body === Body.Saturn) {
         group.lookAt(camera.position);
       }
@@ -556,6 +603,9 @@ function CelestialSky({
             exploreMode={exploreMode}
             observerDirectionRef={observerDirectionRef}
             solarDirection={solarDirection}
+            occlusionVisibilityRef={
+              bodyOcclusionVisibilityRefs.current[index]
+            }
           />
         </group>
       ))}
@@ -2271,7 +2321,6 @@ function DestinationWorld({
       camera.position,
     );
     aboveHorizonRef.current = aboveHorizon;
-    groupRef.current.visible = aboveHorizon;
 
     const targetScale = selected ? 2.35 : hovered ? 2.12 : 1.82;
     const scale = MathUtils.damp(
