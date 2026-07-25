@@ -314,10 +314,14 @@ export function PlacesGlobe() {
       ) as Record<string, ResolvedPlacePhoto[]>,
     [mediaBaseUrl],
   );
-  const selectedPlace =
-    places.find((place) => place.id === selectedPlaceId) ?? places[0];
-  const selectedPhotos = photosByPlaceId[selectedPlaceId] ?? [];
-  const selectedPhoto = photosByPlaceId[selectedPlaceId]?.[0] ?? null;
+  const activePlaceId = exploreMode ? nearbyPlaceId : selectedPlaceId;
+  const activePlace = activePlaceId
+    ? places.find((place) => place.id === activePlaceId) ?? null
+    : null;
+  const activePhotos = activePlaceId
+    ? photosByPlaceId[activePlaceId] ?? []
+    : [];
+  const activePhoto = activePhotos[0] ?? null;
   const expandedPhotos = expandedGallery
     ? photosByPlaceId[expandedGallery.placeId] ?? []
     : [];
@@ -1123,7 +1127,7 @@ export function PlacesGlobe() {
             <SceneErrorBoundary fallback={sceneFallback}>
               <Suspense fallback={sceneFallback}>
                 <LazyPlacesScene
-                  selectedPlaceId={selectedPlaceId}
+                  selectedPlaceId={activePlaceId ?? ""}
                   exploreMode={exploreMode}
                   exploreInputRef={exploreInputRef}
                   reduceMotion={reduceMotion}
@@ -1143,24 +1147,24 @@ export function PlacesGlobe() {
           )}
         </div>
 
-        {selectedPhoto && !expandedPhoto ? (
+        {activePlaceId && activePlace && activePhoto && !expandedPhoto ? (
           <button
             ref={projectionButtonRef}
             type="button"
             className="place-photo-projection"
-            aria-label={`View ${selectedPlace.name} photos`}
-            onClick={() => openPlaceGallery(selectedPlaceId)}
+            aria-label={`View ${activePlace.name} photos`}
+            onClick={() => openPlaceGallery(activePlaceId)}
           >
             <img
-              src={selectedPhoto.src}
-              alt={selectedPhoto.alt}
-              width={selectedPhoto.width}
-              height={selectedPhoto.height}
+              src={activePhoto.src}
+              alt={activePhoto.alt}
+              width={activePhoto.width}
+              height={activePhoto.height}
             />
             <span className="place-photo-projection-copy">
-              <strong>{selectedPlace.name}</strong>
+              <strong>{activePlace.name}</strong>
               <span>
-                F · View {selectedPhotos.length > 1 ? "photos" : "photo"}
+                F · View {activePhotos.length > 1 ? "photos" : "photo"}
               </span>
             </span>
           </button>

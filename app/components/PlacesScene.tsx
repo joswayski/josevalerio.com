@@ -98,7 +98,9 @@ const FAST_SWIM_SPEED = 0.21;
 const BOAT_SPEED = 0.2;
 const FAST_BOAT_SPEED = 0.34;
 const START_DISTANCE = 0.38;
-const NEARBY_DISTANCE = Math.cos(0.075);
+const NEARBY_ENTER_ANGLE = 0.075;
+const NEARBY_EXIT_ANGLE = 0.105;
+const NEARBY_SWITCH_ADVANTAGE = 0.012;
 const JUMP_DURATION = 0.52;
 const JUMP_LANDING_DELAY = 0.22;
 const JUMP_CYCLE_DURATION = JUMP_DURATION + JUMP_LANDING_DELAY;
@@ -297,21 +299,77 @@ function StarField({
 function CelestialBodyModel({
   definition,
   skyPhase,
+  exploreMode,
+  observerDirectionRef,
+  solarDirection,
 }: {
   definition: CelestialBodyDefinition;
   skyPhase: SkyPhase;
+  exploreMode: boolean;
+  observerDirectionRef: MutableRefObject<Vector3>;
+  solarDirection: [number, number, number];
 }) {
-  const emissiveIntensity =
-    skyPhase === "night" ? 0.34 : skyPhase === "twilight" ? 0.24 : 0.12;
+  const bodyMaterialRef = useRef<MeshStandardMaterial>(null);
+  const haloMaterialRef = useRef<MeshBasicMaterial>(null);
+  const ringMaterialRef = useRef<MeshStandardMaterial>(null);
+  const observerDirection = useRef(new Vector3());
+  const normalizedSolarDirection = useMemo(
+    () => new Vector3(...solarDirection).normalize(),
+    [solarDirection],
+  );
+  const initialVisibility =
+    skyPhase === "night" ? 1 : skyPhase === "twilight" ? 0.45 : 0.03;
+
+  useFrame(({ camera }, delta) => {
+    const bodyMaterial = bodyMaterialRef.current;
+    const haloMaterial = haloMaterialRef.current;
+
+    if (!bodyMaterial || !haloMaterial) {
+      return;
+    }
+
+    const observer = observerDirection.current
+      .copy(
+        exploreMode
+          ? observerDirectionRef.current
+          : camera.position,
+      )
+      .normalize();
+    const sunlight = observer.dot(normalizedSolarDirection);
+    const nightVisibility =
+      1 - MathUtils.smoothstep(sunlight, -0.08, 0.22);
+    const targetOpacity = MathUtils.lerp(0.015, 1, nightVisibility);
+    const opacity = MathUtils.damp(
+      bodyMaterial.opacity,
+      targetOpacity,
+      4,
+      Math.min(delta, 0.05),
+    );
+
+    bodyMaterial.opacity = opacity;
+    bodyMaterial.emissiveIntensity = MathUtils.lerp(
+      0.015,
+      0.34,
+      opacity,
+    );
+    haloMaterial.opacity = opacity * 0.16;
+
+    if (ringMaterialRef.current) {
+      ringMaterialRef.current.opacity = opacity * 0.84;
+      ringMaterialRef.current.emissiveIntensity =
+        bodyMaterial.emissiveIntensity * 0.7;
+    }
+  });
 
   return (
     <>
       <mesh scale={1.18}>
         <sphereGeometry args={[definition.radius, 16, 12]} />
         <meshBasicMaterial
+          ref={haloMaterialRef}
           color={definition.emissive}
           transparent
-          opacity={skyPhase === "night" ? 0.16 : 0.08}
+          opacity={initialVisibility * 0.16}
           side={BackSide}
           depthWrite={false}
         />
@@ -320,11 +378,19 @@ function CelestialBodyModel({
       <mesh>
         <sphereGeometry args={[definition.radius, 20, 14]} />
         <meshStandardMaterial
+          ref={bodyMaterialRef}
           color={definition.color}
           emissive={definition.emissive}
-          emissiveIntensity={emissiveIntensity}
+          emissiveIntensity={MathUtils.lerp(
+            0.015,
+            0.34,
+            initialVisibility,
+          )}
           roughness={0.86}
           metalness={0}
+          transparent
+          opacity={initialVisibility}
+          depthWrite={false}
         />
       </mesh>
 
@@ -338,13 +404,17 @@ function CelestialBodyModel({
             ]}
           />
           <meshStandardMaterial
+            ref={ringMaterialRef}
             color={definition.ring.color}
             emissive={definition.emissive}
-            emissiveIntensity={emissiveIntensity * 0.7}
+            emissiveIntensity={
+              MathUtils.lerp(0.015, 0.34, initialVisibility) * 0.7
+            }
             side={DoubleSide}
             transparent
-            opacity={0.84}
+            opacity={initialVisibility * 0.84}
             roughness={0.9}
+            depthWrite={false}
           />
         </mesh>
       ) : null}
@@ -354,8 +424,14 @@ function CelestialBodyModel({
 
 function CelestialSky({
   skyPhase,
+  exploreMode,
+  observerDirectionRef,
+  solarDirection,
 }: {
   skyPhase: SkyPhase;
+  exploreMode: boolean;
+  observerDirectionRef: MutableRefObject<Vector3>;
+  solarDirection: [number, number, number];
 }) {
   const bodyRefs = useRef<Array<Group | null>>([]);
   const bodyTargetPositionsRef = useRef(
@@ -441,6 +517,9 @@ function CelestialSky({
           <CelestialBodyModel
             definition={definition}
             skyPhase={skyPhase}
+            exploreMode={exploreMode}
+            observerDirectionRef={observerDirectionRef}
+            solarDirection={solarDirection}
           />
         </group>
       ))}
@@ -2669,6 +2748,7 @@ function PlanetExperience({
   onTraversalAudio,
   onWaterStroke,
   skyPhase,
+  solarDirection,
 }: PlacesSceneProps) {
   const globeRef = useRef<Group>(null);
   const dragRef = useRef<{
@@ -3176,9 +3256,39 @@ function PlanetExperience({
         }
       }
 
-      const nearbyPlace =
-        nearestPlace && nearestDot > NEARBY_DISTANCE ? nearestPlace : null;
-      const nearbyPlaceId = nearbyPlace?.id ?? null;
+      const nearestAngle = Math.acos(
+        MathUtils.clamp(nearestDot, -1, 1),
+      );
+      const currentNearbyPlaceId = nearbyPlaceIdRef.current;
+      const currentNearbyDirection = currentNearbyPlaceId
+        ? PLACE_DIRECTIONS.get(currentNearbyPlaceId)
+        : null;
+      const currentNearbyAngle = currentNearbyDirection
+        ? Math.acos(
+            MathUtils.clamp(
+              currentNearbyDirection.dot(playerUp),
+              -1,
+              1,
+            ),
+          )
+        : Number.POSITIVE_INFINITY;
+      let nearbyPlaceId = currentNearbyPlaceId;
+
+      if (
+        !currentNearbyPlaceId ||
+        currentNearbyAngle > NEARBY_EXIT_ANGLE
+      ) {
+        nearbyPlaceId =
+          nearestPlace && nearestAngle < NEARBY_ENTER_ANGLE
+            ? nearestPlace.id
+            : null;
+      } else if (
+        nearestPlace &&
+        nearestPlace.id !== currentNearbyPlaceId &&
+        nearestAngle + NEARBY_SWITCH_ADVANTAGE < currentNearbyAngle
+      ) {
+        nearbyPlaceId = nearestPlace.id;
+      }
 
       if (nearbyPlaceIdRef.current !== nearbyPlaceId) {
         nearbyPlaceIdRef.current = nearbyPlaceId;
@@ -3220,7 +3330,12 @@ function PlanetExperience({
 
   return (
     <>
-      <CelestialSky skyPhase={skyPhase} />
+      <CelestialSky
+        skyPhase={skyPhase}
+        exploreMode={exploreMode}
+        observerDirectionRef={playerUpRef}
+        solarDirection={solarDirection}
+      />
 
       <group ref={globeRef}>
         <PlanetoidWorld
