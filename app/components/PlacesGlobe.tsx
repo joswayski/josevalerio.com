@@ -151,7 +151,17 @@ const movementKeys = new Set([
   "s",
   "w",
 ]);
-const footstepKeys = new Set(["ArrowUp", "ArrowDown", "Shift", "s", "w"]);
+const footstepKeys = new Set([
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+  "Shift",
+  "a",
+  "d",
+  "s",
+  "w",
+]);
 
 export function PlacesGlobe() {
   const [selectedPlaceId, setSelectedPlaceId] = useState(places[0].id);
@@ -577,7 +587,7 @@ export function PlacesGlobe() {
     (horizontal: number, vertical: number) =>
     (event: ReactPointerEvent<HTMLButtonElement>) => {
       event.currentTarget.setPointerCapture(event.pointerId);
-      if (vertical !== 0) {
+      if (horizontal !== 0 || vertical !== 0) {
         ensureAudioContext();
       }
       exploreInputRef.current = {
@@ -690,7 +700,7 @@ export function PlacesGlobe() {
             <button
               type="button"
               className="explore-dpad-left"
-              aria-label="Turn left"
+              aria-label="Move left"
               onPointerDown={startTouchMovement(-1, 0)}
               onPointerUp={stopTouchMovement}
               onPointerCancel={stopTouchMovement}
@@ -710,7 +720,7 @@ export function PlacesGlobe() {
             <button
               type="button"
               className="explore-dpad-right"
-              aria-label="Turn right"
+              aria-label="Move right"
               onPointerDown={startTouchMovement(1, 0)}
               onPointerUp={stopTouchMovement}
               onPointerCancel={stopTouchMovement}
@@ -744,7 +754,7 @@ export function PlacesGlobe() {
 
         <p className="globe-instructions">
           {exploreMode
-            ? "Drag orbit · W/S walk · Shift run · A/D turn · Q/E orbit · Space jump · F interact · J out · K in"
+            ? "Drag orbit · WASD move · Shift run · Q/E orbit · Space jump · F interact · J out · K in"
             : "Drag to spin"}
         </p>
         <p className="sr-only">

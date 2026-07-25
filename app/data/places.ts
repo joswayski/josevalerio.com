@@ -8,12 +8,26 @@ export type PlacePhoto = {
 
 export type PlaceTerrain = "city" | "coast" | "mountain";
 
+export type PlaceLandmark =
+  | "barbecue"
+  | "lighthouse"
+  | "mosque"
+  | "mountain"
+  | "orange"
+  | "palm"
+  | "sailboat"
+  | "skyline"
+  | "sushi"
+  | "torii"
+  | "tower";
+
 export type Place = {
   id: string;
   name: string;
   region: string;
   coordinates: [longitude: number, latitude: number];
   terrain: PlaceTerrain;
+  landmark: PlaceLandmark;
   note?: string;
   photos: PlacePhoto[];
 };
@@ -43,6 +57,7 @@ export const places: Place[] = [
     region: "United States",
     coordinates: [-74.01, 40.71],
     terrain: "city",
+    landmark: "skyline",
     photos: [placeholderPhoto],
   },
   {
@@ -51,6 +66,16 @@ export const places: Place[] = [
     region: "United States",
     coordinates: [-74.62, 40.15],
     terrain: "coast",
+    landmark: "lighthouse",
+    photos: [placeholderPhoto],
+  },
+  {
+    id: "rhode-island",
+    name: "Rhode Island",
+    region: "United States",
+    coordinates: [-71.45, 41.68],
+    terrain: "coast",
+    landmark: "sailboat",
     photos: [placeholderPhoto],
   },
   {
@@ -59,6 +84,7 @@ export const places: Place[] = [
     region: "United States",
     coordinates: [-87.63, 41.88],
     terrain: "city",
+    landmark: "skyline",
     photos: [placeholderPhoto],
   },
   {
@@ -67,6 +93,7 @@ export const places: Place[] = [
     region: "United States",
     coordinates: [-97.74, 30.27],
     terrain: "city",
+    landmark: "barbecue",
     photos: [placeholderPhoto],
   },
   {
@@ -75,6 +102,7 @@ export const places: Place[] = [
     region: "United States",
     coordinates: [-81.38, 28.54],
     terrain: "coast",
+    landmark: "orange",
     photos: [placeholderPhoto],
   },
   {
@@ -83,6 +111,7 @@ export const places: Place[] = [
     region: "Caribbean",
     coordinates: [-70.69, 19.78],
     terrain: "coast",
+    landmark: "palm",
     photos: [placeholderPhoto],
   },
   {
@@ -91,6 +120,7 @@ export const places: Place[] = [
     region: "Türkiye",
     coordinates: [28.98, 41.01],
     terrain: "city",
+    landmark: "mosque",
     photos: [placeholderPhoto],
   },
   {
@@ -99,6 +129,7 @@ export const places: Place[] = [
     region: "Türkiye",
     coordinates: [32.86, 39.93],
     terrain: "city",
+    landmark: "mosque",
     photos: [placeholderPhoto],
   },
   {
@@ -107,6 +138,7 @@ export const places: Place[] = [
     region: "Türkiye",
     coordinates: [27.14, 38.42],
     terrain: "coast",
+    landmark: "sailboat",
     photos: [placeholderPhoto],
   },
   {
@@ -115,6 +147,7 @@ export const places: Place[] = [
     region: "Türkiye",
     coordinates: [27.43, 37.03],
     terrain: "coast",
+    landmark: "sailboat",
     photos: [placeholderPhoto],
   },
   {
@@ -123,6 +156,7 @@ export const places: Place[] = [
     region: "Türkiye",
     coordinates: [38.31, 38.36],
     terrain: "mountain",
+    landmark: "mountain",
     photos: [placeholderPhoto],
   },
   {
@@ -131,6 +165,7 @@ export const places: Place[] = [
     region: "South Korea",
     coordinates: [126.98, 37.57],
     terrain: "city",
+    landmark: "tower",
     photos: [placeholderPhoto],
   },
   {
@@ -139,6 +174,7 @@ export const places: Place[] = [
     region: "Japan",
     coordinates: [139.65, 35.68],
     terrain: "city",
+    landmark: "torii",
     photos: [placeholderPhoto],
   },
   {
@@ -147,6 +183,7 @@ export const places: Place[] = [
     region: "Japan",
     coordinates: [135.5, 34.69],
     terrain: "city",
+    landmark: "sushi",
     photos: [osakaCastlePhoto],
   },
 ];

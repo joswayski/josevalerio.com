@@ -14,6 +14,7 @@ import {
   type RefObject,
 } from "react";
 import {
+  AlwaysDepth,
   BackSide,
   CanvasTexture,
   Color,
@@ -64,9 +65,10 @@ type PlacesSceneProps = {
 };
 
 const PLANET_RADIUS = 6;
+const PLANET_LAND_RELIEF = 0.16;
+const PLANET_SURFACE_RADIUS = PLANET_RADIUS + PLANET_LAND_RELIEF;
 const WALK_SPEED = 0.32;
 const RUN_SPEED = 0.7;
-const TURN_SPEED = 2.1;
 const START_DISTANCE = 0.24;
 const NEARBY_DISTANCE = Math.cos(0.075);
 const JUMP_DURATION = 0.52;
@@ -170,8 +172,12 @@ function StarField({
   );
 }
 
-function DayNightShade({ solarDirection }: {
+function DayNightShade({
+  solarDirection,
+  reliefTexture,
+}: {
   solarDirection: [number, number, number];
+  reliefTexture: CanvasTexture;
 }) {
   const uniforms = useMemo(
     () => ({
@@ -179,21 +185,30 @@ function DayNightShade({ solarDirection }: {
         value: new Vector3(...solarDirection).normalize(),
       },
       nightOpacity: { value: 0.58 },
+      reliefMap: { value: reliefTexture },
+      reliefScale: { value: PLANET_LAND_RELIEF },
     }),
-    [solarDirection],
+    [reliefTexture, solarDirection],
   );
 
   return (
-    <mesh scale={1.004}>
+    <mesh>
       <icosahedronGeometry args={[PLANET_RADIUS, 5]} />
       <shaderMaterial
         uniforms={uniforms}
         vertexShader={`
+          uniform sampler2D reliefMap;
+          uniform float reliefScale;
           varying vec3 vGlobeDirection;
 
           void main() {
-            vGlobeDirection = normalize(position);
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            float relief = texture2D(reliefMap, uv).r * reliefScale;
+            vec3 displacedPosition = position + normal * (relief + 0.018);
+            vGlobeDirection = normalize(displacedPosition);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(
+              displacedPosition,
+              1.0
+            );
           }
         `}
         fragmentShader={`
@@ -252,7 +267,7 @@ function isAboveGlobeHorizon(
   const cameraFacingHeight =
     worldPosition.dot(cameraPosition) / worldRadius;
 
-  return cameraFacingHeight > PLANET_RADIUS + HORIZON_CLIP_MARGIN;
+  return cameraFacingHeight > PLANET_SURFACE_RADIUS + HORIZON_CLIP_MARGIN;
 }
 
 const PLACE_DIRECTIONS = new Map(
@@ -295,6 +310,36 @@ function createGlobeTexture() {
 
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
+  texture.needsUpdate = true;
+
+  return texture;
+}
+
+function createGlobeReliefTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 512;
+
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Unable to create the globe relief texture.");
+  }
+
+  const projection = geoEquirectangular().fitSize(
+    [canvas.width, canvas.height],
+    SPHERE,
+  );
+  const path = geoPath(projection, context);
+
+  context.fillStyle = "#000000";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.beginPath();
+  path(LAND);
+  context.fillStyle = "#ffffff";
+  context.fill();
+
+  const texture = new CanvasTexture(canvas);
   texture.needsUpdate = true;
 
   return texture;
@@ -362,6 +407,206 @@ function MountainDiorama({ color }: { color: string }) {
       </mesh>
     </group>
   );
+}
+
+function LighthouseDiorama() {
+  return (
+    <group>
+      <mesh position={[0, 0.13, 0]} castShadow>
+        <cylinderGeometry args={[0.034, 0.052, 0.22, 8]} />
+        <meshStandardMaterial color="#f0e5d4" flatShading />
+      </mesh>
+      <mesh position={[0, 0.205, 0]}>
+        <cylinderGeometry args={[0.036, 0.044, 0.035, 8]} />
+        <meshStandardMaterial color="#d04842" flatShading />
+      </mesh>
+      <mesh position={[0, 0.275, 0]} castShadow>
+        <coneGeometry args={[0.061, 0.075, 8]} />
+        <meshStandardMaterial color="#d04842" flatShading />
+      </mesh>
+    </group>
+  );
+}
+
+function SailboatDiorama() {
+  return (
+    <group>
+      <mesh position={[0, 0.055, 0]} scale={[1, 0.48, 0.58]} castShadow>
+        <dodecahedronGeometry args={[0.105, 0]} />
+        <meshStandardMaterial color="#d9aa62" flatShading />
+      </mesh>
+      <mesh position={[0, 0.16, 0]}>
+        <cylinderGeometry args={[0.008, 0.008, 0.22, 6]} />
+        <meshStandardMaterial color="#725344" flatShading />
+      </mesh>
+      <mesh
+        position={[0.045, 0.185, 0]}
+        rotation={[0, 0, -0.18]}
+        scale={[0.68, 1, 0.18]}
+        castShadow
+      >
+        <coneGeometry args={[0.09, 0.18, 3]} />
+        <meshStandardMaterial color="#f2c876" flatShading />
+      </mesh>
+    </group>
+  );
+}
+
+function BarbecueDiorama() {
+  return (
+    <group>
+      <mesh position={[0, 0.13, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.052, 0.052, 0.17, 8]} />
+        <meshStandardMaterial color="#343f42" flatShading />
+      </mesh>
+      <mesh position={[0.055, 0.225, 0]}>
+        <cylinderGeometry args={[0.014, 0.018, 0.13, 6]} />
+        <meshStandardMaterial color="#343f42" flatShading />
+      </mesh>
+      {[-0.05, 0.05].map((x) => (
+        <mesh key={x} position={[x, 0.045, 0]} rotation={[0, 0, x * 2.2]}>
+          <boxGeometry args={[0.018, 0.11, 0.018]} />
+          <meshStandardMaterial color="#725344" flatShading />
+        </mesh>
+      ))}
+      <mesh position={[-0.035, 0.185, 0.048]} rotation={[0.1, 0, 0]}>
+        <boxGeometry args={[0.065, 0.018, 0.018]} />
+        <meshStandardMaterial color="#d04842" flatShading />
+      </mesh>
+    </group>
+  );
+}
+
+function OrangeDiorama() {
+  return (
+    <group>
+      <mesh position={[0, 0.105, 0]} castShadow>
+        <cylinderGeometry args={[0.018, 0.024, 0.16, 6]} />
+        <meshStandardMaterial color="#725344" flatShading />
+      </mesh>
+      <mesh position={[0, 0.22, 0]} castShadow>
+        <icosahedronGeometry args={[0.09, 1]} />
+        <meshStandardMaterial color="#e4973f" flatShading />
+      </mesh>
+      <mesh
+        position={[0.04, 0.285, 0]}
+        rotation={[0, 0, -0.55]}
+        scale={[1, 0.35, 0.55]}
+      >
+        <icosahedronGeometry args={[0.065, 1]} />
+        <meshStandardMaterial color="#62897a" flatShading />
+      </mesh>
+    </group>
+  );
+}
+
+function MosqueDiorama() {
+  return (
+    <group>
+      <mesh position={[-0.018, 0.105, 0]} castShadow>
+        <cylinderGeometry args={[0.075, 0.085, 0.14, 8]} />
+        <meshStandardMaterial color="#f0e5d4" flatShading />
+      </mesh>
+      <mesh position={[-0.018, 0.19, 0]} scale={[1, 0.58, 1]} castShadow>
+        <sphereGeometry args={[0.078, 8, 5]} />
+        <meshStandardMaterial color="#6f8f89" flatShading />
+      </mesh>
+      <mesh position={[0.095, 0.155, 0]} castShadow>
+        <cylinderGeometry args={[0.016, 0.025, 0.27, 8]} />
+        <meshStandardMaterial color="#f0e5d4" flatShading />
+      </mesh>
+      <mesh position={[0.095, 0.3, 0]}>
+        <coneGeometry args={[0.028, 0.07, 8]} />
+        <meshStandardMaterial color="#d04842" flatShading />
+      </mesh>
+    </group>
+  );
+}
+
+function TowerDiorama() {
+  return (
+    <group>
+      <mesh position={[0, 0.145, 0]} castShadow>
+        <cylinderGeometry args={[0.018, 0.04, 0.25, 6]} />
+        <meshStandardMaterial color="#f0e5d4" flatShading />
+      </mesh>
+      <mesh position={[0, 0.225, 0]} castShadow>
+        <dodecahedronGeometry args={[0.058, 0]} />
+        <meshStandardMaterial color="#6f8f89" flatShading />
+      </mesh>
+      <mesh position={[0, 0.315, 0]}>
+        <coneGeometry args={[0.014, 0.14, 5]} />
+        <meshStandardMaterial color="#d04842" flatShading />
+      </mesh>
+    </group>
+  );
+}
+
+function ToriiDiorama() {
+  return (
+    <group>
+      {[-0.065, 0.065].map((x) => (
+        <mesh key={x} position={[x, 0.13, 0]} castShadow>
+          <boxGeometry args={[0.025, 0.24, 0.035]} />
+          <meshStandardMaterial color="#d04842" flatShading />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.225, 0]} castShadow>
+        <boxGeometry args={[0.19, 0.026, 0.045]} />
+        <meshStandardMaterial color="#d04842" flatShading />
+      </mesh>
+      <mesh position={[0, 0.265, 0]} castShadow>
+        <boxGeometry args={[0.23, 0.025, 0.052]} />
+        <meshStandardMaterial color="#b93e38" flatShading />
+      </mesh>
+    </group>
+  );
+}
+
+function SushiDiorama() {
+  return (
+    <group rotation={[0, 0.28, 0]}>
+      <mesh position={[0, 0.105, 0]} castShadow>
+        <boxGeometry args={[0.16, 0.09, 0.095]} />
+        <meshStandardMaterial color="#f0e5d4" flatShading />
+      </mesh>
+      <mesh position={[0, 0.16, 0]} rotation={[0, 0, -0.08]} castShadow>
+        <boxGeometry args={[0.175, 0.045, 0.105]} />
+        <meshStandardMaterial color="#d76c56" flatShading />
+      </mesh>
+      <mesh position={[0, 0.125, 0.051]}>
+        <boxGeometry args={[0.04, 0.105, 0.012]} />
+        <meshStandardMaterial color="#2f4945" flatShading />
+      </mesh>
+    </group>
+  );
+}
+
+function PlaceDiorama({ place, color }: { place: Place; color: string }) {
+  switch (place.landmark) {
+    case "barbecue":
+      return <BarbecueDiorama />;
+    case "lighthouse":
+      return <LighthouseDiorama />;
+    case "mosque":
+      return <MosqueDiorama />;
+    case "mountain":
+      return <MountainDiorama color={color} />;
+    case "orange":
+      return <OrangeDiorama />;
+    case "palm":
+      return <CoastDiorama color={color} />;
+    case "sailboat":
+      return <SailboatDiorama />;
+    case "sushi":
+      return <SushiDiorama />;
+    case "torii":
+      return <ToriiDiorama />;
+    case "tower":
+      return <TowerDiorama />;
+    default:
+      return <CityDiorama color={color} />;
+  }
 }
 
 function PhotoProjection({
@@ -485,7 +730,7 @@ function PhotoProjection({
     if (exploreMode) {
       const travelerProjectedPosition = travelerProjectedPositionRef.current
         .copy(travelerDirectionRef.current)
-        .multiplyScalar(PLANET_RADIUS + 0.38)
+        .multiplyScalar(PLANET_SURFACE_RADIUS + 0.38)
         .project(camera);
       const travelerIsOnScreen =
         travelerProjectedPosition.z > -1 &&
@@ -598,7 +843,7 @@ function DestinationWorld({
   const [hovered, setHovered] = useState(false);
   const { camera, gl } = useThree();
   const position = useMemo(
-    () => latLonToVector3(place.coordinates, PLANET_RADIUS + 0.025),
+    () => latLonToVector3(place.coordinates, PLANET_SURFACE_RADIUS + 0.025),
     [place.coordinates],
   );
   const orientation = useMemo(
@@ -679,13 +924,7 @@ function DestinationWorld({
           />
         </mesh>
 
-        {place.terrain === "coast" ? (
-          <CoastDiorama color={color} />
-        ) : place.terrain === "mountain" ? (
-          <MountainDiorama color={color} />
-        ) : (
-          <CityDiorama color={color} />
-        )}
+        <PlaceDiorama place={place} color={color} />
 
         {selected ? (
           <mesh position={[0, 0.035, 0]} rotation={[Math.PI / 2, 0, 0]}>
@@ -812,7 +1051,7 @@ function Traveler({
     const playerForward = playerForwardRef.current;
     const position = positionRef.current
       .copy(playerUp)
-      .multiplyScalar(PLANET_RADIUS + 0.055 + bob + jumpLift);
+      .multiplyScalar(PLANET_SURFACE_RADIUS + 0.055 + bob + jumpLift);
     const lookTarget = lookTargetRef.current
       .copy(position)
       .add(playerForward);
@@ -844,7 +1083,7 @@ function Traveler({
           <boxGeometry args={[0.045, 0.12, 0.05]} />
           <meshStandardMaterial
             color="#2c3b40"
-            depthTest={false}
+            depthFunc={AlwaysDepth}
             flatShading
           />
         </mesh>
@@ -857,7 +1096,7 @@ function Traveler({
           <boxGeometry args={[0.045, 0.12, 0.05]} />
           <meshStandardMaterial
             color="#2c3b40"
-            depthTest={false}
+            depthFunc={AlwaysDepth}
             flatShading
           />
         </mesh>
@@ -869,7 +1108,7 @@ function Traveler({
           <capsuleGeometry args={[0.065, 0.13, 4, 8]} />
           <meshStandardMaterial
             color="#d04842"
-            depthTest={false}
+            depthFunc={AlwaysDepth}
             flatShading
           />
         </mesh>
@@ -882,7 +1121,7 @@ function Traveler({
           <boxGeometry args={[0.035, 0.16, 0.04]} />
           <meshStandardMaterial
             color="#e9c5a4"
-            depthTest={false}
+            depthFunc={AlwaysDepth}
             flatShading
           />
         </mesh>
@@ -895,7 +1134,7 @@ function Traveler({
           <boxGeometry args={[0.035, 0.16, 0.04]} />
           <meshStandardMaterial
             color="#e9c5a4"
-            depthTest={false}
+            depthFunc={AlwaysDepth}
             flatShading
           />
         </mesh>
@@ -907,7 +1146,7 @@ function Traveler({
           <icosahedronGeometry args={[0.078, 1]} />
           <meshStandardMaterial
             color="#e9c5a4"
-            depthTest={false}
+            depthFunc={AlwaysDepth}
             flatShading
           />
         </mesh>
@@ -919,7 +1158,7 @@ function Traveler({
           <boxGeometry args={[0.105, 0.13, 0.055]} />
           <meshStandardMaterial
             color="#d4a64c"
-            depthTest={false}
+            depthFunc={AlwaysDepth}
             flatShading
           />
         </mesh>
@@ -955,6 +1194,8 @@ function PlanetExperience({
   const onNearbyChangeRef = useRef(onNearbyChange);
   const movementAxisRef = useRef(new Vector3());
   const movementTargetDirectionRef = useRef(new Vector3(0, 0, 1));
+  const cameraMovementForwardRef = useRef(new Vector3(0, 0, 1));
+  const cameraMovementRightRef = useRef(new Vector3(1, 0, 0));
   const travelerTurnCrossRef = useRef(new Vector3());
   const movementVelocityRef = useRef(0);
   const cameraOrbitAngleRef = useRef(0);
@@ -967,13 +1208,20 @@ function PlanetExperience({
   const cameraDistanceRef = useRef(DEFAULT_CAMERA_DISTANCE);
   const cameraDistanceTargetRef = useRef(DEFAULT_CAMERA_DISTANCE);
   const texture = useMemo(createGlobeTexture, []);
+  const reliefTexture = useMemo(createGlobeReliefTexture, []);
   const { camera, gl } = useThree();
 
   useEffect(() => {
     onNearbyChangeRef.current = onNearbyChange;
   }, [onNearbyChange]);
 
-  useEffect(() => () => texture.dispose(), [texture]);
+  useEffect(
+    () => () => {
+      texture.dispose();
+      reliefTexture.dispose();
+    },
+    [reliefTexture, texture],
+  );
 
   useEffect(() => {
     const selectedPlace =
@@ -1167,25 +1415,38 @@ function PlanetExperience({
       const playerUp = playerUpRef.current;
       const playerForward = playerForwardRef.current;
       const travelerForward = travelerForwardRef.current;
-
-      if (input.horizontal !== 0) {
-        const turnAngle = -input.horizontal * TURN_SPEED * frameDelta;
-        playerForward.applyAxisAngle(playerUp, turnAngle).normalize();
-        travelerForward.applyAxisAngle(playerUp, turnAngle).normalize();
-      }
-
+      const movementInputMagnitude = Math.min(
+        1,
+        Math.hypot(input.horizontal, input.vertical),
+      );
       const movementTargetDirection = movementTargetDirectionRef.current;
 
-      if (input.vertical !== 0) {
-        movementTargetDirection
+      if (movementInputMagnitude !== 0) {
+        const cameraMovementForward = cameraMovementForwardRef.current
           .copy(camera.position)
           .addScaledVector(playerUp, -camera.position.dot(playerUp))
-          .multiplyScalar(-Math.sign(input.vertical));
+          .multiplyScalar(-1);
+
+        if (cameraMovementForward.lengthSq() < 0.0001) {
+          cameraMovementForward.copy(playerForward);
+        } else {
+          cameraMovementForward.normalize();
+        }
+
+        const cameraMovementRight = cameraMovementRightRef.current
+          .crossVectors(playerUp, cameraMovementForward)
+          .normalize();
+        movementTargetDirection
+          .copy(cameraMovementForward)
+          .multiplyScalar(input.vertical)
+          .addScaledVector(cameraMovementRight, input.horizontal)
+          .normalize();
 
         if (movementTargetDirection.lengthSq() > 0.0001) {
-          movementTargetDirection.normalize();
-          const travelerTurnCross = travelerTurnCrossRef.current
-            .crossVectors(travelerForward, movementTargetDirection);
+          const travelerTurnCross = travelerTurnCrossRef.current.crossVectors(
+            travelerForward,
+            movementTargetDirection,
+          );
           const travelerTurnAngle = Math.atan2(
             travelerTurnCross.dot(playerUp),
             MathUtils.clamp(
@@ -1210,7 +1471,7 @@ function PlanetExperience({
       }
 
       const movementAlignment =
-        input.vertical === 0
+        movementInputMagnitude === 0
           ? 0
           : MathUtils.clamp(
               travelerForward.dot(movementTargetDirection),
@@ -1223,7 +1484,7 @@ function PlanetExperience({
         0.92,
       );
       const targetMovementVelocity =
-        Math.abs(input.vertical) *
+        movementInputMagnitude *
         (input.running ? RUN_SPEED : WALK_SPEED) *
         movementReadiness;
       const movementResponse = targetMovementVelocity === 0 ? 5.5 : 7;
@@ -1416,18 +1677,27 @@ function PlanetExperience({
           <icosahedronGeometry args={[PLANET_RADIUS, 5]} />
           <meshStandardMaterial
             map={texture}
+            displacementMap={reliefTexture}
+            displacementScale={PLANET_LAND_RELIEF}
             roughness={0.9}
             metalness={0}
             flatShading
           />
         </mesh>
 
-        <DayNightShade solarDirection={solarDirection} />
+        <DayNightShade
+          solarDirection={solarDirection}
+          reliefTexture={reliefTexture}
+        />
 
         <mesh scale={1.003}>
           <icosahedronGeometry args={[PLANET_RADIUS, 4]} />
-          <meshBasicMaterial
+          <meshStandardMaterial
             color="#ffffff"
+            displacementMap={reliefTexture}
+            displacementScale={PLANET_LAND_RELIEF}
+            emissive="#ffffff"
+            emissiveIntensity={0.2}
             transparent
             opacity={0.12}
             wireframe
