@@ -2028,7 +2028,13 @@ function SushiDiorama() {
   );
 }
 
-function PlaceDiorama({ place, color }: { place: Place; color: string }) {
+function PlaceLandmarkDiorama({
+  place,
+  color,
+}: {
+  place: Place;
+  color: string;
+}) {
   switch (place.landmark) {
     case "barbecue":
       return <BarbecueDiorama />;
@@ -2053,6 +2059,200 @@ function PlaceDiorama({ place, color }: { place: Place; color: string }) {
     default:
       return <CityDiorama color={color} />;
   }
+}
+
+function PlaceAccentDiorama({ placeId }: { placeId: string }) {
+  switch (placeId) {
+    case "new-york":
+      return (
+        <group position={[-0.15, 0.04, 0.055]} rotation={[0, 0.38, 0]}>
+          <mesh position={[0, 0.035, 0]} castShadow>
+            <boxGeometry args={[0.14, 0.045, 0.075]} />
+            <meshStandardMaterial color="#e9b83f" flatShading />
+          </mesh>
+          <mesh position={[0, 0.07, -0.004]} castShadow>
+            <boxGeometry args={[0.075, 0.04, 0.065]} />
+            <meshStandardMaterial color="#f2c84f" flatShading />
+          </mesh>
+          {[-0.045, 0.045].map((x) => (
+            <mesh
+              key={x}
+              position={[x, 0.018, 0.041]}
+              rotation={[Math.PI / 2, 0, 0]}
+            >
+              <cylinderGeometry args={[0.018, 0.018, 0.012, 8]} />
+              <meshStandardMaterial color="#283238" flatShading />
+            </mesh>
+          ))}
+        </group>
+      );
+    case "new-jersey":
+      return (
+        <group position={[-0.145, 0.02, 0.045]} rotation={[0, -0.28, 0]}>
+          {[-0.04, 0.04].map((x) => (
+            <mesh
+              key={x}
+              position={[x, 0.075, 0]}
+              rotation={[0, 0, x * 2.6]}
+              castShadow
+            >
+              <boxGeometry args={[0.018, 0.15, 0.018]} />
+              <meshStandardMaterial color="#d7b47b" flatShading />
+            </mesh>
+          ))}
+          <mesh position={[0, 0.13, 0]} castShadow>
+            <boxGeometry args={[0.11, 0.022, 0.075]} />
+            <meshStandardMaterial color="#f0d29b" flatShading />
+          </mesh>
+          <mesh position={[0, 0.18, -0.028]} rotation={[0.18, 0, 0]}>
+            <boxGeometry args={[0.11, 0.085, 0.018]} />
+            <meshStandardMaterial color="#d85b51" flatShading />
+          </mesh>
+        </group>
+      );
+    case "rhode-island":
+      return (
+        <group position={[-0.145, 0.02, 0.04]}>
+          <mesh position={[0, 0.07, 0]} castShadow>
+            <cylinderGeometry args={[0.035, 0.055, 0.14, 8]} />
+            <meshStandardMaterial color="#d84d47" flatShading />
+          </mesh>
+          <mesh position={[0, 0.095, 0]}>
+            <cylinderGeometry args={[0.037, 0.047, 0.035, 8]} />
+            <meshStandardMaterial color="#f2eee2" flatShading />
+          </mesh>
+          <mesh position={[0, 0.17, 0]} castShadow>
+            <cylinderGeometry args={[0.008, 0.008, 0.09, 6]} />
+            <meshStandardMaterial color="#313a3d" flatShading />
+          </mesh>
+          <mesh position={[0, 0.225, 0]}>
+            <sphereGeometry args={[0.016, 8, 6]} />
+            <meshStandardMaterial color="#e9b83f" flatShading />
+          </mesh>
+        </group>
+      );
+    case "chicago":
+      return (
+        <mesh
+          position={[-0.15, 0.065, 0.04]}
+          rotation={[0.08, 0.35, -0.05]}
+          scale={[1.35, 0.58, 0.88]}
+          castShadow
+        >
+          <icosahedronGeometry args={[0.068, 1]} />
+          <meshStandardMaterial
+            color="#b8c4c6"
+            roughness={0.28}
+            metalness={0.55}
+            flatShading
+          />
+        </mesh>
+      );
+    case "austin":
+      return (
+        <group
+          position={[-0.145, 0.105, 0.035]}
+          rotation={[0.1, 0.15, -0.42]}
+        >
+          <mesh castShadow>
+            <dodecahedronGeometry args={[0.052, 0]} />
+            <meshStandardMaterial color="#b7673e" flatShading />
+          </mesh>
+          <mesh position={[0, 0.095, 0]} castShadow>
+            <boxGeometry args={[0.022, 0.16, 0.024]} />
+            <meshStandardMaterial color="#76503a" flatShading />
+          </mesh>
+          <mesh position={[0, 0.18, 0]}>
+            <boxGeometry args={[0.04, 0.032, 0.025]} />
+            <meshStandardMaterial color="#d4a257" flatShading />
+          </mesh>
+        </group>
+      );
+    case "central-florida":
+      return (
+        <group position={[-0.145, 0.03, 0.035]}>
+          <mesh position={[0, 0.115, 0]} castShadow>
+            <cylinderGeometry args={[0.025, 0.038, 0.2, 8]} />
+            <meshStandardMaterial color="#efe9dc" flatShading />
+          </mesh>
+          <mesh position={[0, 0.235, 0]} castShadow>
+            <coneGeometry args={[0.038, 0.08, 8]} />
+            <meshStandardMaterial color="#d74d46" flatShading />
+          </mesh>
+          {[-1, 1].map((side) => (
+            <mesh
+              key={side}
+              position={[side * 0.042, 0.04, 0]}
+              rotation={[0, 0, side * -0.42]}
+            >
+              <coneGeometry args={[0.034, 0.085, 4]} />
+              <meshStandardMaterial color="#d74d46" flatShading />
+            </mesh>
+          ))}
+        </group>
+      );
+    case "malatya":
+      return (
+        <group position={[-0.15, 0.03, 0.035]}>
+          <mesh position={[0, 0.08, 0]} castShadow>
+            <cylinderGeometry args={[0.018, 0.024, 0.15, 7]} />
+            <meshStandardMaterial color="#725344" flatShading />
+          </mesh>
+          <mesh position={[0, 0.18, 0]} scale={[1.15, 0.82, 1]} castShadow>
+            <icosahedronGeometry args={[0.075, 1]} />
+            <meshStandardMaterial color="#668b62" flatShading />
+          </mesh>
+          {[
+            [-0.04, 0.2, 0.045],
+            [0.035, 0.215, 0.035],
+            [0.012, 0.165, 0.068],
+          ].map(([x, y, z], index) => (
+            <mesh key={index} position={[x, y, z]}>
+              <dodecahedronGeometry args={[0.024, 0]} />
+              <meshStandardMaterial color="#e4973f" flatShading />
+            </mesh>
+          ))}
+        </group>
+      );
+    case "osaka":
+      return (
+        <group position={[-0.15, 0.02, 0.035]} scale={0.78}>
+          {[0, 1, 2].map((tier) => (
+            <group key={tier} position={[0, 0.055 + tier * 0.07, 0]}>
+              <mesh castShadow>
+                <boxGeometry
+                  args={[
+                    0.16 - tier * 0.035,
+                    0.06,
+                    0.12 - tier * 0.024,
+                  ]}
+                />
+                <meshStandardMaterial color="#eee7d7" flatShading />
+              </mesh>
+              <mesh position={[0, 0.045, 0]} rotation={[0, Math.PI / 4, 0]}>
+                <coneGeometry args={[0.13 - tier * 0.025, 0.045, 4]} />
+                <meshStandardMaterial color="#527268" flatShading />
+              </mesh>
+            </group>
+          ))}
+          <mesh position={[0, 0.29, 0]}>
+            <coneGeometry args={[0.025, 0.09, 5]} />
+            <meshStandardMaterial color="#d6a948" flatShading />
+          </mesh>
+        </group>
+      );
+    default:
+      return null;
+  }
+}
+
+function PlaceDiorama({ place, color }: { place: Place; color: string }) {
+  return (
+    <group>
+      <PlaceLandmarkDiorama place={place} color={color} />
+      <PlaceAccentDiorama placeId={place.id} />
+    </group>
+  );
 }
 
 function PhotoProjection({

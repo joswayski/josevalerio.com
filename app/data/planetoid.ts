@@ -1,9 +1,9 @@
 import { MathUtils, Vector3 } from "three";
 import { places } from "./places";
 
-export const PLANET_RADIUS = 9;
+export const PLANET_RADIUS = 10;
 export const OCEAN_SURFACE_RADIUS = PLANET_RADIUS + 0.14;
-export const PLANET_MAX_SURFACE_RADIUS = 10.45;
+export const PLANET_MAX_SURFACE_RADIUS = 11.45;
 
 export type TraversalMode = "boat" | "land" | "swim";
 
@@ -301,36 +301,38 @@ export const BIOME_BY_ID = new Map(
   BIOMES.map((biome) => [biome.id, biome]),
 );
 
+// These are thematic display offsets rather than precise coordinates. Dense
+// regions are intentionally spread out so their landmarks remain explorable.
 const PLACE_LAYOUT: Record<string, PlaceLayout> = {
   "new-york": {
     biomeId: "united-states",
-    east: 0.39,
-    north: 0.1,
+    east: 0.37,
+    north: 0.09,
   },
   "new-jersey": {
     biomeId: "united-states",
-    east: 0.34,
-    north: 0.02,
+    east: 0.25,
+    north: 0,
   },
   "rhode-island": {
     biomeId: "united-states",
-    east: 0.48,
-    north: 0.13,
+    east: 0.5,
+    north: 0.17,
   },
   chicago: {
     biomeId: "united-states",
-    east: -0.1,
-    north: 0.1,
+    east: -0.17,
+    north: 0.14,
   },
   austin: {
     biomeId: "united-states",
-    east: -0.09,
-    north: -0.22,
+    east: -0.18,
+    north: -0.24,
   },
   "central-florida": {
     biomeId: "united-states",
-    east: 0.35,
-    north: -0.2,
+    east: 0.38,
+    north: -0.24,
   },
   "dominican-republic": {
     biomeId: "dominican-republic",
