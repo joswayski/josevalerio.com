@@ -754,12 +754,12 @@ export function PlacesGlobe() {
 
         <p className="globe-instructions">
           {exploreMode
-            ? "Drag orbit · WASD move · Shift run · Q/E orbit · Space jump · F interact · J out · K in"
+            ? "Drag orbit · WASD move/sail · Shift faster · Q/E orbit · Space jump · F interact · J out · K in"
             : "Drag to spin"}
         </p>
         <p className="sr-only">
-          Walk toward a landmark to reveal its floating photo, then select the
-          photo to expand it.
+          Walk, swim, or sail toward a landmark to reveal its floating photo,
+          then select the photo to expand it.
         </p>
       </div>
 

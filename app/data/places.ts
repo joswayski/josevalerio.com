@@ -21,15 +21,27 @@ export type PlaceLandmark =
   | "torii"
   | "tower";
 
+export type PlaceAreaType = "city" | "country" | "region" | "state";
+
 export type Place = {
   id: string;
   name: string;
-  region: string;
+  areaType: PlaceAreaType;
+  countryId: string;
+  countryName: string;
   terrain: PlaceTerrain;
   landmark: PlaceLandmark;
   note?: string;
   photos: PlacePhoto[];
 };
+
+export type PlaceCountry = {
+  id: string;
+  name: string;
+  places: Place[];
+};
+
+type CountryPlace = Omit<Place, "countryId" | "countryName">;
 
 const placeholderPhoto: PlacePhoto = {
   src: "/places/placeholder.svg",
@@ -45,129 +57,164 @@ const osakaCastlePhoto: PlacePhoto = {
   height: 1782,
 };
 
-// This list is intentionally public and thematic. Keep raw location history,
-// visit dates, routes, and precise coordinates out of the website repository.
-// R2 custom domains do not expose folder listings, so add each curated object to
-// its place's photos array. Every entry becomes a slide in that place's gallery.
-export const places: Place[] = [
-  {
-    id: "new-york",
-    name: "New York",
-    region: "United States",
-    terrain: "city",
-    landmark: "skyline",
-    photos: [placeholderPhoto],
-  },
-  {
-    id: "new-jersey",
-    name: "New Jersey",
-    region: "United States",
-    terrain: "coast",
-    landmark: "lighthouse",
-    photos: [placeholderPhoto],
-  },
-  {
-    id: "rhode-island",
-    name: "Rhode Island",
-    region: "United States",
-    terrain: "coast",
-    landmark: "sailboat",
-    photos: [placeholderPhoto],
-  },
-  {
-    id: "chicago",
-    name: "Chicago",
-    region: "United States",
-    terrain: "city",
-    landmark: "skyline",
-    photos: [placeholderPhoto],
-  },
-  {
-    id: "austin",
-    name: "Austin",
-    region: "United States",
-    terrain: "city",
-    landmark: "barbecue",
-    photos: [placeholderPhoto],
-  },
-  {
-    id: "central-florida",
-    name: "Central Florida",
-    region: "United States",
-    terrain: "coast",
-    landmark: "orange",
-    photos: [placeholderPhoto],
-  },
-  {
-    id: "dominican-republic",
-    name: "Dominican Republic",
-    region: "Caribbean",
-    terrain: "coast",
-    landmark: "palm",
-    photos: [placeholderPhoto],
-  },
-  {
-    id: "istanbul",
-    name: "Istanbul",
-    region: "Türkiye",
-    terrain: "city",
-    landmark: "mosque",
-    photos: [placeholderPhoto],
-  },
-  {
-    id: "ankara",
-    name: "Ankara",
-    region: "Türkiye",
-    terrain: "city",
-    landmark: "mosque",
-    photos: [placeholderPhoto],
-  },
-  {
-    id: "izmir",
-    name: "Izmir",
-    region: "Türkiye",
-    terrain: "coast",
-    landmark: "sailboat",
-    photos: [placeholderPhoto],
-  },
-  {
-    id: "bodrum",
-    name: "Bodrum",
-    region: "Türkiye",
-    terrain: "coast",
-    landmark: "sailboat",
-    photos: [placeholderPhoto],
-  },
-  {
-    id: "malatya",
-    name: "Malatya",
-    region: "Türkiye",
-    terrain: "mountain",
-    landmark: "mountain",
-    photos: [placeholderPhoto],
-  },
-  {
-    id: "seoul",
-    name: "Seoul",
-    region: "South Korea",
-    terrain: "city",
-    landmark: "tower",
-    photos: [placeholderPhoto],
-  },
-  {
-    id: "tokyo",
-    name: "Tokyo",
-    region: "Japan",
-    terrain: "city",
-    landmark: "torii",
-    photos: [placeholderPhoto],
-  },
-  {
-    id: "osaka",
-    name: "Osaka",
-    region: "Japan",
-    terrain: "city",
-    landmark: "sushi",
-    photos: [osakaCastlePhoto],
-  },
+function defineCountry(
+  id: string,
+  name: string,
+  destinations: CountryPlace[],
+): PlaceCountry {
+  return {
+    id,
+    name,
+    places: destinations.map((destination) => ({
+      ...destination,
+      countryId: id,
+      countryName: name,
+    })),
+  };
+}
+
+// This data is intentionally public and thematic. Countries are the grouping
+// layer; each city, state, or region owns its own gallery. To add photos, find
+// the country, find the destination, then append curated R2 objects to that
+// destination's photos array. Every configured object becomes a gallery slide.
+//
+// Keep raw location history, visit dates, routes, and precise coordinates out
+// of the website repository.
+export const placeCountries: PlaceCountry[] = [
+  defineCountry("united-states", "United States", [
+    {
+      id: "new-york",
+      name: "New York",
+      areaType: "city",
+      terrain: "city",
+      landmark: "skyline",
+      photos: [placeholderPhoto],
+    },
+    {
+      id: "new-jersey",
+      name: "New Jersey",
+      areaType: "state",
+      terrain: "coast",
+      landmark: "lighthouse",
+      photos: [placeholderPhoto],
+    },
+    {
+      id: "rhode-island",
+      name: "Rhode Island",
+      areaType: "state",
+      terrain: "coast",
+      landmark: "sailboat",
+      photos: [placeholderPhoto],
+    },
+    {
+      id: "chicago",
+      name: "Chicago",
+      areaType: "city",
+      terrain: "city",
+      landmark: "skyline",
+      photos: [placeholderPhoto],
+    },
+    {
+      id: "austin",
+      name: "Austin",
+      areaType: "city",
+      terrain: "city",
+      landmark: "barbecue",
+      photos: [placeholderPhoto],
+    },
+    {
+      id: "central-florida",
+      name: "Central Florida",
+      areaType: "region",
+      terrain: "coast",
+      landmark: "orange",
+      photos: [placeholderPhoto],
+    },
+  ]),
+  defineCountry("dominican-republic", "Dominican Republic", [
+    {
+      id: "dominican-republic",
+      name: "Dominican Republic",
+      areaType: "country",
+      terrain: "coast",
+      landmark: "palm",
+      photos: [placeholderPhoto],
+    },
+  ]),
+  defineCountry("turkiye", "Türkiye", [
+    {
+      id: "istanbul",
+      name: "Istanbul",
+      areaType: "city",
+      terrain: "city",
+      landmark: "mosque",
+      photos: [placeholderPhoto],
+    },
+    {
+      id: "ankara",
+      name: "Ankara",
+      areaType: "city",
+      terrain: "city",
+      landmark: "mosque",
+      photos: [placeholderPhoto],
+    },
+    {
+      id: "izmir",
+      name: "Izmir",
+      areaType: "city",
+      terrain: "coast",
+      landmark: "sailboat",
+      photos: [placeholderPhoto],
+    },
+    {
+      id: "bodrum",
+      name: "Bodrum",
+      areaType: "city",
+      terrain: "coast",
+      landmark: "sailboat",
+      photos: [placeholderPhoto],
+    },
+    {
+      id: "malatya",
+      name: "Malatya",
+      areaType: "city",
+      terrain: "mountain",
+      landmark: "mountain",
+      photos: [placeholderPhoto],
+    },
+  ]),
+  defineCountry("south-korea", "South Korea", [
+    {
+      id: "seoul",
+      name: "Seoul",
+      areaType: "city",
+      terrain: "city",
+      landmark: "tower",
+      photos: [placeholderPhoto],
+    },
+  ]),
+  defineCountry("japan", "Japan", [
+    {
+      id: "tokyo",
+      name: "Tokyo",
+      areaType: "city",
+      terrain: "city",
+      landmark: "torii",
+      photos: [placeholderPhoto],
+    },
+    {
+      id: "osaka",
+      name: "Osaka",
+      areaType: "city",
+      terrain: "city",
+      landmark: "sushi",
+      photos: [osakaCastlePhoto],
+    },
+  ]),
 ];
+
+export const places = placeCountries.flatMap((country) => country.places);
+
+export const placeCountryById = new Map(
+  placeCountries.map((country) => [country.id, country]),
+);

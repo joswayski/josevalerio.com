@@ -21,11 +21,13 @@ import {
 import {
   BIOMES,
   BIOME_BY_ID,
+  OCEAN_SURFACE_RADIUS,
   PLACE_DIRECTIONS,
   PLANET_RADIUS,
   WATER_FEATURES,
   biomeHeightAt,
   directionFromOffset,
+  isOceanDirection,
   isWaterDirection,
   surfaceRadiusAt,
   tangentBasis,
@@ -438,6 +440,269 @@ function createWaterGeometry(radius: number) {
   geometry.computeVertexNormals();
 
   return geometry;
+}
+
+function OceanSurface({
+  travelerDirectionRef,
+  movementVelocityRef,
+  exploreMode,
+  reduceMotion,
+  skyPhase,
+}: PlanetoidWorldProps) {
+  const uniforms = useMemo(
+    () => ({
+      time: { value: 0 },
+      motion: { value: reduceMotion ? 0 : 1 },
+      interaction: { value: 0 },
+      travelerDirection: { value: new Vector3(0, 1, 0) },
+      deepColor: {
+        value:
+          skyPhase === "night"
+            ? new Color("#102b42")
+            : new Color("#1f7387"),
+      },
+      shallowColor: {
+        value:
+          skyPhase === "night"
+            ? new Color("#285a70")
+            : new Color("#62c4c0"),
+      },
+      foamColor: {
+        value:
+          skyPhase === "night"
+            ? new Color("#a8d1d4")
+            : new Color("#eafbf2"),
+      },
+    }),
+    [reduceMotion, skyPhase],
+  );
+
+  useFrame(({ clock }) => {
+    const travelerDirection = travelerDirectionRef.current;
+    const oceanTravel = exploreMode && isOceanDirection(travelerDirection);
+
+    uniforms.time.value = clock.elapsedTime;
+    uniforms.travelerDirection.value.copy(travelerDirection);
+    uniforms.interaction.value = oceanTravel
+      ? MathUtils.clamp(
+          Math.abs(movementVelocityRef.current) / 1.05,
+          0,
+          1,
+        )
+      : 0;
+  });
+
+  return (
+    <mesh renderOrder={1} receiveShadow>
+      <sphereGeometry args={[OCEAN_SURFACE_RADIUS, 128, 64]} />
+      <shaderMaterial
+        uniforms={uniforms}
+        vertexShader={`
+          uniform float time;
+          uniform float motion;
+          uniform float interaction;
+          uniform vec3 travelerDirection;
+          varying vec3 vWorldPosition;
+          varying vec3 vWorldNormal;
+          varying float vWave;
+          varying float vWake;
+
+          void main() {
+            vec3 direction = normalize(position);
+            float radius = length(position);
+            float broadWave = (
+              sin(direction.x * 19.0 + time * 0.72) +
+              sin(direction.z * 23.0 - time * 0.58) +
+              sin((direction.x + direction.y) * 17.0 + time * 0.44)
+            ) / 3.0;
+            float detailWave = (
+              sin(direction.y * 41.0 - time * 1.15) +
+              sin((direction.z - direction.x) * 37.0 + time * 0.92)
+            ) * 0.5;
+            float travelerDistance = acos(clamp(
+              dot(direction, normalize(travelerDirection)),
+              -1.0,
+              1.0
+            ));
+            float wake = sin(
+              travelerDistance * 105.0 - time * 9.0
+            ) * exp(-travelerDistance * 34.0) * interaction;
+            float displacement = motion * (
+              broadWave * 0.028 +
+              detailWave * 0.01 +
+              wake * 0.052
+            );
+            vec3 displacedPosition =
+              direction * (radius + displacement);
+            vec4 worldPosition =
+              modelMatrix * vec4(displacedPosition, 1.0);
+
+            vWave = clamp(
+              0.5 + broadWave * 0.34 + detailWave * 0.12,
+              0.0,
+              1.0
+            );
+            vWake = wake;
+            vWorldPosition = worldPosition.xyz;
+            vWorldNormal = normalize(
+              mat3(modelMatrix) * direction
+            );
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(
+              displacedPosition,
+              1.0
+            );
+          }
+        `}
+        fragmentShader={`
+          uniform vec3 deepColor;
+          uniform vec3 shallowColor;
+          uniform vec3 foamColor;
+          varying vec3 vWorldPosition;
+          varying vec3 vWorldNormal;
+          varying float vWave;
+          varying float vWake;
+
+          void main() {
+            vec3 normal = normalize(vWorldNormal);
+            vec3 viewDirection = normalize(
+              cameraPosition - vWorldPosition
+            );
+            float fresnel = pow(
+              1.0 - abs(dot(normal, viewDirection)),
+              2.25
+            );
+            vec3 lightDirection = normalize(
+              vec3(-0.45, 0.82, 0.34)
+            );
+            float glint = pow(
+              max(
+                dot(
+                  reflect(-lightDirection, normal),
+                  viewDirection
+                ),
+                0.0
+              ),
+              38.0
+            );
+            float crest = smoothstep(0.67, 0.82, vWave);
+            float wakeFoam = smoothstep(0.36, 0.82, abs(vWake));
+            vec3 water = mix(
+              deepColor,
+              shallowColor,
+              0.22 + fresnel * 0.44 + vWave * 0.12
+            );
+            water += glint * vec3(0.74, 0.94, 0.9);
+            water = mix(
+              water,
+              foamColor,
+              max(crest * 0.08, wakeFoam * 0.72)
+            );
+
+            gl_FragColor = vec4(
+              water,
+              0.88 + fresnel * 0.08
+            );
+          }
+        `}
+        transparent
+        depthWrite
+      />
+    </mesh>
+  );
+}
+
+function createCoastlineFoamGeometry(biome: BiomeDefinition) {
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const segments = 120;
+  const oceanHeight = OCEAN_SURFACE_RADIUS - PLANET_RADIUS;
+
+  for (let segment = 0; segment < segments; segment += 1) {
+    const angle = (segment / segments) * Math.PI * 2;
+    let shoreDistance = biome.angularRadius * 0.66;
+
+    for (let sample = 0; sample <= 36; sample += 1) {
+      const distance =
+        biome.angularRadius * (0.66 + (sample / 36) * 0.34);
+      const direction = directionForPolarOffset(
+        biome.center,
+        distance,
+        angle,
+      );
+
+      if (biomeHeightAt(direction, biome) > oceanHeight + 0.008) {
+        shoreDistance = distance;
+      } else {
+        break;
+      }
+    }
+
+    const ripple =
+      Math.sin(segment * 1.91 + biome.seed) *
+      biome.angularRadius *
+      0.004;
+
+    for (const offset of [-0.006, 0.006]) {
+      const direction = directionForPolarOffset(
+        biome.center,
+        shoreDistance + ripple + offset,
+        angle,
+      );
+      const position = direction
+        .clone()
+        .multiplyScalar(OCEAN_SURFACE_RADIUS + 0.014);
+
+      positions.push(position.x, position.y, position.z);
+    }
+  }
+
+  for (let segment = 0; segment < segments; segment += 1) {
+    const next = (segment + 1) % segments;
+    const inner = segment * 2;
+    const outer = inner + 1;
+    const nextInner = next * 2;
+    const nextOuter = nextInner + 1;
+
+    indices.push(
+      inner,
+      outer,
+      nextInner,
+      nextInner,
+      outer,
+      nextOuter,
+    );
+  }
+
+  const geometry = new BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new Float32BufferAttribute(positions, 3),
+  );
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  return geometry;
+}
+
+function CoastlineFoam({ biome }: { biome: BiomeDefinition }) {
+  const geometry = useMemo(
+    () => createCoastlineFoamGeometry(biome),
+    [biome],
+  );
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  return (
+    <mesh geometry={geometry} renderOrder={4}>
+      <meshBasicMaterial
+        color="#effaf0"
+        transparent
+        opacity={0.58}
+        depthWrite={false}
+        side={DoubleSide}
+      />
+    </mesh>
+  );
 }
 
 function WaterPool({
@@ -1208,7 +1473,7 @@ function BasePlanetoid({ skyPhase }: { skyPhase: SkyPhase }) {
   return (
     <mesh geometry={geometry} castShadow receiveShadow>
       <meshStandardMaterial
-        color={skyPhase === "night" ? "#30424a" : "#516e68"}
+        color={skyPhase === "night" ? "#142a35" : "#285158"}
         roughness={1}
         metalness={0}
         flatShading
@@ -1227,11 +1492,19 @@ export function PlanetoidWorld({
   return (
     <group>
       <BasePlanetoid skyPhase={skyPhase} />
+      <OceanSurface
+        travelerDirectionRef={travelerDirectionRef}
+        movementVelocityRef={movementVelocityRef}
+        exploreMode={exploreMode}
+        reduceMotion={reduceMotion}
+        skyPhase={skyPhase}
+      />
 
       {BIOMES.map((biome) => (
         <group key={biome.id}>
           <TerrainChunk biome={biome} />
           <BiomePaths biome={biome} />
+          <CoastlineFoam biome={biome} />
         </group>
       ))}
 

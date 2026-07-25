@@ -2,7 +2,10 @@ import { MathUtils, Vector3 } from "three";
 import { places } from "./places";
 
 export const PLANET_RADIUS = 6;
+export const OCEAN_SURFACE_RADIUS = PLANET_RADIUS + 0.1;
 export const PLANET_MAX_SURFACE_RADIUS = 7.12;
+
+export type TraversalMode = "boat" | "land" | "swim";
 
 export type BiomeKind =
   | "harbor"
@@ -104,7 +107,7 @@ export const BIOMES: BiomeDefinition[] = [
     id: "harbor",
     name: "Harbor Commons",
     center: sphericalDirection(-18, 34),
-    angularRadius: 0.48,
+    angularRadius: 0.6,
     baseHeight: 0.3,
     peakHeight: 0.42,
     seed: 11,
@@ -117,7 +120,7 @@ export const BIOMES: BiomeDefinition[] = [
     id: "suncoast",
     name: "Sun Coast",
     center: sphericalDirection(73, 5),
-    angularRadius: 0.46,
+    angularRadius: 0.58,
     baseHeight: 0.24,
     peakHeight: 0.32,
     seed: 29,
@@ -130,7 +133,7 @@ export const BIOMES: BiomeDefinition[] = [
     id: "highlands",
     name: "Anatolian Highlands",
     center: sphericalDirection(157, 25),
-    angularRadius: 0.53,
+    angularRadius: 0.65,
     baseHeight: 0.32,
     peakHeight: 0.72,
     seed: 47,
@@ -143,7 +146,7 @@ export const BIOMES: BiomeDefinition[] = [
     id: "garden",
     name: "Lantern Gardens",
     center: sphericalDirection(-116, -8),
-    angularRadius: 0.49,
+    angularRadius: 0.6,
     baseHeight: 0.28,
     peakHeight: 0.5,
     seed: 71,
@@ -393,14 +396,39 @@ export function surfaceRadiusAt(direction: Vector3) {
   return PLANET_RADIUS + surfaceHeightAt(direction);
 }
 
+export function isOceanDirection(direction: Vector3) {
+  if (waterFeatureForDirection(direction)) {
+    return false;
+  }
+
+  return (
+    landSurfaceHeightAt(direction) <
+    OCEAN_SURFACE_RADIUS - PLANET_RADIUS + 0.015
+  );
+}
+
+export function traversalModeAt(direction: Vector3): TraversalMode {
+  if (waterFeatureForDirection(direction)) {
+    return "swim";
+  }
+
+  return isOceanDirection(direction) ? "boat" : "land";
+}
+
 export function isWaterDirection(direction: Vector3) {
-  return waterFeatureForDirection(direction) !== null;
+  return traversalModeAt(direction) !== "land";
 }
 
 export function traversalSurfaceRadiusAt(direction: Vector3) {
   const water = waterFeatureForDirection(direction);
 
-  return water ? waterSurfaceRadius(water) : surfaceRadiusAt(direction);
+  if (water) {
+    return waterSurfaceRadius(water);
+  }
+
+  return isOceanDirection(direction)
+    ? OCEAN_SURFACE_RADIUS
+    : surfaceRadiusAt(direction);
 }
 
 export function biomeForDirection(direction: Vector3) {

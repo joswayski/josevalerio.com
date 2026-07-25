@@ -37,12 +37,15 @@ import {
 } from "three";
 import { places, type Place, type PlaceTerrain } from "../data/places";
 import {
+  OCEAN_SURFACE_RADIUS,
   PLACE_DIRECTIONS,
   PLANET_RADIUS,
   isWaterDirection,
   sphericalDirection,
   surfaceRadiusAt as planetSurfaceRadiusAt,
+  traversalModeAt,
   traversalSurfaceRadiusAt,
+  type TraversalMode,
 } from "../data/planetoid";
 import { PlanetoidWorld } from "./PlanetoidWorld";
 
@@ -79,6 +82,8 @@ const WALK_SPEED = 0.32;
 const RUN_SPEED = 0.7;
 const SWIM_SPEED = 0.22;
 const FAST_SWIM_SPEED = 0.36;
+const BOAT_SPEED = 0.62;
+const FAST_BOAT_SPEED = 1.05;
 const START_DISTANCE = 0.24;
 const NEARBY_DISTANCE = Math.cos(0.075);
 const JUMP_DURATION = 0.52;
@@ -507,7 +512,7 @@ function createCloudPuffs(definition: CloudDefinition) {
   const north = new Vector3()
     .crossVectors(centerDirection, east)
     .normalize();
-  const surfaceRadius = planetSurfaceRadiusAt(centerDirection);
+  const surfaceRadius = traversalSurfaceRadiusAt(centerDirection);
   const puffs: CloudPuff[] = [];
   const coreCount = Math.floor(definition.puffCount * 0.72);
 
@@ -925,9 +930,15 @@ function SurfaceParticles({
     const frameDelta = Math.min(delta, 0.05);
     const travelerDirection = travelerDirectionRef.current;
     const movementSpeed = Math.abs(movementVelocityRef.current);
+    const traversalMode = traversalModeAt(travelerDirection);
     const onWater = isWaterDirection(travelerDirection);
     const movementBlend = MathUtils.clamp(
-      movementSpeed / (onWater ? FAST_SWIM_SPEED : RUN_SPEED),
+      movementSpeed /
+        (traversalMode === "boat"
+          ? FAST_BOAT_SPEED
+          : onWater
+            ? FAST_SWIM_SPEED
+            : RUN_SPEED),
       0,
       1,
     );
@@ -1080,7 +1091,10 @@ function isAboveGlobeHorizon(
 ) {
   const worldRadius = worldPosition.length();
 
-  if (worldRadius === 0 || cameraPosition.lengthSq() <= PLANET_RADIUS ** 2) {
+  if (
+    worldRadius === 0 ||
+    cameraPosition.lengthSq() <= OCEAN_SURFACE_RADIUS ** 2
+  ) {
     return false;
   }
 
@@ -1089,7 +1103,7 @@ function isAboveGlobeHorizon(
 
   return (
     cameraFacingHeight >
-    PLANET_RADIUS + 0.08 + HORIZON_CLIP_MARGIN
+    OCEAN_SURFACE_RADIUS + HORIZON_CLIP_MARGIN
   );
 }
 
@@ -1709,7 +1723,7 @@ function Traveler({
   movementVelocityRef,
   playerUpRef,
   playerForwardRef,
-  swimmingRef,
+  traversalModeRef,
   reduceMotion,
   onFootstep,
 }: {
@@ -1717,12 +1731,14 @@ function Traveler({
   movementVelocityRef: MutableRefObject<number>;
   playerUpRef: MutableRefObject<Vector3>;
   playerForwardRef: MutableRefObject<Vector3>;
-  swimmingRef: MutableRefObject<boolean>;
+  traversalModeRef: MutableRefObject<TraversalMode>;
   reduceMotion: boolean;
   onFootstep: PlacesSceneProps["onFootstep"];
 }) {
   const groupRef = useRef<Group>(null);
   const modelRef = useRef<Group>(null);
+  const boatRef = useRef<Group>(null);
+  const paddleRef = useRef<Group>(null);
   const leftLegRef = useRef<Mesh>(null);
   const rightLegRef = useRef<Mesh>(null);
   const leftArmRef = useRef<Mesh>(null);
@@ -1738,13 +1754,24 @@ function Traveler({
   const positionRef = useRef(new Vector3());
   const lookTargetRef = useRef(new Vector3());
   const immersionRef = useRef(0);
+  const boatBlendRef = useRef(0);
 
-  useFrame((_, delta) => {
+  useFrame(({ clock }, delta) => {
     const movementSpeed = Math.abs(movementVelocityRef.current);
     const moving = movementSpeed > 0.002;
-    const swimming = swimmingRef.current;
-    const baseMovementSpeed = swimming ? SWIM_SPEED : WALK_SPEED;
-    const fastMovementSpeed = swimming ? FAST_SWIM_SPEED : RUN_SPEED;
+    const traversalMode = traversalModeRef.current;
+    const swimming = traversalMode === "swim";
+    const boating = traversalMode === "boat";
+    const baseMovementSpeed = boating
+      ? BOAT_SPEED
+      : swimming
+        ? SWIM_SPEED
+        : WALK_SPEED;
+    const fastMovementSpeed = boating
+      ? FAST_BOAT_SPEED
+      : swimming
+        ? FAST_SWIM_SPEED
+        : RUN_SPEED;
     const movementBlend = MathUtils.clamp(
       movementSpeed / baseMovementSpeed,
       0,
@@ -1785,7 +1812,7 @@ function Traveler({
     const jumpCurve = jumping ? Math.sin(jumpProgress * Math.PI) : 0;
     const jumpLift =
       jumpCurve *
-      (swimming ? 0.07 : reduceMotion ? 0.08 : 0.38);
+      (boating ? 0 : swimming ? 0.07 : reduceMotion ? 0.08 : 0.38);
 
     if (moving && !wasMovingRef.current) {
       nextFootstepPhaseRef.current = phaseRef.current + Math.PI * 0.55;
@@ -1793,11 +1820,13 @@ function Traveler({
 
     if (moving) {
       const easedMovement = MathUtils.smoothstep(movementBlend, 0, 1);
-      const fullGaitSpeed = swimming
-        ? MathUtils.lerp(5.8, 8.8, runBlend)
-        : MathUtils.lerp(9.5, 16, runBlend);
+      const fullGaitSpeed = boating
+        ? MathUtils.lerp(4.6, 7.2, runBlend)
+        : swimming
+          ? MathUtils.lerp(5.8, 8.8, runBlend)
+          : MathUtils.lerp(9.5, 16, runBlend);
       const gaitSpeed = MathUtils.lerp(
-        swimming ? 3.2 : 3.8,
+        boating ? 2.8 : swimming ? 3.2 : 3.8,
         fullGaitSpeed,
         easedMovement,
       );
@@ -1807,7 +1836,11 @@ function Traveler({
         footstepIndexRef.current += 1;
         nextFootstepPhaseRef.current += Math.PI;
 
-        if (!swimming && !jumping && movementBlend >= 0.14) {
+        if (
+          traversalMode === "land" &&
+          !jumping &&
+          movementBlend >= 0.14
+        ) {
           onFootstep(movementBlend, runBlend, footstepIndexRef.current);
         }
       }
@@ -1822,25 +1855,25 @@ function Traveler({
       : 0;
     const bob = moving
       ? Math.abs(Math.sin(phaseRef.current)) *
-        (swimming
-          ? MathUtils.lerp(0.012, 0.024, runBlend)
-          : MathUtils.lerp(0.018, 0.034, runBlend)) *
+        (boating
+          ? MathUtils.lerp(0.008, 0.016, runBlend)
+          : swimming
+            ? MathUtils.lerp(0.012, 0.024, runBlend)
+            : MathUtils.lerp(0.018, 0.034, runBlend)) *
         movementBlend
       : 0;
     const playerUp = playerUpRef.current;
     const playerForward = playerForwardRef.current;
     immersionRef.current = MathUtils.damp(
       immersionRef.current,
-      swimming ? -0.22 : 0,
+      boating ? 0.045 : swimming ? -0.22 : 0,
       6,
       Math.min(delta, 0.05),
     );
     const position = positionRef.current
       .copy(playerUp)
       .multiplyScalar(
-        (swimming
-          ? traversalSurfaceRadiusAt(playerUp)
-          : planetSurfaceRadiusAt(playerUp)) +
+        traversalSurfaceRadiusAt(playerUp) +
           immersionRef.current +
           TRAVELER_GROUND_CLEARANCE +
           bob +
@@ -1855,6 +1888,8 @@ function Traveler({
     groupRef.current.lookAt(lookTarget);
 
     if (leftLegRef.current && rightLegRef.current) {
+      leftLegRef.current.visible = !boating;
+      rightLegRef.current.visible = !boating;
       leftLegRef.current.rotation.x = swimming
         ? -0.26 + stride * 0.24
         : jumping
@@ -1868,18 +1903,30 @@ function Traveler({
     }
 
     if (leftArmRef.current && rightArmRef.current) {
-      leftArmRef.current.rotation.x = swimming
-        ? stride * 1.05
-        : jumping
-          ? -0.5
-          : -stride * 0.72;
-      rightArmRef.current.rotation.x = swimming
-        ? -stride * 1.05
-        : jumping
-          ? -0.5
-          : stride * 0.72;
-      leftArmRef.current.rotation.z = swimming ? -0.32 : 0;
-      rightArmRef.current.rotation.z = swimming ? 0.32 : 0;
+      leftArmRef.current.rotation.x = boating
+        ? -0.48 + stride * 0.42
+        : swimming
+          ? stride * 1.05
+          : jumping
+            ? -0.5
+            : -stride * 0.72;
+      rightArmRef.current.rotation.x = boating
+        ? -0.48 + stride * 0.42
+        : swimming
+          ? -stride * 1.05
+          : jumping
+            ? -0.5
+            : stride * 0.72;
+      leftArmRef.current.rotation.z = boating
+        ? -0.16
+        : swimming
+          ? -0.32
+          : 0;
+      rightArmRef.current.rotation.z = boating
+        ? 0.16
+        : swimming
+          ? 0.32
+          : 0;
     }
 
     if (modelRef.current) {
@@ -1889,6 +1936,40 @@ function Traveler({
         7,
         Math.min(delta, 0.05),
       );
+      modelRef.current.position.y = MathUtils.damp(
+        modelRef.current.position.y,
+        boating ? 0.065 : 0,
+        7,
+        Math.min(delta, 0.05),
+      );
+    }
+
+    boatBlendRef.current = MathUtils.damp(
+      boatBlendRef.current,
+      boating ? 1 : 0,
+      7,
+      Math.min(delta, 0.05),
+    );
+
+    if (boatRef.current) {
+      const boatScale = MathUtils.smoothstep(
+        boatBlendRef.current,
+        0,
+        1,
+      );
+
+      boatRef.current.visible = boatScale > 0.01;
+      boatRef.current.scale.setScalar(boatScale);
+      boatRef.current.position.y =
+        -0.025 +
+        (reduceMotion
+          ? 0
+          : Math.sin(clock.elapsedTime * 1.7) * 0.008 * boatScale);
+    }
+
+    if (paddleRef.current) {
+      paddleRef.current.rotation.x =
+        -0.35 + (moving ? Math.sin(phaseRef.current) * 0.52 : 0);
     }
   });
 
@@ -1956,6 +2037,55 @@ function Traveler({
           <meshStandardMaterial color="#d4a64c" flatShading />
         </mesh>
       </group>
+      <group ref={boatRef} visible={false} position={[0, -0.025, 0.015]}>
+        <mesh
+          position={[0, 0.015, 0]}
+          scale={[0.78, 0.34, 1.8]}
+          castShadow
+          renderOrder={TRAVELER_RENDER_ORDER - 1}
+        >
+          <sphereGeometry args={[0.18, 14, 8]} />
+          <meshStandardMaterial
+            color="#9f5f3f"
+            roughness={0.86}
+            flatShading
+          />
+        </mesh>
+        <mesh
+          position={[0, 0.055, -0.015]}
+          scale={[0.7, 0.18, 1.3]}
+          renderOrder={TRAVELER_RENDER_ORDER}
+        >
+          <sphereGeometry args={[0.15, 12, 7]} />
+          <meshStandardMaterial
+            color="#3c302b"
+            roughness={1}
+            flatShading
+          />
+        </mesh>
+        <mesh
+          position={[0, 0.055, 0.3]}
+          rotation={[Math.PI / 2, 0, 0]}
+          castShadow
+        >
+          <coneGeometry args={[0.105, 0.2, 8]} />
+          <meshStandardMaterial
+            color="#bd7550"
+            roughness={0.82}
+            flatShading
+          />
+        </mesh>
+        <group ref={paddleRef} position={[0.13, 0.13, 0.02]}>
+          <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <cylinderGeometry args={[0.008, 0.008, 0.44, 6]} />
+            <meshStandardMaterial color="#d6b275" flatShading />
+          </mesh>
+          <mesh position={[0, 0, -0.23]} scale={[0.035, 0.012, 0.075]}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshStandardMaterial color="#c68d58" flatShading />
+          </mesh>
+        </group>
+      </group>
     </group>
   );
 }
@@ -2000,7 +2130,7 @@ function PlanetExperience({
   const cameraTargetRef = useRef(new Vector3());
   const cameraDistanceRef = useRef(DEFAULT_CAMERA_DISTANCE);
   const cameraDistanceTargetRef = useRef(DEFAULT_CAMERA_DISTANCE);
-  const swimmingRef = useRef(false);
+  const traversalModeRef = useRef<TraversalMode>("land");
   const { camera, gl } = useThree();
 
   useEffect(() => {
@@ -2028,7 +2158,7 @@ function PlanetExperience({
         .copy(selectedDirection)
         .applyAxisAngle(east, START_DISTANCE)
         .normalize();
-      swimmingRef.current = isWaterDirection(playerUpRef.current);
+      traversalModeRef.current = traversalModeAt(playerUpRef.current);
       playerForwardRef.current
         .copy(selectedDirection)
         .addScaledVector(
@@ -2200,8 +2330,10 @@ function PlanetExperience({
       const playerUp = playerUpRef.current;
       const playerForward = playerForwardRef.current;
       const travelerForward = travelerForwardRef.current;
-      const swimming = isWaterDirection(playerUp);
-      swimmingRef.current = swimming;
+      const traversalMode = traversalModeAt(playerUp);
+      const swimming = traversalMode === "swim";
+      const boating = traversalMode === "boat";
+      traversalModeRef.current = traversalMode;
       const movementInputMagnitude = Math.min(
         1,
         Math.hypot(input.horizontal, input.vertical),
@@ -2272,7 +2404,11 @@ function PlanetExperience({
       );
       const targetMovementVelocity =
         movementInputMagnitude *
-        (swimming
+        (boating
+          ? input.running
+            ? FAST_BOAT_SPEED
+            : BOAT_SPEED
+          : swimming
           ? input.running
             ? FAST_SWIM_SPEED
             : SWIM_SPEED
@@ -2307,7 +2443,7 @@ function PlanetExperience({
           .applyAxisAngle(movementAxis, movementAngle)
           .addScaledVector(playerUp, -travelerForward.dot(playerUp))
           .normalize();
-        swimmingRef.current = isWaterDirection(playerUp);
+        traversalModeRef.current = traversalModeAt(playerUp);
       }
 
       cameraDistanceTargetRef.current = MathUtils.clamp(
@@ -2504,7 +2640,7 @@ function PlanetExperience({
             movementVelocityRef={movementVelocityRef}
             playerUpRef={playerUpRef}
             playerForwardRef={travelerForwardRef}
-            swimmingRef={swimmingRef}
+            traversalModeRef={traversalModeRef}
             reduceMotion={reduceMotion}
             onFootstep={onFootstep}
           />
