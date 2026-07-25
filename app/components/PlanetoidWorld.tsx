@@ -1625,8 +1625,8 @@ function FlagRectangle({
       <meshToonMaterial
         color={color}
         side={DoubleSide}
-        depthTest={position[2] <= 0}
-        depthWrite={position[2] <= 0}
+        depthTest
+        depthWrite={false}
       />
     </mesh>
   );
@@ -1667,7 +1667,6 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
             <meshBasicMaterial
               color="#ffffff"
               side={DoubleSide}
-              depthTest={false}
               depthWrite={false}
             />
           </mesh>
@@ -1702,7 +1701,6 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
           <meshToonMaterial
             color="#438459"
             side={DoubleSide}
-            depthTest={false}
             depthWrite={false}
           />
         </mesh>
@@ -1723,7 +1721,6 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
           <meshBasicMaterial
             color="#ffffff"
             side={DoubleSide}
-            depthTest={false}
             depthWrite={false}
           />
         </mesh>
@@ -1732,7 +1729,6 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
           <meshBasicMaterial
             color="#cf343c"
             side={DoubleSide}
-            depthTest={false}
             depthWrite={false}
           />
         </mesh>
@@ -1744,7 +1740,6 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
           <meshBasicMaterial
             color="#ffffff"
             side={DoubleSide}
-            depthTest={false}
             depthWrite={false}
           />
         </mesh>
@@ -1765,7 +1760,6 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
           <meshBasicMaterial
             color="#c83e48"
             side={DoubleSide}
-            depthTest={false}
             depthWrite={false}
           />
         </mesh>
@@ -1778,7 +1772,6 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
           <meshBasicMaterial
             color="#31578f"
             side={DoubleSide}
-            depthTest={false}
             depthWrite={false}
           />
         </mesh>
@@ -1812,7 +1805,6 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
         <meshBasicMaterial
           color="#cf3f47"
           side={DoubleSide}
-          depthTest={false}
           depthWrite={false}
         />
       </mesh>
