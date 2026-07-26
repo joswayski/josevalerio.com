@@ -1137,8 +1137,11 @@ function OceanSurface({
               vec3 viewDirection = normalize(
                 cameraPosition - vWorldPosition
               );
+              float viewAlignment = abs(
+                dot(normal, viewDirection)
+              );
               float fresnel = pow(
-                1.0 - abs(dot(normal, viewDirection)),
+                1.0 - viewAlignment,
                 2.25
               );
               vec3 lightDirection = normalize(
@@ -1159,6 +1162,16 @@ function OceanSurface({
                 clamp(1.0 - vShoreProximity, 0.0, 1.0),
                 0.72
               );
+              float horizonOcclusion = smoothstep(
+                0.16,
+                0.7,
+                fresnel
+              );
+              float depthOcclusion = smoothstep(
+                0.3,
+                0.86,
+                deepWater
+              );
               vec3 water = mix(
                 shallowColor,
                 deepColor,
@@ -1175,11 +1188,22 @@ function OceanSurface({
                 foamColor,
                 crest * 0.44
               );
-
-              gl_FragColor = vec4(
+              water = mix(
                 water,
-                0.72 + fresnel * 0.16 + crest * 0.08
+                deepColor * 0.78,
+                horizonOcclusion * (0.72 + deepWater * 0.22)
               );
+
+              float opacity = clamp(
+                0.76 +
+                depthOcclusion * 0.18 +
+                horizonOcclusion * 0.32 +
+                crest * 0.08,
+                0.0,
+                1.0
+              );
+
+              gl_FragColor = vec4(water, opacity);
             }
           `}
           transparent
