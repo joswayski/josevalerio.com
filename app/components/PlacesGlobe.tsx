@@ -311,6 +311,8 @@ export function PlacesGlobe() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const footstepBufferRef = useRef<AudioBuffer | null>(null);
   const rockImpactBufferRef = useRef<AudioBuffer | null>(null);
+  const foliageNoiseBufferRef = useRef<AudioBuffer | null>(null);
+  const lastVegetationSoundAtRef = useRef(-1);
   const waterNoiseBufferRef = useRef<AudioBuffer | null>(null);
   const waterAudioGraphRef = useRef<WaterAudioGraph | null>(null);
   const ambientMusicGraphRef = useRef<AmbientMusicGraph | null>(null);
@@ -416,6 +418,8 @@ export function PlacesGlobe() {
 
       footstepBufferRef.current = null;
       rockImpactBufferRef.current = null;
+      foliageNoiseBufferRef.current = null;
+      lastVegetationSoundAtRef.current = -1;
       waterNoiseBufferRef.current = null;
       waterAudioGraphRef.current = null;
       ambientMusicGraphRef.current = null;
@@ -436,6 +440,8 @@ export function PlacesGlobe() {
     audioContextRef.current = context;
     footstepBufferRef.current = null;
     rockImpactBufferRef.current = null;
+    foliageNoiseBufferRef.current = null;
+    lastVegetationSoundAtRef.current = -1;
     waterNoiseBufferRef.current = null;
     waterAudioGraphRef.current = null;
     ambientMusicGraphRef.current = null;
@@ -1137,6 +1143,114 @@ export function PlacesGlobe() {
     [ensureAudioContext],
   );
 
+  const playVegetationBrushSound = useCallback(
+    (
+      strength: number,
+      kind: "bush" | "tree",
+      variation: number,
+    ) => {
+      const context = ensureAudioContext();
+      const start = context.currentTime;
+      const minimumGap = kind === "bush" ? 0.085 : 0.12;
+
+      if (
+        start - lastVegetationSoundAtRef.current <
+        minimumGap
+      ) {
+        return;
+      }
+
+      lastVegetationSoundAtRef.current = start;
+      let buffer = foliageNoiseBufferRef.current;
+
+      if (!buffer) {
+        const duration = 0.26;
+        buffer = context.createBuffer(
+          1,
+          Math.ceil(context.sampleRate * duration),
+          context.sampleRate,
+        );
+        const samples = buffer.getChannelData(0);
+        let previous = 0;
+
+        for (let index = 0; index < samples.length; index += 1) {
+          const white = Math.random() * 2 - 1;
+          previous = previous * 0.58 + white * 0.42;
+          samples[index] = previous;
+        }
+
+        foliageNoiseBufferRef.current = buffer;
+      }
+
+      const impact = Math.min(1, Math.max(0.16, strength));
+      const duration = kind === "bush" ? 0.235 : 0.175;
+      const source = context.createBufferSource();
+      const bandpass = context.createBiquadFilter();
+      const lowpass = context.createBiquadFilter();
+      const gain = context.createGain();
+      const panner = context.createStereoPanner();
+
+      source.buffer = buffer;
+      source.playbackRate.setValueAtTime(
+        0.9 + (variation % 7) * 0.025,
+        start,
+      );
+      bandpass.type = "bandpass";
+      bandpass.frequency.setValueAtTime(
+        kind === "bush" ? 2150 : 1450,
+        start,
+      );
+      bandpass.frequency.exponentialRampToValueAtTime(
+        kind === "bush" ? 1320 : 980,
+        start + duration,
+      );
+      bandpass.Q.setValueAtTime(
+        kind === "bush" ? 0.58 : 0.72,
+        start,
+      );
+      lowpass.type = "lowpass";
+      lowpass.frequency.setValueAtTime(
+        kind === "bush" ? 5100 : 3900,
+        start,
+      );
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(
+        (kind === "bush" ? 0.012 : 0.0075) *
+          (0.42 + impact * 0.58),
+        start + 0.014,
+      );
+      gain.gain.exponentialRampToValueAtTime(
+        (kind === "bush" ? 0.006 : 0.0035) *
+          (0.4 + impact * 0.6),
+        start + duration * 0.44,
+      );
+      gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        start + duration,
+      );
+      panner.pan.setValueAtTime(
+        Math.sin(variation * 1.61) * 0.22,
+        start,
+      );
+
+      source.connect(bandpass);
+      bandpass.connect(lowpass);
+      lowpass.connect(gain);
+      gain.connect(panner);
+      panner.connect(context.destination);
+      source.start(start);
+      source.stop(start + duration);
+      source.addEventListener("ended", () => {
+        source.disconnect();
+        bandpass.disconnect();
+        lowpass.disconnect();
+        gain.disconnect();
+        panner.disconnect();
+      });
+    },
+    [ensureAudioContext],
+  );
+
   const triggerJump = useCallback(() => {
     if (
       currentTraversalModeRef.current === "boat" ||
@@ -1282,6 +1396,7 @@ export function PlacesGlobe() {
                   onTraversalAudio={updateTraversalAudio}
                   onWaterStroke={playWaterStrokeSound}
                   onLoosePropImpact={playLoosePropImpactSound}
+                  onVegetationBrush={playVegetationBrushSound}
                   skyPhase={celestialState.skyPhase}
                   solarDirection={celestialState.solarDirection}
                 />

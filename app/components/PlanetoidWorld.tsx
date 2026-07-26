@@ -54,6 +54,11 @@ type PlanetoidWorldProps = {
   traversalModeRef: MutableRefObject<"boat" | "land" | "swim">;
   waterSurfaceRef: MutableRefObject<OceanSurfaceApi | null>;
   onLoosePropImpact: (strength: number, variation: number) => void;
+  onVegetationBrush: (
+    strength: number,
+    kind: VegetationKind,
+    variation: number,
+  ) => void;
   exploreMode: boolean;
   reduceMotion: boolean;
   skyPhase: SkyPhase;
@@ -73,15 +78,20 @@ export type OceanSurfaceApi = {
   ) => void;
 };
 
+type VegetationKind = "bush" | "tree";
+
 type VegetationDefinition = {
   id: string;
   biomeId: BiomeKind;
   direction: Vector3;
   position: Vector3;
   orientation: Quaternion;
+  windAxis: Vector3;
   scale: number;
   rotation: number;
   phase: number;
+  kind: VegetationKind;
+  touching: boolean;
   style:
     | "blossom"
     | "broadleaf"
@@ -134,7 +144,8 @@ const TERRAIN_SEGMENTS = 108;
 const TERRAIN_RINGS = 36;
 const TERRAIN_SHELF_RINGS = 8;
 const TERRAIN_TOTAL_RINGS = TERRAIN_RINGS + TERRAIN_SHELF_RINGS;
-const VEGETATION_INTERACTION_ANGLE = 0.105;
+const TREE_INTERACTION_ANGLE = 0.052;
+const BUSH_INTERACTION_ANGLE = 0.088;
 const FISH_SCURRY_ENTER_ANGLE = 0.115;
 const FISH_SCURRY_EXIT_ANGLE = 0.18;
 const MAX_OCEAN_TRAVEL_SPEED = 0.34;
@@ -603,7 +614,10 @@ function OceanSurface({
   exploreMode,
   reduceMotion,
   skyPhase,
-}: Omit<PlanetoidWorldProps, "onLoosePropImpact">) {
+}: Omit<
+  PlanetoidWorldProps,
+  "onLoosePropImpact" | "onVegetationBrush"
+>) {
   const geometry = useMemo(createOceanSurfaceGeometry, []);
   const simulation = useMemo(() => {
     const positionAttribute = geometry.getAttribute(
@@ -1667,7 +1681,7 @@ function createVegetation() {
   return BIOMES.flatMap((biome) => {
     const random = createSeededRandom(biome.seed * 101);
     const plants: VegetationDefinition[] = [];
-    const count =
+    const treeCount =
       biome.id === "united-states"
         ? 48
         : biome.id === "turkiye"
@@ -1677,6 +1691,8 @@ function createVegetation() {
             : biome.id === "south-korea"
               ? 30
               : 26;
+    const bushCount = Math.round(treeCount * 0.28);
+    const count = treeCount + bushCount;
 
     for (let index = 0; index < count; index += 1) {
       let direction = biome.center;
@@ -1703,6 +1719,14 @@ function createVegetation() {
       }
 
       const surfaceRadius = surfaceRadiusAt(direction);
+      const kind: VegetationKind =
+        index < treeCount ? "tree" : "bush";
+      const scale =
+        kind === "bush"
+          ? 0.68 + random() * 0.52
+          : 0.72 + random() * 0.78;
+      const rotation = random() * Math.PI * 2;
+      const basis = tangentBasis(direction);
 
       plants.push({
         id: `${biome.id}-plant-${index}`,
@@ -1710,9 +1734,15 @@ function createVegetation() {
         direction,
         position: direction.clone().multiplyScalar(surfaceRadius),
         orientation: new Quaternion().setFromUnitVectors(UP, direction),
-        scale: 0.72 + random() * 0.78,
-        rotation: random() * Math.PI * 2,
+        windAxis: basis.east
+          .multiplyScalar(Math.cos(rotation))
+          .addScaledVector(basis.north, Math.sin(rotation))
+          .normalize(),
+        scale,
+        rotation,
         phase: random() * Math.PI * 2,
+        kind,
+        touching: false,
         style: vegetationStyleForBiome(biome.id),
       });
     }
@@ -1867,11 +1897,62 @@ function TreeModel({
   );
 }
 
+function BushModel({
+  style,
+}: {
+  style: VegetationDefinition["style"];
+}) {
+  const colors =
+    style === "blossom"
+      ? ["#d97996", "#e795a7", "#f0afb7", "#c86888"]
+      : style === "palm"
+        ? ["#3e8d62", "#56a56d", "#72b978", "#317a58"]
+        : style === "cypress"
+          ? ["#3c6c50", "#4f805b", "#669466", "#345f49"]
+          : style === "pine"
+            ? ["#386b56", "#4c8063", "#5f9470", "#315f4d"]
+            : ["#4d8758", "#659c63", "#7aad6d", "#43794f"];
+  const clusters: [number, number, number, number][] = [
+    [-0.09, 0.1, 0.015, 0.105],
+    [0.085, 0.105, -0.02, 0.115],
+    [0, 0.155, 0.03, 0.12],
+    [0.02, 0.09, -0.095, 0.09],
+  ];
+
+  return (
+    <>
+      {clusters.map(([x, y, z, radius], index) => (
+        <mesh
+          key={index}
+          position={[x, y, z]}
+          scale={[1.18, 0.82, 1]}
+          castShadow
+        >
+          <dodecahedronGeometry args={[radius, 1]} />
+          <meshToonMaterial color={colors[index]} />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
 function VegetationField({
   travelerDirectionRef,
+  movementVelocityRef,
+  traversalModeRef,
+  onVegetationBrush,
+  exploreMode,
   reduceMotion,
 }: {
   travelerDirectionRef: MutableRefObject<Vector3>;
+  movementVelocityRef: MutableRefObject<number>;
+  traversalModeRef: MutableRefObject<"boat" | "land" | "swim">;
+  onVegetationBrush: (
+    strength: number,
+    kind: VegetationKind,
+    variation: number,
+  ) => void;
+  exploreMode: boolean;
   reduceMotion: boolean;
 }) {
   const plants = useMemo(createVegetation, []);
@@ -1881,7 +1962,10 @@ function VegetationField({
   const bendRef = useRef(new Quaternion());
 
   useFrame(({ clock }, delta) => {
-    const ease = 1 - Math.exp(-Math.min(delta, 0.05) * 7);
+    const frameDelta = Math.min(delta, 0.05);
+    const movementSpeed = Math.abs(movementVelocityRef.current);
+    const canBrush =
+      exploreMode && traversalModeRef.current === "land";
 
     plants.forEach((plant, index) => {
       const group = plantRefs.current[index];
@@ -1894,26 +1978,70 @@ function VegetationField({
         plant.direction,
         travelerDirectionRef.current,
       );
+      const interactionAngle =
+        plant.kind === "bush"
+          ? BUSH_INTERACTION_ANGLE
+          : TREE_INTERACTION_ANGLE;
       const travelerBend =
-        1 -
-        MathUtils.smoothstep(
-          travelerDistance,
-          0.015,
-          VEGETATION_INTERACTION_ANGLE,
+        canBrush
+          ? 1 -
+            MathUtils.smoothstep(
+              travelerDistance,
+              plant.kind === "bush" ? 0.018 : 0.012,
+              interactionAngle,
+            )
+          : 0;
+      const touchEnter =
+        plant.kind === "bush" ? 0.058 : 0.034;
+      const touchExit =
+        plant.kind === "bush" ? 0.082 : 0.05;
+
+      if (
+        !plant.touching &&
+        canBrush &&
+        travelerDistance < touchEnter &&
+        movementSpeed > 0.035
+      ) {
+        plant.touching = true;
+        onVegetationBrush(
+          MathUtils.clamp(
+            movementSpeed / 0.36,
+            plant.kind === "bush" ? 0.24 : 0.18,
+            1,
+          ),
+          plant.kind,
+          index,
         );
+      } else if (
+        plant.touching &&
+        (!canBrush || travelerDistance > touchExit)
+      ) {
+        plant.touching = false;
+      }
+
+      const windAmount =
+        plant.kind === "bush" ? 0.032 : 0.012;
       const wind =
         reduceMotion
           ? 0
-          : Math.sin(clock.elapsedTime * 1.2 + plant.phase) * 0.035;
-      const bend = Math.min(
-        0.34,
-        wind + travelerBend * 0.3,
+          : Math.sin(clock.elapsedTime * 1.05 + plant.phase) *
+            windAmount;
+      const interactionBend =
+        plant.kind === "bush" ? 0.28 : 0.032;
+      const bend = MathUtils.clamp(
+        wind + travelerBend * interactionBend,
+        -windAmount,
+        plant.kind === "bush" ? 0.31 : 0.044,
       );
-      const bendTarget =
-        travelerBend > 0.01 ? travelerDirectionRef.current : UP;
-      const bendAxis = bendAxisRef.current
-        .crossVectors(plant.direction, bendTarget)
-        .normalize();
+      const bendAxis =
+        travelerBend > 0.01
+          ? bendAxisRef.current
+              .crossVectors(
+                travelerDirectionRef.current,
+                plant.direction,
+              )
+              .normalize()
+          : bendAxisRef.current.copy(plant.windAxis);
 
       if (bendAxis.lengthSq() < 0.0001) {
         bendAxis.set(1, 0, 0);
@@ -1927,6 +2055,11 @@ function VegetationField({
       const target = bendRef.current
         .setFromAxisAngle(bendAxis, bend)
         .multiply(baseOrientation);
+      const ease =
+        1 -
+        Math.exp(
+          -frameDelta * (plant.kind === "bush" ? 11 : 4.5),
+        );
 
       group.quaternion.slerp(target, ease);
     });
@@ -1944,7 +2077,11 @@ function VegetationField({
           quaternion={plant.orientation}
           scale={plant.scale}
         >
-          <TreeModel style={plant.style} />
+          {plant.kind === "bush" ? (
+            <BushModel style={plant.style} />
+          ) : (
+            <TreeModel style={plant.style} />
+          )}
         </group>
       ))}
     </group>
@@ -3344,6 +3481,7 @@ export function PlanetoidWorld({
   traversalModeRef,
   waterSurfaceRef,
   onLoosePropImpact,
+  onVegetationBrush,
   exploreMode,
   reduceMotion,
   skyPhase,
@@ -3402,6 +3540,10 @@ export function PlanetoidWorld({
       <LandmarkTerrain />
       <VegetationField
         travelerDirectionRef={travelerDirectionRef}
+        movementVelocityRef={movementVelocityRef}
+        traversalModeRef={traversalModeRef}
+        onVegetationBrush={onVegetationBrush}
+        exploreMode={exploreMode}
         reduceMotion={reduceMotion}
       />
       <LooseProps

@@ -94,6 +94,11 @@ type PlacesSceneProps = {
     strokeIndex: number,
   ) => void;
   onLoosePropImpact: (strength: number, variation: number) => void;
+  onVegetationBrush: (
+    strength: number,
+    kind: "bush" | "tree",
+    variation: number,
+  ) => void;
   skyPhase: SkyPhase;
   solarDirection: [number, number, number];
 };
@@ -3938,6 +3943,7 @@ function PlanetExperience({
   onTraversalAudio,
   onWaterStroke,
   onLoosePropImpact,
+  onVegetationBrush,
   skyPhase,
   solarDirection,
 }: PlacesSceneProps) {
@@ -4565,6 +4571,7 @@ function PlanetExperience({
           traversalModeRef={traversalModeRef}
           waterSurfaceRef={waterSurfaceRef}
           onLoosePropImpact={onLoosePropImpact}
+          onVegetationBrush={onVegetationBrush}
           exploreMode={exploreMode}
           reduceMotion={reduceMotion}
           skyPhase={skyPhase}
