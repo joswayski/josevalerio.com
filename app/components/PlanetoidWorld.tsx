@@ -274,47 +274,109 @@ function createEscarpmentGeometry(biome: BiomeDefinition) {
   const positions: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
+  const oceanHeight = OCEAN_SURFACE_RADIUS - PLANET_RADIUS;
+  const shelfProfile = [
+    { outset: 0, depth: 0 },
+    { outset: 0.025, depth: 0.008 },
+    { outset: 0.06, depth: 0.035 },
+    { outset: 0.105, depth: 0.09 },
+    { outset: 0.155, depth: 0.18 },
+    { outset: 0.205, depth: 0.36 },
+    {
+      outset: 0.25,
+      depth:
+        OCEAN_SURFACE_RADIUS -
+        (OCEAN_FLOOR_RADIUS + 0.04),
+    },
+  ];
+  const shore = new Color(biome.shore);
   const cliff = new Color(biome.cliff);
   const cliffDark = cliff.clone().multiplyScalar(0.62);
+
   biome.parts.forEach((part, partIndex) => {
     const vertexOffset = positions.length / 3;
 
     for (let segment = 0; segment < TERRAIN_SEGMENTS; segment += 1) {
       const angle = (segment / TERRAIN_SEGMENTS) * Math.PI * 2;
-      const direction = islandPartDirection(
-        biome,
-        part,
-        0.86 +
-          Math.sin(segment * 2.17 + biome.seed + partIndex) * 0.008,
-        angle,
-      );
-      const topRadius = surfaceRadiusAt(direction) + 0.005;
-      const bottomRadius = OCEAN_FLOOR_RADIUS + 0.04;
-      const top = direction.clone().multiplyScalar(topRadius);
-      const bottom = direction.clone().multiplyScalar(bottomRadius);
-      const shade = 0.75 + (segment % 6) * 0.035;
-      const topColor = cliff.clone().multiplyScalar(shade);
-      const bottomColor = cliffDark.clone().multiplyScalar(shade);
+      let shoreProgress = 0.68;
 
-      positions.push(top.x, top.y, top.z, bottom.x, bottom.y, bottom.z);
-      colors.push(
-        topColor.r,
-        topColor.g,
-        topColor.b,
-        bottomColor.r,
-        bottomColor.g,
-        bottomColor.b,
-      );
+      for (let sample = 0; sample <= 40; sample += 1) {
+        const progress = 0.68 + (sample / 40) * 0.32;
+        const direction = islandPartDirection(
+          biome,
+          part,
+          progress,
+          angle,
+        );
+
+        if (biomeHeightAt(direction, biome) > oceanHeight + 0.006) {
+          shoreProgress = progress;
+        } else {
+          break;
+        }
+      }
+
+      const edgeJitter =
+        Math.sin(segment * 2.17 + biome.seed + partIndex) * 0.006;
+      const shade = 0.75 + (segment % 6) * 0.035;
+
+      shelfProfile.forEach((profile, profileIndex) => {
+        const direction = islandPartDirection(
+          biome,
+          part,
+          shoreProgress + edgeJitter + profile.outset,
+          angle,
+        );
+        const radius =
+          profileIndex === 0
+            ? surfaceRadiusAt(direction) + 0.005
+            : OCEAN_SURFACE_RADIUS - profile.depth;
+        const position = direction.clone().multiplyScalar(radius);
+        const depthProgress =
+          profile.depth /
+          Math.max(
+            OCEAN_SURFACE_RADIUS - OCEAN_FLOOR_RADIUS,
+            0.001,
+          );
+        const color = shore
+          .clone()
+          .lerp(cliff, MathUtils.clamp(depthProgress * 2.4, 0, 1))
+          .lerp(
+            cliffDark,
+            MathUtils.clamp((depthProgress - 0.28) * 1.4, 0, 1),
+          )
+          .multiplyScalar(shade);
+
+        positions.push(position.x, position.y, position.z);
+        colors.push(color.r, color.g, color.b);
+      });
     }
 
     for (let segment = 0; segment < TERRAIN_SEGMENTS; segment += 1) {
       const next = (segment + 1) % TERRAIN_SEGMENTS;
-      const top = vertexOffset + segment * 2;
-      const bottom = top + 1;
-      const nextTop = vertexOffset + next * 2;
-      const nextBottom = nextTop + 1;
+      const profileLength = shelfProfile.length;
 
-      indices.push(top, bottom, nextTop, nextTop, bottom, nextBottom);
+      for (
+        let profileIndex = 0;
+        profileIndex < profileLength - 1;
+        profileIndex += 1
+      ) {
+        const current =
+          vertexOffset + segment * profileLength + profileIndex;
+        const outer = current + 1;
+        const nextCurrent =
+          vertexOffset + next * profileLength + profileIndex;
+        const nextOuter = nextCurrent + 1;
+
+        indices.push(
+          current,
+          outer,
+          nextCurrent,
+          nextCurrent,
+          outer,
+          nextOuter,
+        );
+      }
     }
   });
 
@@ -1195,10 +1257,9 @@ function OceanSurface({
               );
 
               float opacity = clamp(
-                0.76 +
-                depthOcclusion * 0.18 +
-                horizonOcclusion * 0.32 +
-                crest * 0.08,
+                mix(0.74, 1.0, depthOcclusion) +
+                horizonOcclusion * (1.0 - depthOcclusion) +
+                crest * 0.06,
                 0.0,
                 1.0
               );
