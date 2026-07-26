@@ -2421,7 +2421,15 @@ function CountryFlag({
         <meshToonMaterial color="#d9ad4c" />
       </mesh>
       <group ref={clothRef} position={[0.3, 0.92, 0]}>
-        <CountryFlagPattern biomeId={biome.id} />
+        <group position={[0, 0, 0.006]}>
+          <CountryFlagPattern biomeId={biome.id} />
+        </group>
+        <group
+          position={[0, 0, -0.006]}
+          rotation={[0, Math.PI, 0]}
+        >
+          <CountryFlagPattern biomeId={biome.id} />
+        </group>
         <mesh
           position={[-0.286, 0, 0]}
           rotation={[0, 0, Math.PI / 2]}
