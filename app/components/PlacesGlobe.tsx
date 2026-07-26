@@ -255,7 +255,7 @@ function updateAmbientMusicGraph(graph: AmbientMusicGraph) {
       chordTone * octave,
       cursor,
       duration,
-      0.0045 + nextAmbientRandom(graph) * 0.003,
+      0.0065 + nextAmbientRandom(graph) * 0.004,
       (nextAmbientRandom(graph) - 0.5) * 0.7,
     );
     phraseEnd = Math.max(phraseEnd, cursor + duration);
@@ -501,7 +501,7 @@ export function PlacesGlobe() {
     foamFilter.Q.value = 0.52;
     oceanGain.gain.value = 0.0001;
     foamGain.gain.value = 0.0001;
-    masterGain.gain.value = 0.18;
+    masterGain.gain.value = 0.35;
     lfo.type = "sine";
     lfo.frequency.value = 0.16;
     lfoGain.gain.value = 0;
@@ -558,7 +558,7 @@ export function PlacesGlobe() {
     filter.Q.value = 0.38;
     delay.delayTime.value = 0.48;
     feedback.gain.value = 0.16;
-    masterGain.gain.value = 0.24;
+    masterGain.gain.value = 0.34;
     filter.connect(masterGain);
     filter.connect(delay);
     delay.connect(feedback);
@@ -605,13 +605,13 @@ export function PlacesGlobe() {
         0.88 + Math.sin(now * 0.41 + 0.8) * 0.12;
       const oceanTarget = onWater
         ? traversalMode === "boat"
-          ? 0.0095 * slowSwell
-          : 0.012 * slowSwell
+          ? 0.0145 * slowSwell
+          : 0.0175 * slowSwell
         : 0.0001;
       const foamTarget = onWater
-        ? 0.0015 +
+        ? 0.0023 +
           movementBlend *
-            (traversalMode === "boat" ? 0.014 : 0.011) *
+            (traversalMode === "boat" ? 0.02 : 0.016) *
             foamVariance
         : 0.0001;
       const filterTarget =
@@ -650,7 +650,7 @@ export function PlacesGlobe() {
         0.45,
       );
       graph.lfoGain.gain.setTargetAtTime(
-        onWater ? 0.0016 : 0,
+        onWater ? 0.0022 : 0,
         now,
         0.4,
       );
@@ -876,7 +876,7 @@ export function PlacesGlobe() {
       const start = context.currentTime;
       const easedMovement =
         movementBlend * movementBlend * (3 - 2 * movementBlend);
-      const volume = (0.02 + runBlend * 0.012) * easedMovement;
+      const volume = (0.029 + runBlend * 0.017) * easedMovement;
       const footOffset = stepIndex % 2 === 0 ? -0.09 : 0.09;
       const noise = context.createBufferSource();
       const noiseFilter = context.createBiquadFilter();
@@ -994,7 +994,7 @@ export function PlacesGlobe() {
       lowpass.frequency.value = 2600;
       gain.gain.setValueAtTime(0.0001, start);
       gain.gain.exponentialRampToValueAtTime(
-        0.009 * strength,
+        0.015 * strength,
         start + 0.012,
       );
       gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.17);
@@ -1006,7 +1006,7 @@ export function PlacesGlobe() {
       bubble.frequency.exponentialRampToValueAtTime(82, start + 0.12);
       bubbleGain.gain.setValueAtTime(0.0001, start);
       bubbleGain.gain.exponentialRampToValueAtTime(
-        0.0032 * strength,
+        0.005 * strength,
         start + 0.009,
       );
       bubbleGain.gain.exponentialRampToValueAtTime(
@@ -1090,7 +1090,7 @@ export function PlacesGlobe() {
       bandpass.Q.setValueAtTime(0.9, start);
       noiseGain.gain.setValueAtTime(0.0001, start);
       noiseGain.gain.exponentialRampToValueAtTime(
-        0.006 + impact * 0.012,
+        0.01 + impact * 0.019,
         start + 0.003,
       );
       noiseGain.gain.exponentialRampToValueAtTime(
@@ -1109,7 +1109,7 @@ export function PlacesGlobe() {
       );
       clackGain.gain.setValueAtTime(0.0001, start);
       clackGain.gain.exponentialRampToValueAtTime(
-        0.0025 + impact * 0.0045,
+        0.004 + impact * 0.0065,
         start + 0.002,
       );
       clackGain.gain.exponentialRampToValueAtTime(
@@ -1215,12 +1215,12 @@ export function PlacesGlobe() {
       );
       gain.gain.setValueAtTime(0.0001, start);
       gain.gain.exponentialRampToValueAtTime(
-        (kind === "bush" ? 0.012 : 0.0075) *
+        (kind === "bush" ? 0.017 : 0.011) *
           (0.42 + impact * 0.58),
         start + 0.014,
       );
       gain.gain.exponentialRampToValueAtTime(
-        (kind === "bush" ? 0.006 : 0.0035) *
+        (kind === "bush" ? 0.0085 : 0.0055) *
           (0.4 + impact * 0.6),
         start + duration * 0.44,
       );

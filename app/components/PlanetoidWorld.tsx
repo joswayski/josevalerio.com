@@ -533,31 +533,31 @@ function ambientOceanHeight(
         direction.z * 4.8 +
         elapsedTime * 0.52,
     ) *
-      0.038 +
+      0.014 +
     Math.sin(
       direction.y * 12.5 -
         direction.x * 5.2 -
         elapsedTime * 0.43,
     ) *
-      0.029;
+      0.01;
   const crossingWave =
     Math.sin(
       (direction.x + direction.y) * 20 +
         elapsedTime * 0.78,
     ) *
-      0.018 +
+      0.005 +
     Math.sin(
       (direction.z - direction.x) * 27 -
         elapsedTime * 0.66,
     ) *
-      0.011;
+      0.003;
   const windRipple =
     Math.sin(
       direction.x * 31 +
         direction.z * 17 -
         direction.y * 8 +
         elapsedTime * 1.05,
-    ) * 0.008;
+    ) * 0.002;
 
   return (swell + crossingWave + windRipple) * openWater * motion;
 }
@@ -1011,8 +1011,8 @@ function OceanSurface({
         simulation.heights[vertex] * openWater;
       const ambientCrest = MathUtils.smoothstep(
         ambientHeight,
-        0.012,
-        0.078,
+        0.016,
+        0.052,
       );
       const radius =
         OCEAN_SURFACE_RADIUS +
@@ -1182,13 +1182,13 @@ function OceanSurface({
               water = mix(
                 water,
                 deepColor * 0.78,
-                horizonOcclusion * (0.72 + deepWater * 0.22)
+                horizonOcclusion * (0.08 + deepWater * 0.84)
               );
 
               float opacity = clamp(
-                mix(0.74, 1.0, depthOcclusion) +
-                horizonOcclusion * (1.0 - depthOcclusion) +
-                crest * 0.06,
+                mix(0.48, 0.98, depthOcclusion) +
+                horizonOcclusion * depthOcclusion * 0.025 +
+                crest * 0.045,
                 0.0,
                 1.0
               );
@@ -2149,12 +2149,14 @@ function createLooseProps() {
 
 function LooseProps({
   travelerDirectionRef,
+  travelerForwardRef,
   movementVelocityRef,
   onLoosePropImpact,
   exploreMode,
   reduceMotion,
 }: {
   travelerDirectionRef: MutableRefObject<Vector3>;
+  travelerForwardRef: MutableRefObject<Vector3>;
   movementVelocityRef: MutableRefObject<number>;
   onLoosePropImpact: (strength: number, variation: number) => void;
   exploreMode: boolean;
@@ -2193,26 +2195,28 @@ function LooseProps({
         Math.abs(movementVelocityRef.current) > 0.08
       ) {
         const impulse = impulseRef.current
-          .copy(prop.direction)
-          .sub(travelerDirectionRef.current)
+          .copy(travelerForwardRef.current)
           .addScaledVector(
             prop.direction,
-            -prop.direction
-              .clone()
-              .sub(travelerDirectionRef.current)
-              .dot(prop.direction),
+            -travelerForwardRef.current.dot(prop.direction),
           );
+        const pushStrength =
+          0.52 + Math.abs(movementVelocityRef.current) * 0.42;
 
         if (impulse.lengthSq() > 0.00001) {
-          prop.tangentVelocity.addScaledVector(
-            impulse.normalize(),
-            0.52 + Math.abs(movementVelocityRef.current) * 0.42,
-          );
+          prop.tangentVelocity
+            .multiplyScalar(0.12)
+            .addScaledVector(
+              impulse.normalize(),
+              pushStrength,
+            );
         } else {
-          prop.tangentVelocity.addScaledVector(
-            tangentBasis(prop.direction).east,
-            0.48,
-          );
+          prop.tangentVelocity
+            .multiplyScalar(0.12)
+            .addScaledVector(
+              tangentBasis(prop.direction).east,
+              pushStrength,
+            );
         }
 
         onLoosePropImpact(
@@ -2233,7 +2237,7 @@ function LooseProps({
       if (prop.tangentVelocity.lengthSq() > 0.000001) {
         const speed = prop.tangentVelocity.length();
         const axis = axisRef.current
-          .crossVectors(prop.tangentVelocity, prop.direction)
+          .crossVectors(prop.direction, prop.tangentVelocity)
           .normalize();
         const angle = speed * frameDelta;
         const nextDirection = nextDirectionRef.current
@@ -3548,6 +3552,7 @@ export function PlanetoidWorld({
       />
       <LooseProps
         travelerDirectionRef={travelerDirectionRef}
+        travelerForwardRef={travelerForwardRef}
         movementVelocityRef={movementVelocityRef}
         onLoosePropImpact={onLoosePropImpact}
         exploreMode={exploreMode}
