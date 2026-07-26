@@ -93,6 +93,7 @@ type PlacesSceneProps = {
     movementBlend: number,
     strokeIndex: number,
   ) => void;
+  onLoosePropImpact: (strength: number, variation: number) => void;
   skyPhase: SkyPhase;
   solarDirection: [number, number, number];
 };
@@ -3936,6 +3937,7 @@ function PlanetExperience({
   onFootstep,
   onTraversalAudio,
   onWaterStroke,
+  onLoosePropImpact,
   skyPhase,
   solarDirection,
 }: PlacesSceneProps) {
@@ -4562,6 +4564,7 @@ function PlanetExperience({
           movementVelocityRef={movementVelocityRef}
           traversalModeRef={traversalModeRef}
           waterSurfaceRef={waterSurfaceRef}
+          onLoosePropImpact={onLoosePropImpact}
           exploreMode={exploreMode}
           reduceMotion={reduceMotion}
           skyPhase={skyPhase}
@@ -4629,16 +4632,6 @@ function PlanetExperience({
         </>
       ) : null}
 
-      <mesh scale={1.075}>
-        <icosahedronGeometry args={[PLANET_RADIUS, 4]} />
-        <meshBasicMaterial
-          color="#d04842"
-          transparent
-          opacity={0.055}
-          side={BackSide}
-          depthWrite={false}
-        />
-      </mesh>
     </>
   );
 }

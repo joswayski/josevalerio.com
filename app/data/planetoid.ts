@@ -466,7 +466,7 @@ export const WATER_FEATURES: WaterFeature[] = [
       0.13,
     ),
     angularRadius: 0.1,
-    color: "#66aeb7",
+    color: "#5b8fc4",
     depth: 0.24,
   },
 ];

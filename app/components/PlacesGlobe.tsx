@@ -310,6 +310,7 @@ export function PlacesGlobe() {
   const photoSwipeStartRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const footstepBufferRef = useRef<AudioBuffer | null>(null);
+  const rockImpactBufferRef = useRef<AudioBuffer | null>(null);
   const waterNoiseBufferRef = useRef<AudioBuffer | null>(null);
   const waterAudioGraphRef = useRef<WaterAudioGraph | null>(null);
   const ambientMusicGraphRef = useRef<AmbientMusicGraph | null>(null);
@@ -414,6 +415,7 @@ export function PlacesGlobe() {
       }
 
       footstepBufferRef.current = null;
+      rockImpactBufferRef.current = null;
       waterNoiseBufferRef.current = null;
       waterAudioGraphRef.current = null;
       ambientMusicGraphRef.current = null;
@@ -433,6 +435,7 @@ export function PlacesGlobe() {
     const context = new AudioContext();
     audioContextRef.current = context;
     footstepBufferRef.current = null;
+    rockImpactBufferRef.current = null;
     waterNoiseBufferRef.current = null;
     waterAudioGraphRef.current = null;
     ambientMusicGraphRef.current = null;
@@ -692,8 +695,8 @@ export function PlacesGlobe() {
       const down = keys.has("ArrowDown") || keys.has("s");
       const orbitLeft = keys.has("q");
       const orbitRight = keys.has("e");
-      const zoomIn = keys.has("k");
-      const zoomOut = keys.has("j");
+      const zoomIn = keys.has("j");
+      const zoomOut = keys.has("k");
 
       exploreInputRef.current = {
         horizontal: Number(right) - Number(left),
@@ -1030,6 +1033,110 @@ export function PlacesGlobe() {
     [ensureAudioContext],
   );
 
+  const playLoosePropImpactSound = useCallback(
+    (strength: number, variation: number) => {
+      const context = ensureAudioContext();
+      let buffer = rockImpactBufferRef.current;
+
+      if (!buffer) {
+        const duration = 0.085;
+        buffer = context.createBuffer(
+          1,
+          Math.ceil(context.sampleRate * duration),
+          context.sampleRate,
+        );
+        const samples = buffer.getChannelData(0);
+
+        for (let index = 0; index < samples.length; index += 1) {
+          const progress = index / samples.length;
+          const grit =
+            0.72 + Math.sin(index * 0.91) * 0.18 +
+            Math.sin(index * 0.37) * 0.1;
+          samples[index] =
+            (Math.random() * 2 - 1) *
+            grit *
+            Math.pow(1 - progress, 4.8);
+        }
+
+        rockImpactBufferRef.current = buffer;
+      }
+
+      const start = context.currentTime;
+      const impact = Math.min(1, Math.max(0.2, strength));
+      const pitchVariation = variation % 5;
+      const noise = context.createBufferSource();
+      const bandpass = context.createBiquadFilter();
+      const noiseGain = context.createGain();
+      const clack = context.createOscillator();
+      const clackGain = context.createGain();
+      const panner = context.createStereoPanner();
+
+      noise.buffer = buffer;
+      noise.playbackRate.setValueAtTime(
+        0.9 + pitchVariation * 0.055 + impact * 0.12,
+        start,
+      );
+      bandpass.type = "bandpass";
+      bandpass.frequency.setValueAtTime(
+        920 + pitchVariation * 105,
+        start,
+      );
+      bandpass.Q.setValueAtTime(0.9, start);
+      noiseGain.gain.setValueAtTime(0.0001, start);
+      noiseGain.gain.exponentialRampToValueAtTime(
+        0.006 + impact * 0.012,
+        start + 0.003,
+      );
+      noiseGain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        start + 0.075,
+      );
+
+      clack.type = "triangle";
+      clack.frequency.setValueAtTime(
+        285 + pitchVariation * 24,
+        start,
+      );
+      clack.frequency.exponentialRampToValueAtTime(
+        115 + pitchVariation * 8,
+        start + 0.065,
+      );
+      clackGain.gain.setValueAtTime(0.0001, start);
+      clackGain.gain.exponentialRampToValueAtTime(
+        0.0025 + impact * 0.0045,
+        start + 0.002,
+      );
+      clackGain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        start + 0.07,
+      );
+      panner.pan.setValueAtTime(
+        Math.sin(variation * 1.83) * 0.18,
+        start,
+      );
+
+      noise.connect(bandpass);
+      bandpass.connect(noiseGain);
+      noiseGain.connect(panner);
+      clack.connect(clackGain);
+      clackGain.connect(panner);
+      panner.connect(context.destination);
+      noise.start(start);
+      clack.start(start);
+      noise.stop(start + 0.085);
+      clack.stop(start + 0.075);
+      noise.addEventListener("ended", () => {
+        noise.disconnect();
+        bandpass.disconnect();
+        noiseGain.disconnect();
+        clack.disconnect();
+        clackGain.disconnect();
+        panner.disconnect();
+      });
+    },
+    [ensureAudioContext],
+  );
+
   const triggerJump = useCallback(() => {
     if (
       currentTraversalModeRef.current === "boat" ||
@@ -1174,6 +1281,7 @@ export function PlacesGlobe() {
                   onFootstep={playFootstepSound}
                   onTraversalAudio={updateTraversalAudio}
                   onWaterStroke={playWaterStrokeSound}
+                  onLoosePropImpact={playLoosePropImpactSound}
                   skyPhase={celestialState.skyPhase}
                   solarDirection={celestialState.solarDirection}
                 />
@@ -1290,7 +1398,7 @@ export function PlacesGlobe() {
 
         <p className="globe-instructions">
           {exploreMode
-            ? "Drag orbit · WASD move/paddle · Shift faster · Q/E orbit · Space jump · F interact · J/K zoom"
+            ? "Drag orbit · WASD move/paddle · Shift faster · Q/E orbit · Space jump · F interact · J in · K out"
             : "Drag to spin"}
         </p>
 

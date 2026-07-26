@@ -53,6 +53,7 @@ type PlanetoidWorldProps = {
   movementVelocityRef: MutableRefObject<number>;
   traversalModeRef: MutableRefObject<"boat" | "land" | "swim">;
   waterSurfaceRef: MutableRefObject<OceanSurfaceApi | null>;
+  onLoosePropImpact: (strength: number, variation: number) => void;
   exploreMode: boolean;
   reduceMotion: boolean;
   skyPhase: SkyPhase;
@@ -521,26 +522,33 @@ function ambientOceanHeight(
         direction.z * 4.8 +
         elapsedTime * 0.52,
     ) *
-      0.027 +
+      0.038 +
     Math.sin(
       direction.y * 12.5 -
         direction.x * 5.2 -
         elapsedTime * 0.43,
     ) *
-      0.022;
+      0.029;
   const crossingWave =
     Math.sin(
       (direction.x + direction.y) * 20 +
         elapsedTime * 0.78,
     ) *
-      0.012 +
+      0.018 +
     Math.sin(
       (direction.z - direction.x) * 27 -
         elapsedTime * 0.66,
     ) *
-      0.008;
+      0.011;
+  const windRipple =
+    Math.sin(
+      direction.x * 31 +
+        direction.z * 17 -
+        direction.y * 8 +
+        elapsedTime * 1.05,
+    ) * 0.008;
 
-  return (swell + crossingWave) * openWater * motion;
+  return (swell + crossingWave + windRipple) * openWater * motion;
 }
 
 function createOceanSurfaceGeometry() {
@@ -595,7 +603,7 @@ function OceanSurface({
   exploreMode,
   reduceMotion,
   skyPhase,
-}: PlanetoidWorldProps) {
+}: Omit<PlanetoidWorldProps, "onLoosePropImpact">) {
   const geometry = useMemo(createOceanSurfaceGeometry, []);
   const simulation = useMemo(() => {
     const positionAttribute = geometry.getAttribute(
@@ -629,20 +637,20 @@ function OceanSurface({
       deepColor: {
         value:
           skyPhase === "night"
-            ? new Color("#061a30")
-            : new Color("#073c5b"),
+            ? new Color("#061a35")
+            : new Color("#0a3f73"),
       },
       shallowColor: {
         value:
           skyPhase === "night"
-            ? new Color("#174b63")
-            : new Color("#35a7ad"),
+            ? new Color("#174c73")
+            : new Color("#348fbe"),
       },
       foamColor: {
         value:
           skyPhase === "night"
-            ? new Color("#a8d1d4")
-            : new Color("#eafbf2"),
+            ? new Color("#b5d4e2")
+            : new Color("#edf8ff"),
       },
     }),
     [skyPhase],
@@ -987,6 +995,11 @@ function OceanSurface({
       );
       const simulatedHeight =
         simulation.heights[vertex] * openWater;
+      const ambientCrest = MathUtils.smoothstep(
+        ambientHeight,
+        0.012,
+        0.078,
+      );
       const radius =
         OCEAN_SURFACE_RADIUS +
         MathUtils.clamp(
@@ -1001,7 +1014,7 @@ function OceanSurface({
       energyArray[vertex] = MathUtils.clamp(
         Math.abs(simulatedHeight) * 5.2 +
           Math.abs(simulation.velocities[vertex]) * 0.2 +
-          Math.max(0, ambientHeight) * 4.2,
+          ambientCrest * 0.82,
         0,
         1,
       );
@@ -1117,6 +1130,11 @@ function OceanSurface({
                 38.0
               );
               float crest = smoothstep(0.5, 0.9, vWave);
+              float waveShoulder = smoothstep(
+                0.14,
+                0.72,
+                vWave
+              );
               float deepWater = pow(
                 clamp(1.0 - vShoreProximity, 0.0, 1.0),
                 0.72
@@ -1138,14 +1156,14 @@ function OceanSurface({
               );
               water = mix(
                 water,
-                shallowColor * 1.08,
-                fresnel * 0.3 + vWave * 0.04
+                shallowColor * 1.1 + vec3(0.015, 0.025, 0.055),
+                fresnel * 0.28 + waveShoulder * 0.12
               );
-              water += glint * vec3(0.72, 0.94, 0.94);
+              water += glint * vec3(0.68, 0.9, 1.0);
               water = mix(
                 water,
                 foamColor,
-                crest * 0.44
+                crest * (0.18 + fresnel * 0.16)
               );
               water = mix(
                 water,
@@ -1411,20 +1429,20 @@ function WaterPool({
       deepColor: {
         value:
           skyPhase === "night"
-            ? new Color("#102d42")
-            : new Color(water.color).multiplyScalar(0.58),
+            ? new Color("#102d4b")
+            : new Color(water.color).multiplyScalar(0.62),
       },
       shallowColor: {
         value:
           skyPhase === "night"
-            ? new Color("#2c6873")
-            : new Color(water.color).lerp(new Color("#8ce1d1"), 0.46),
+            ? new Color("#2c6382")
+            : new Color(water.color).lerp(new Color("#9ad6eb"), 0.42),
       },
       foamColor: {
         value:
           skyPhase === "night"
-            ? new Color("#b9d8d7")
-            : new Color("#eefcf5"),
+            ? new Color("#bfd9e5")
+            : new Color("#f1fbff"),
       },
     }),
     [reduceMotion, skyPhase, water.color],
@@ -1603,7 +1621,7 @@ function WaterPool({
                 shallowColor * 1.16,
                 fresnel * 0.32 + vCrest * 0.12
               );
-              water += glint * vec3(0.72, 0.9, 0.86);
+              water += glint * vec3(0.7, 0.9, 1.0);
               float crestLine = smoothstep(0.66, 0.77, vCrest);
               float foamMix = max(
                 smoothstep(0.38, 0.9, vFoam),
@@ -1995,11 +2013,13 @@ function createLooseProps() {
 function LooseProps({
   travelerDirectionRef,
   movementVelocityRef,
+  onLoosePropImpact,
   exploreMode,
   reduceMotion,
 }: {
   travelerDirectionRef: MutableRefObject<Vector3>;
   movementVelocityRef: MutableRefObject<number>;
+  onLoosePropImpact: (strength: number, variation: number) => void;
   exploreMode: boolean;
   reduceMotion: boolean;
 }) {
@@ -2058,6 +2078,14 @@ function LooseProps({
           );
         }
 
+        onLoosePropImpact(
+          MathUtils.clamp(
+            Math.abs(movementVelocityRef.current) / 0.36,
+            0.2,
+            1,
+          ),
+          index,
+        );
         prop.contactCooldown = 0.34;
       }
 
@@ -2642,7 +2670,7 @@ function BasePlanetoid({ skyPhase }: { skyPhase: SkyPhase }) {
   return (
     <mesh geometry={geometry} castShadow receiveShadow>
       <meshStandardMaterial
-        color={skyPhase === "night" ? "#020b16" : "#062a3c"}
+        color={skyPhase === "night" ? "#020b19" : "#06233d"}
         roughness={1}
         metalness={0}
         flatShading
@@ -2666,7 +2694,7 @@ function OceanDepthShell({ skyPhase }: { skyPhase: SkyPhase }) {
   return (
     <mesh geometry={geometry} receiveShadow renderOrder={-1}>
       <meshStandardMaterial
-        color={skyPhase === "night" ? "#02101c" : "#073847"}
+        color={skyPhase === "night" ? "#03152b" : "#07385c"}
         roughness={1}
         metalness={0}
       />
@@ -3315,6 +3343,7 @@ export function PlanetoidWorld({
   movementVelocityRef,
   traversalModeRef,
   waterSurfaceRef,
+  onLoosePropImpact,
   exploreMode,
   reduceMotion,
   skyPhase,
@@ -3378,6 +3407,7 @@ export function PlanetoidWorld({
       <LooseProps
         travelerDirectionRef={travelerDirectionRef}
         movementVelocityRef={movementVelocityRef}
+        onLoosePropImpact={onLoosePropImpact}
         exploreMode={exploreMode}
         reduceMotion={reduceMotion}
       />

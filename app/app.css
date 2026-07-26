@@ -364,10 +364,10 @@ button {
 }
 
 .places-explorer {
-  --space-top: #658ba0;
-  --space-middle: #9cb7bf;
-  --space-bottom: #d9cfc2;
-  --space-glow: rgba(255, 238, 210, 0.34);
+  --space-top: #6f9db5;
+  --space-middle: #9fc0cd;
+  --space-bottom: #d8e3e4;
+  --space-glow: rgba(235, 247, 249, 0.38);
   --space-ui-muted: #293b46;
   min-width: 0;
   border-bottom: 1px solid var(--line-strong);
@@ -397,9 +397,9 @@ button {
   overflow: hidden;
   background:
     radial-gradient(
-      circle at 50% 57%,
+      ellipse 85% 72% at 50% 100%,
       var(--space-glow) 0,
-      transparent 48%
+      transparent 74%
     ),
     linear-gradient(
       180deg,
