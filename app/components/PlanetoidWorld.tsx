@@ -1939,7 +1939,7 @@ function createLooseProps() {
   BIOMES.forEach((biome) => {
     const random = createSeededRandom(biome.seed * 307);
 
-    for (let index = 0; index < 6; index += 1) {
+    for (let index = 0; index < 3; index += 1) {
       let direction = biome.center;
 
       for (let attempt = 0; attempt < 16; attempt += 1) {
@@ -1967,23 +1967,23 @@ function createLooseProps() {
         direction,
         tangentVelocity: new Vector3(),
         orientation: new Quaternion().setFromUnitVectors(UP, direction),
-        scale: 0.1 + random() * 0.11,
+        scale: 0.075 + random() * 0.065,
         color:
           biome.id === "japan"
-            ? "#8e817a"
+            ? "#817b76"
             : biome.id === "dominican-republic"
-              ? "#a77e57"
+              ? "#7d746b"
               : biome.id === "turkiye"
-                ? "#8e7460"
+                ? "#898076"
                 : biome.id === "south-korea"
-                  ? "#747770"
-                  : "#74716b",
+                  ? "#717772"
+                  : "#77746f",
         accentColor:
           biome.id === "dominican-republic"
-            ? "#80684a"
+            ? "#68645f"
             : biome.id === "turkiye"
-              ? "#665d4e"
-              : "#59645a",
+              ? "#6d6861"
+              : "#5f6661",
         contactCooldown: 0,
       });
     }
@@ -2098,7 +2098,9 @@ function LooseProps({
 
       mesh.position
         .copy(prop.direction)
-        .multiplyScalar(surfaceRadiusAt(prop.direction) + prop.scale);
+        .multiplyScalar(
+          surfaceRadiusAt(prop.direction) + prop.scale * 0.72,
+        );
       const orientation = orientationRef.current.setFromUnitVectors(
         UP,
         prop.direction,
@@ -2120,33 +2122,39 @@ function LooseProps({
           }}
           position={prop.direction
             .clone()
-            .multiplyScalar(surfaceRadiusAt(prop.direction) + prop.scale)}
+            .multiplyScalar(
+              surfaceRadiusAt(prop.direction) + prop.scale * 0.72,
+            )}
           quaternion={prop.orientation}
         >
           <mesh
             rotation={[0.08, index * 1.17, -0.05]}
-            scale={[prop.scale * 1.15, prop.scale, prop.scale * 0.9]}
+            scale={[
+              prop.scale * 1.25,
+              prop.scale * 0.72,
+              prop.scale * 0.95,
+            ]}
             castShadow
             receiveShadow
           >
-            <dodecahedronGeometry args={[1, 1]} />
+            <dodecahedronGeometry args={[1, 0]} />
             <meshToonMaterial color={prop.color} />
           </mesh>
           <mesh
             position={[
-              prop.scale * 0.34,
-              prop.scale * 0.48,
-              prop.scale * -0.18,
+              prop.scale * 0.3,
+              prop.scale * 0.32,
+              prop.scale * -0.16,
             ]}
             rotation={[0.22, index * -0.81, 0.16]}
             scale={[
-              prop.scale * 0.46,
-              prop.scale * 0.29,
-              prop.scale * 0.38,
+              prop.scale * 0.42,
+              prop.scale * 0.22,
+              prop.scale * 0.34,
             ]}
             castShadow
           >
-            <dodecahedronGeometry args={[1, 1]} />
+            <dodecahedronGeometry args={[1, 0]} />
             <meshToonMaterial color={prop.accentColor} />
           </mesh>
         </group>
@@ -2186,6 +2194,8 @@ function FlagRectangle({
 
 function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
   if (biomeId === "united-states") {
+    const stripeHeight = 0.34 / 13;
+
     return (
       <>
         <FlagRectangle
@@ -2197,14 +2207,22 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
           <FlagRectangle
             key={stripe}
             color="#c73c43"
-            position={[0, 0.145 - stripe * 0.048, 0.003]}
-            size={[0.56, 0.024]}
+            position={[
+              0,
+              0.17 - stripeHeight / 2 - stripe * stripeHeight * 2,
+              0.003,
+            ]}
+            size={[0.56, stripeHeight + 0.001]}
           />
         ))}
         <FlagRectangle
           color="#315487"
-          position={[-0.17, 0.075, 0.006]}
-          size={[0.22, 0.17]}
+          position={[
+            -0.17,
+            0.17 - (stripeHeight * 7) / 2,
+            0.006,
+          ]}
+          size={[0.22, stripeHeight * 7]}
         />
         {[
           [-0.225, 0.105],
@@ -2236,16 +2254,16 @@ function CountryFlagPattern({ biomeId }: { biomeId: BiomeKind }) {
           size={[0.56, 0.34]}
         />
         {[
-          [-0.155, 0.095, "#224a93"],
-          [0.155, 0.095, "#c63842"],
-          [-0.155, -0.095, "#c63842"],
-          [0.155, -0.095, "#224a93"],
+          [-0.16, 0.105, "#224a93"],
+          [0.16, 0.105, "#c63842"],
+          [-0.16, -0.105, "#c63842"],
+          [0.16, -0.105, "#224a93"],
         ].map(([x, y, color], panel) => (
           <FlagRectangle
             key={panel}
             color={color as string}
             position={[x as number, y as number, 0.003]}
-            size={[0.23, 0.12]}
+            size={[0.24, 0.13]}
           />
         ))}
         <mesh position={[0, 0, 0.007]} renderOrder={41}>
@@ -2430,14 +2448,6 @@ function CountryFlag({
         >
           <CountryFlagPattern biomeId={biome.id} />
         </group>
-        <mesh
-          position={[-0.286, 0, 0]}
-          rotation={[0, 0, Math.PI / 2]}
-          castShadow
-        >
-          <cylinderGeometry args={[0.009, 0.009, 0.34, 6]} />
-          <meshToonMaterial color="#d5d0c1" />
-        </mesh>
       </group>
     </group>
   );
