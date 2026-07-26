@@ -131,6 +131,8 @@ type BirdDefinition = {
 const UP = new Vector3(0, 1, 0);
 const TERRAIN_SEGMENTS = 108;
 const TERRAIN_RINGS = 36;
+const TERRAIN_SHELF_RINGS = 8;
+const TERRAIN_TOTAL_RINGS = TERRAIN_RINGS + TERRAIN_SHELF_RINGS;
 const VEGETATION_INTERACTION_ANGLE = 0.105;
 const FISH_SCURRY_ENTER_ANGLE = 0.115;
 const FISH_SCURRY_EXIT_ANGLE = 0.18;
@@ -176,21 +178,36 @@ function createTerrainChunkGeometry(biome: BiomeDefinition) {
   const indices: number[] = [];
   const ground = new Color(biome.ground);
   const groundDark = new Color(biome.groundDark);
+  const shore = new Color(biome.shore);
+  const cliff = new Color(biome.cliff);
+  const cliffDark = cliff.clone().multiplyScalar(0.62);
   const highlight = new Color("#d2d38d");
   const random = createSeededRandom(biome.seed);
 
   biome.parts.forEach((part, partIndex) => {
     const vertexOffset = positions.length / 3;
 
-    for (let ring = 0; ring <= TERRAIN_RINGS; ring += 1) {
-      const ringProgress = ring / TERRAIN_RINGS;
+    for (let ring = 0; ring <= TERRAIN_TOTAL_RINGS; ring += 1) {
+      const shelfProgress = MathUtils.clamp(
+        (ring - TERRAIN_RINGS) / TERRAIN_SHELF_RINGS,
+        0,
+        1,
+      );
+      const isShelf = ring > TERRAIN_RINGS;
+      const ringProgress = isShelf
+        ? 1 + shelfProgress * 0.25
+        : ring / TERRAIN_RINGS;
 
       for (let segment = 0; segment < TERRAIN_SEGMENTS; segment += 1) {
         const angle =
           (segment / TERRAIN_SEGMENTS) * Math.PI * 2 +
           (ring % 2) * 0.026;
         const edgeJitter =
-          ring === TERRAIN_RINGS ? (random() - 0.5) * 0.018 : 0;
+          ring >= TERRAIN_RINGS
+            ? Math.sin(
+                segment * 2.17 + biome.seed + partIndex,
+              ) * 0.006
+            : 0;
         const direction = islandPartDirection(
           biome,
           part,
@@ -198,33 +215,59 @@ function createTerrainChunkGeometry(biome: BiomeDefinition) {
           angle,
         );
         const height = biomeHeightAt(direction, biome);
-        const position = direction
-          .clone()
-          .multiplyScalar(surfaceRadiusAt(direction) + 0.006);
+        const landRadius = surfaceRadiusAt(direction) + 0.006;
+        const shelfFalloff = Math.pow(shelfProgress, 1.65);
+        const radius = isShelf
+          ? MathUtils.lerp(
+              landRadius,
+              OCEAN_FLOOR_RADIUS + 0.015,
+              shelfFalloff,
+            )
+          : landRadius;
+        const position = direction.clone().multiplyScalar(radius);
         const heightMix = MathUtils.clamp(
           height / (biome.baseHeight + biome.peakHeight * 0.7),
           0,
           1,
         );
-        const color = groundDark
-          .clone()
-          .lerp(ground, 0.48 + heightMix * 0.46)
-          .lerp(
-            highlight,
-            biome.id === "turkiye" || biome.id === "south-korea"
-              ? Math.max(0, heightMix - 0.64) * 0.62
-              : Math.max(0, heightMix - 0.8) * 0.28,
-          )
-          .multiplyScalar(
-            0.9 + random() * 0.14 + partIndex * 0.012,
-          );
+        const coastMix = MathUtils.smoothstep(
+          ringProgress,
+          0.76,
+          1,
+        );
+        const color = isShelf
+          ? shore
+              .clone()
+              .lerp(
+                cliff,
+                MathUtils.smoothstep(shelfProgress, 0.18, 0.72),
+              )
+              .lerp(
+                cliffDark,
+                MathUtils.smoothstep(shelfProgress, 0.56, 1),
+              )
+          : groundDark
+              .clone()
+              .lerp(ground, 0.48 + heightMix * 0.46)
+              .lerp(shore, coastMix * 0.82)
+              .lerp(
+                highlight,
+                biome.id === "turkiye" ||
+                  biome.id === "south-korea"
+                  ? Math.max(0, heightMix - 0.64) * 0.62
+                  : Math.max(0, heightMix - 0.8) * 0.28,
+              );
+
+        color.multiplyScalar(
+          0.9 + random() * 0.14 + partIndex * 0.012,
+        );
 
         positions.push(position.x, position.y, position.z);
         colors.push(color.r, color.g, color.b);
       }
     }
 
-    for (let ring = 0; ring < TERRAIN_RINGS; ring += 1) {
+    for (let ring = 0; ring < TERRAIN_TOTAL_RINGS; ring += 1) {
       for (let segment = 0; segment < TERRAIN_SEGMENTS; segment += 1) {
         const nextSegment = (segment + 1) % TERRAIN_SEGMENTS;
         const current =
@@ -270,174 +313,28 @@ function createTerrainChunkGeometry(biome: BiomeDefinition) {
   return geometry;
 }
 
-function createEscarpmentGeometry(biome: BiomeDefinition) {
-  const positions: number[] = [];
-  const colors: number[] = [];
-  const indices: number[] = [];
-  const oceanHeight = OCEAN_SURFACE_RADIUS - PLANET_RADIUS;
-  const shelfProfile = [
-    { outset: 0, depth: 0 },
-    { outset: 0.025, depth: 0.008 },
-    { outset: 0.06, depth: 0.035 },
-    { outset: 0.105, depth: 0.09 },
-    { outset: 0.155, depth: 0.18 },
-    { outset: 0.205, depth: 0.36 },
-    {
-      outset: 0.25,
-      depth:
-        OCEAN_SURFACE_RADIUS -
-        (OCEAN_FLOOR_RADIUS + 0.04),
-    },
-  ];
-  const shore = new Color(biome.shore);
-  const cliff = new Color(biome.cliff);
-  const cliffDark = cliff.clone().multiplyScalar(0.62);
-
-  biome.parts.forEach((part, partIndex) => {
-    const vertexOffset = positions.length / 3;
-
-    for (let segment = 0; segment < TERRAIN_SEGMENTS; segment += 1) {
-      const angle = (segment / TERRAIN_SEGMENTS) * Math.PI * 2;
-      let shoreProgress = 0.68;
-
-      for (let sample = 0; sample <= 40; sample += 1) {
-        const progress = 0.68 + (sample / 40) * 0.32;
-        const direction = islandPartDirection(
-          biome,
-          part,
-          progress,
-          angle,
-        );
-
-        if (biomeHeightAt(direction, biome) > oceanHeight + 0.006) {
-          shoreProgress = progress;
-        } else {
-          break;
-        }
-      }
-
-      const edgeJitter =
-        Math.sin(segment * 2.17 + biome.seed + partIndex) * 0.006;
-      const shade = 0.75 + (segment % 6) * 0.035;
-
-      shelfProfile.forEach((profile, profileIndex) => {
-        const direction = islandPartDirection(
-          biome,
-          part,
-          shoreProgress + edgeJitter + profile.outset,
-          angle,
-        );
-        const radius =
-          profileIndex === 0
-            ? surfaceRadiusAt(direction) + 0.005
-            : OCEAN_SURFACE_RADIUS - profile.depth;
-        const position = direction.clone().multiplyScalar(radius);
-        const depthProgress =
-          profile.depth /
-          Math.max(
-            OCEAN_SURFACE_RADIUS - OCEAN_FLOOR_RADIUS,
-            0.001,
-          );
-        const color = shore
-          .clone()
-          .lerp(cliff, MathUtils.clamp(depthProgress * 2.4, 0, 1))
-          .lerp(
-            cliffDark,
-            MathUtils.clamp((depthProgress - 0.28) * 1.4, 0, 1),
-          )
-          .multiplyScalar(shade);
-
-        positions.push(position.x, position.y, position.z);
-        colors.push(color.r, color.g, color.b);
-      });
-    }
-
-    for (let segment = 0; segment < TERRAIN_SEGMENTS; segment += 1) {
-      const next = (segment + 1) % TERRAIN_SEGMENTS;
-      const profileLength = shelfProfile.length;
-
-      for (
-        let profileIndex = 0;
-        profileIndex < profileLength - 1;
-        profileIndex += 1
-      ) {
-        const current =
-          vertexOffset + segment * profileLength + profileIndex;
-        const outer = current + 1;
-        const nextCurrent =
-          vertexOffset + next * profileLength + profileIndex;
-        const nextOuter = nextCurrent + 1;
-
-        indices.push(
-          current,
-          outer,
-          nextCurrent,
-          nextCurrent,
-          outer,
-          nextOuter,
-        );
-      }
-    }
-  });
-
-  const geometry = new BufferGeometry();
-  geometry.setAttribute(
-    "position",
-    new Float32BufferAttribute(positions, 3),
-  );
-  geometry.setAttribute(
-    "color",
-    new Float32BufferAttribute(colors, 3),
-  );
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  geometry.computeBoundingSphere();
-
-  return geometry;
-}
-
 function TerrainChunk({ biome }: { biome: BiomeDefinition }) {
   const terrainGeometry = useMemo(
     () => createTerrainChunkGeometry(biome),
-    [biome],
-  );
-  const cliffGeometry = useMemo(
-    () => createEscarpmentGeometry(biome),
     [biome],
   );
 
   useEffect(
     () => () => {
       terrainGeometry.dispose();
-      cliffGeometry.dispose();
     },
-    [cliffGeometry, terrainGeometry],
+    [terrainGeometry],
   );
 
   return (
-    <group>
-      <mesh
-        geometry={terrainGeometry}
-        castShadow
-        receiveShadow
-        renderOrder={2}
-      >
-        <meshToonMaterial
-          vertexColors
-        />
-      </mesh>
-      <mesh
-        geometry={cliffGeometry}
-        castShadow
-        receiveShadow
-        renderOrder={1}
-      >
-        <meshToonMaterial
-          vertexColors
-          side={DoubleSide}
-        />
-      </mesh>
-    </group>
+    <mesh
+      geometry={terrainGeometry}
+      castShadow
+      receiveShadow
+      renderOrder={2}
+    >
+      <meshToonMaterial vertexColors />
+    </mesh>
   );
 }
 
@@ -2736,6 +2633,29 @@ function BasePlanetoid({ skyPhase }: { skyPhase: SkyPhase }) {
   );
 }
 
+function OceanDepthShell({ skyPhase }: { skyPhase: SkyPhase }) {
+  const geometry = useMemo(() => {
+    const nextGeometry = new IcosahedronGeometry(
+      OCEAN_SURFACE_RADIUS - 0.28,
+      5,
+    );
+    nextGeometry.computeVertexNormals();
+    return nextGeometry;
+  }, []);
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  return (
+    <mesh geometry={geometry} receiveShadow renderOrder={-1}>
+      <meshStandardMaterial
+        color={skyPhase === "night" ? "#02101c" : "#073847"}
+        roughness={1}
+        metalness={0}
+      />
+    </mesh>
+  );
+}
+
 function createFishDefinitions() {
   const random = createSeededRandom(81_527);
   const colors = ["#e9b44c", "#e56b5d", "#63b7af", "#8ac0d0"];
@@ -3384,6 +3304,7 @@ export function PlanetoidWorld({
   return (
     <group>
       <BasePlanetoid skyPhase={skyPhase} />
+      <OceanDepthShell skyPhase={skyPhase} />
       <OceanSurface
         travelerDirectionRef={travelerDirectionRef}
         travelerForwardRef={travelerForwardRef}
