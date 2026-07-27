@@ -327,6 +327,7 @@ export function PlacesGlobe() {
     jumpSequence: 0,
     interacting: false,
     interactSequence: 0,
+    cancelInteractSequence: 0,
   });
   const pressedKeysRef = useRef(new Set<string>());
   // Keep an explicitly clicked place selected until the traveler leaves the
@@ -675,6 +676,8 @@ export function PlacesGlobe() {
       jumpSequence: exploreInputRef.current.jumpSequence,
       interacting: false,
       interactSequence: exploreInputRef.current.interactSequence,
+      cancelInteractSequence:
+        exploreInputRef.current.cancelInteractSequence,
     };
     photoGalleryRef.current?.focus();
   }, [expandedPhoto]);
@@ -692,6 +695,8 @@ export function PlacesGlobe() {
         jumpSequence: exploreInputRef.current.jumpSequence,
         interacting: false,
         interactSequence: exploreInputRef.current.interactSequence,
+        cancelInteractSequence:
+          exploreInputRef.current.cancelInteractSequence,
       };
       return;
     }
@@ -717,6 +722,8 @@ export function PlacesGlobe() {
         jumpSequence: exploreInputRef.current.jumpSequence,
         interacting: exploreInputRef.current.interacting,
         interactSequence: exploreInputRef.current.interactSequence,
+        cancelInteractSequence:
+          exploreInputRef.current.cancelInteractSequence,
       };
     };
 
@@ -771,6 +778,8 @@ export function PlacesGlobe() {
         jumpSequence: exploreInputRef.current.jumpSequence,
         interacting: false,
         interactSequence: exploreInputRef.current.interactSequence,
+        cancelInteractSequence:
+          exploreInputRef.current.cancelInteractSequence,
       };
     };
   }, [ensureAudioContext, expandedGallery, exploreMode]);
@@ -1335,6 +1344,17 @@ export function PlacesGlobe() {
           event.preventDefault();
           showRelativePhoto(1);
         }
+        return;
+      }
+
+      if (normalizedKey === "Escape") {
+        event.preventDefault();
+        stopInteraction();
+        exploreInputRef.current = {
+          ...exploreInputRef.current,
+          cancelInteractSequence:
+            exploreInputRef.current.cancelInteractSequence + 1,
+        };
         return;
       }
 

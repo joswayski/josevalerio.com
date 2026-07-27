@@ -69,6 +69,7 @@ export type ExploreInput = {
   jumpSequence: number;
   interacting: boolean;
   interactSequence: number;
+  cancelInteractSequence: number;
 };
 
 export type SkyPhase = "day" | "twilight" | "night";
@@ -2787,6 +2788,30 @@ const PLACE_SCENERY_LAYOUT: Partial<
 function PlaceSceneryWorld({ place }: { place: Place }) {
   const layout = PLACE_SCENERY_LAYOUT[place.id];
   const direction = PLACE_SCENERY_DIRECTIONS.get(place.id);
+  const groupRef = useRef<Group>(null);
+  const worldPositionRef = useRef(new Vector3());
+
+  useFrame(({ camera }) => {
+    const group = groupRef.current;
+
+    if (!group) {
+      return;
+    }
+
+    group.updateWorldMatrix(true, false);
+    const worldPosition = group.getWorldPosition(
+      worldPositionRef.current,
+    );
+    const worldRadius = worldPosition.length();
+
+    worldPosition.multiplyScalar(
+      (worldRadius + 0.06) / worldRadius,
+    );
+    group.visible = isAboveGlobeHorizon(
+      worldPosition,
+      camera.position,
+    );
+  });
 
   if (!layout || !direction) {
     return null;
@@ -2798,7 +2823,11 @@ function PlaceSceneryWorld({ place }: { place: Place }) {
   const orientation = new Quaternion().setFromUnitVectors(UP, direction);
 
   return (
-    <group position={position} quaternion={orientation}>
+    <group
+      ref={groupRef}
+      position={position}
+      quaternion={orientation}
+    >
       <group
         rotation={[0, layout.yaw, 0]}
         scale={layout.scale}
@@ -3200,6 +3229,7 @@ function DestinationWorld({
       camera.position,
     );
     aboveHorizonRef.current = aboveHorizon;
+    groupRef.current.visible = aboveHorizon;
 
     const targetScale = selected ? 2.35 : hovered ? 2.12 : 1.82;
     const scale = MathUtils.damp(
@@ -3988,6 +4018,12 @@ function PlanetExperience({
   const lastInteractSequenceRef = useRef(
     exploreInputRef.current.interactSequence,
   );
+  const lastCancelInteractSequenceRef = useRef(
+    exploreInputRef.current.cancelInteractSequence,
+  );
+  const wasInteractingRef = useRef(
+    exploreInputRef.current.interacting,
+  );
   const waterSurfaceRef = useRef<OceanSurfaceApi | null>(null);
   const loosePropInteractionRef =
     useRef<LoosePropInteractionApi | null>(null);
@@ -4213,9 +4249,20 @@ function PlanetExperience({
             oceanTraversalModeRef.current === "boat" ? "swim" : "boat";
         }
       }
-      loosePropInteractionRef.current?.setInteractionHeld(
-        input.interacting,
-      );
+
+      if (wasInteractingRef.current && !input.interacting) {
+        loosePropInteractionRef.current?.endInteraction();
+      }
+      wasInteractingRef.current = input.interacting;
+
+      if (
+        input.cancelInteractSequence !==
+        lastCancelInteractSequenceRef.current
+      ) {
+        lastCancelInteractSequenceRef.current =
+          input.cancelInteractSequence;
+        loosePropInteractionRef.current?.cancelInteraction();
+      }
 
       const traversalMode = traversalModeForDirection(playerUp);
       const swimming = traversalMode === "swim";

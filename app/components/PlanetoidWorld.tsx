@@ -4,21 +4,26 @@ import {
   useMemo,
   useRef,
   type MutableRefObject,
+  type ReactNode,
 } from "react";
 import {
-  BackSide,
+  CanvasTexture,
   BufferGeometry,
   Color,
   DoubleSide,
   DynamicDrawUsage,
   Float32BufferAttribute,
   IcosahedronGeometry,
+  LinearFilter,
   MathUtils,
   Quaternion,
+  SRGBColorSpace,
   Shape,
   SphereGeometry,
   Vector2,
   Vector3,
+  type Sprite as ThreeSprite,
+  type SpriteMaterial,
   type Group,
   type Mesh,
 } from "three";
@@ -85,7 +90,8 @@ export type OceanSurfaceApi = {
 
 export type LoosePropInteractionApi = {
   beginInteraction: () => boolean;
-  setInteractionHeld: (held: boolean) => void;
+  endInteraction: () => boolean;
+  cancelInteraction: () => boolean;
 };
 
 type VegetationKind = "bush" | "tree";
@@ -129,6 +135,9 @@ type LoosePropState = {
   splashElapsed: number;
 };
 
+type LoosePropInteractionPhase = "idle" | "carrying" | "charging";
+type LoosePropPromptKind = "pickup" | "carrying" | "charging";
+
 type FishDefinition = {
   id: string;
   kind: "fish" | "shark" | "dolphin";
@@ -168,7 +177,8 @@ const FISH_SCURRY_ENTER_ANGLE = 0.115;
 const FISH_SCURRY_EXIT_ANGLE = 0.18;
 const FISH_SHORE_AVOIDANCE = 0.48;
 const FISH_KAYAK_AVOID_ANGLE = 0.23;
-const LOOSE_PROP_INTERACTION_ANGLE = 0.09;
+const LOOSE_PROP_INTERACTION_ANGLE = 0.145;
+const LOOSE_PROP_PROMPT_ANGLE = LOOSE_PROP_INTERACTION_ANGLE;
 const LOOSE_PROP_CHARGE_SECONDS = 1.25;
 const LOOSE_PROP_GRAVITY = 6.8;
 const LOOSE_PROP_TRAJECTORY_POINTS = 15;
@@ -200,6 +210,64 @@ function createSeededRandom(seed: number) {
     state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
     return state / 4_294_967_296;
   };
+}
+
+function createLoosePropPromptTexture(
+  title: string,
+  detail?: string,
+) {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 768;
+  canvas.height = detail ? 240 : 176;
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    return null;
+  }
+
+  const inset = 10;
+  const radius = 34;
+  context.beginPath();
+  context.roundRect(
+    inset,
+    inset,
+    canvas.width - inset * 2,
+    canvas.height - inset * 2,
+    radius,
+  );
+  context.fillStyle = "rgba(7, 14, 24, 0.9)";
+  context.fill();
+  context.lineWidth = 8;
+  context.strokeStyle = "#ffd65c";
+  context.stroke();
+
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillStyle = "#fffdf6";
+  context.font = '700 62px "Space Mono", monospace';
+  context.fillText(
+    title,
+    canvas.width / 2,
+    detail ? 88 : canvas.height / 2,
+  );
+
+  if (detail) {
+    context.fillStyle = "#c9d6df";
+    context.font = '700 35px "Space Mono", monospace';
+    context.fillText(detail, canvas.width / 2, 166);
+  }
+
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.minFilter = LinearFilter;
+  texture.magFilter = LinearFilter;
+  texture.needsUpdate = true;
+
+  return texture;
 }
 
 function angularDistance(a: Vector3, b: Vector3) {
@@ -237,6 +305,50 @@ function isOccludedBySphere(
     .addScaledVector(ray, closestProgress);
 
   return closestPoint.lengthSq() < radius * radius;
+}
+
+function HorizonOccludedGroup({
+  position,
+  quaternion,
+  revealHeight = 0.08,
+  children,
+}: {
+  position: Vector3;
+  quaternion: Quaternion;
+  revealHeight?: number;
+  children: ReactNode;
+}) {
+  const groupRef = useRef<Group>(null);
+  const probeRef = useRef(new Vector3());
+  const normalRef = useRef(position.clone().normalize());
+  const rayRef = useRef(new Vector3());
+  const closestPointRef = useRef(new Vector3());
+
+  useFrame(({ camera }) => {
+    const group = groupRef.current;
+
+    if (!group) {
+      return;
+    }
+
+    const probe = probeRef.current
+      .copy(position)
+      .addScaledVector(normalRef.current, revealHeight);
+
+    group.visible = !isOccludedBySphere(
+      probe,
+      camera.position,
+      OCEAN_SURFACE_RADIUS + 0.025,
+      rayRef.current,
+      closestPointRef.current,
+    );
+  });
+
+  return (
+    <group ref={groupRef} position={position} quaternion={quaternion}>
+      {children}
+    </group>
+  );
 }
 
 function createTerrainChunkGeometry(biome: BiomeDefinition) {
@@ -748,8 +860,11 @@ function OceanSurface({
             ? new Color("#b5d4e2")
             : new Color("#edf8ff"),
       },
-      travelerDirection: {
-        value: new Vector3(0, 0, 1),
+      floorRadius: {
+        value: OCEAN_FLOOR_RADIUS + 0.025,
+      },
+      surfaceRadius: {
+        value: OCEAN_SURFACE_RADIUS,
       },
     }),
     [skyPhase],
@@ -933,7 +1048,6 @@ function OceanSurface({
   useFrame(({ clock }, delta) => {
     const frameDelta = Math.min(delta, 0.05);
     const travelerDirection = travelerDirectionRef.current;
-    uniforms.travelerDirection.value.copy(travelerDirection);
     const oceanTravel =
       exploreMode && isOceanDirection(travelerDirection);
     const movementBlend = MathUtils.clamp(
@@ -1126,42 +1240,6 @@ function OceanSurface({
 
   return (
     <group>
-      <mesh geometry={geometry} renderOrder={0}>
-        <shaderMaterial
-          uniforms={uniforms}
-          vertexShader={`
-            varying vec3 vWorldPosition;
-
-            void main() {
-              vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-              vWorldPosition = worldPosition.xyz;
-              gl_Position = projectionMatrix * viewMatrix * worldPosition;
-            }
-          `}
-          fragmentShader={`
-            uniform vec3 deepColor;
-            varying vec3 vWorldPosition;
-
-            void main() {
-              float facing = clamp(
-                dot(
-                  normalize(cameraPosition - vWorldPosition),
-                  normalize(vWorldPosition)
-                ),
-                0.0,
-                1.0
-              );
-              gl_FragColor = vec4(
-                deepColor * 0.72,
-                0.34 + facing * 0.16
-              );
-            }
-          `}
-          side={BackSide}
-          transparent
-          depthWrite={false}
-        />
-      </mesh>
       <mesh geometry={geometry} renderOrder={1} receiveShadow>
         <shaderMaterial
           uniforms={uniforms}
@@ -1191,7 +1269,8 @@ function OceanSurface({
             uniform vec3 deepColor;
             uniform vec3 shallowColor;
             uniform vec3 foamColor;
-            uniform vec3 travelerDirection;
+            uniform float floorRadius;
+            uniform float surfaceRadius;
             varying vec3 vWorldPosition;
             varying vec3 vWorldNormal;
             varying float vWave;
@@ -1240,37 +1319,62 @@ function OceanSurface({
                 clamp(1.0 - vShoreProximity, 0.0, 1.0),
                 0.72
               );
-              float horizonOcclusion = smoothstep(
-                0.16,
-                0.7,
-                fresnel
+              vec3 volumeRay = normalize(
+                vWorldPosition - cameraPosition
               );
-              float depthOcclusion = smoothstep(
-                0.3,
-                0.86,
+              float radialProjection = dot(
+                vWorldPosition,
+                volumeRay
+              );
+              float floorDiscriminant =
+                radialProjection * radialProjection -
+                (
+                  dot(vWorldPosition, vWorldPosition) -
+                  floorRadius * floorRadius
+                );
+              float outerExit = max(
+                0.0,
+                -2.0 * radialProjection
+              );
+              float floorEntry = floorDiscriminant > 0.0
+                ? max(
+                    0.0,
+                    -radialProjection -
+                    sqrt(floorDiscriminant)
+                  )
+                : outerExit;
+              float localColumnDepth = mix(
+                0.11,
+                surfaceRadius - floorRadius,
+                smoothstep(0.05, 0.92, deepWater)
+              );
+              float columnPath =
+                localColumnDepth /
+                max(viewAlignment, 0.075);
+              float volumePath = clamp(
+                min(
+                  max(floorEntry, localColumnDepth * 0.5),
+                  columnPath
+                ),
+                0.035,
+                4.5
+              );
+              float absorption = mix(
+                2.1,
+                4.35,
                 deepWater
               );
-              float pathDensity =
-                smoothstep(
-                  0.012,
-                  0.18,
-                  1.0 - viewAlignment
-                ) *
-                mix(0.96, 1.0, deepWater);
-              float travelerSeparation =
-                1.0 -
-                clamp(
-                  dot(
-                    normalize(vWorldPosition),
-                    normalize(travelerDirection)
-                  ),
-                  -1.0,
-                  1.0
-                );
-              float distanceDensity = smoothstep(
-                0.0018,
-                0.016,
-                travelerSeparation
+              float transmission = exp(
+                -volumePath * absorption
+              );
+              float volumeOpacity = max(
+                1.0 - transmission,
+                fresnel * 0.94
+              );
+              float volumeDensity = smoothstep(
+                0.08,
+                0.72,
+                volumePath
               );
               vec3 water = mix(
                 shallowColor,
@@ -1290,24 +1394,19 @@ function OceanSurface({
               );
               water = mix(
                 water,
-                deepColor * 0.78,
-                horizonOcclusion * (0.18 + deepWater * 0.76)
+                deepColor * 0.68,
+                volumeDensity * (0.28 + deepWater * 0.56)
               );
               water = mix(
                 water,
-                deepColor * 0.74,
-                pathDensity * (0.34 + deepWater * 0.48)
+                shallowColor * 0.72 + foamColor * 0.08,
+                (1.0 - transmission) *
+                  (1.0 - deepWater) *
+                  0.22
               );
 
               float opacity = clamp(
-                mix(
-                  0.5,
-                  0.985,
-                  max(
-                    depthOcclusion,
-                    max(pathDensity, distanceDensity)
-                  )
-                ) +
+                mix(0.28, 0.985, volumeOpacity) +
                 crest * 0.045,
                 0.0,
                 1.0
@@ -1317,7 +1416,7 @@ function OceanSurface({
             }
           `}
           transparent
-          depthWrite
+          depthWrite={false}
         />
       </mesh>
     </group>
@@ -1406,7 +1505,7 @@ function createShoreBreakerGeometry(biome: BiomeDefinition) {
   const arcPhase: number[] = [];
   const indices: number[] = [];
   const segments = 112;
-  const rows = 12;
+  const rows = 16;
   const oceanHeight = OCEAN_SURFACE_RADIUS - PLANET_RADIUS;
 
   biome.parts.forEach((part, partIndex) => {
@@ -1438,8 +1537,8 @@ function createShoreBreakerGeometry(biome: BiomeDefinition) {
       for (let row = 0; row <= rows; row += 1) {
         const across = row / rows;
         const offshoreOffset =
-          0.006 +
-          across * 0.082 +
+          0.008 +
+          across * 0.15 +
           Math.sin(
             angle * 5.3 + across * 4.2 + biome.seed * 0.17,
           ) *
@@ -1503,6 +1602,30 @@ function createShoreBreakerGeometry(biome: BiomeDefinition) {
   geometry.computeBoundingSphere();
 
   return geometry;
+}
+
+function landmarkDirectionOnLand(
+  biome: BiomeDefinition,
+  desiredDirection: Vector3,
+) {
+  const candidate = new Vector3();
+
+  for (let step = 0; step <= 28; step += 1) {
+    candidate
+      .copy(desiredDirection)
+      .lerp(biome.center, step / 28)
+      .normalize();
+
+    if (
+      biomeForDirection(candidate)?.id === biome.id &&
+      !isWaterDirection(candidate) &&
+      surfaceRadiusAt(candidate) > OCEAN_SURFACE_RADIUS + 0.045
+    ) {
+      return candidate.clone();
+    }
+  }
+
+  return biome.center.clone();
 }
 
 function createBeachGeometry(biome: BiomeDefinition) {
@@ -1600,7 +1723,7 @@ function CoastlineFoam({
   const breakerUniforms = useMemo(
     () => ({
       time: { value: 0 },
-      motion: { value: reduceMotion ? 0 : 1 },
+      motion: { value: reduceMotion ? 0.32 : 1 },
       phase: { value: (biome.seed % 19) / 19 },
       foamColor: { value: new Color("#f2fbff") },
     }),
@@ -1618,7 +1741,7 @@ function CoastlineFoam({
 
   useFrame(({ clock }) => {
     breakerUniforms.time.value = clock.elapsedTime;
-    breakerUniforms.motion.value = reduceMotion ? 0 : 1;
+    breakerUniforms.motion.value = reduceMotion ? 0.32 : 1;
   });
 
   return (
@@ -1639,7 +1762,7 @@ function CoastlineFoam({
         <meshBasicMaterial
           color="#effaf0"
           transparent
-          opacity={0.68}
+          opacity={0.025}
           depthWrite={false}
           side={DoubleSide}
         />
@@ -1658,35 +1781,31 @@ function CoastlineFoam({
 
             float breakerBand(float offset, float weight) {
               float cycle = fract(
-                time * 0.105 * motion +
+                time * 0.18 * motion +
                 phase +
                 offset +
-                sin(arcPhase * 2.3) * 0.012
+                sin(arcPhase * 2.3) * 0.018
               );
               float front = 1.0 - cycle;
               float band = 1.0 - smoothstep(
-                0.035,
-                0.115,
+                0.018,
+                0.058,
                 abs(breakerProgress - front)
               );
-              float arrival = smoothstep(0.02, 0.16, cycle);
-              float dissolve =
-                1.0 - smoothstep(0.78, 1.0, cycle);
+              float arrival = smoothstep(0.015, 0.075, cycle);
+              float dissolve = 1.0 - smoothstep(0.9, 0.995, cycle);
 
               return band * arrival * dissolve * weight;
             }
 
             void main() {
               vArcPhase = arcPhase;
-              vBreaker = max(
-                breakerBand(0.0, 1.0),
-                breakerBand(0.53, 0.66)
-              );
+              vBreaker = breakerBand(0.0, 1.0);
               vec3 displaced =
                 position +
                 normalize(position) *
                 vBreaker *
-                0.026 *
+                0.043 *
                 motion;
 
               gl_Position =
@@ -1704,15 +1823,15 @@ function CoastlineFoam({
 
             void main() {
               float brokenEdge =
-                sin(vArcPhase * 8.0 + time * 0.28 * motion) +
-                sin(vArcPhase * 21.0 - time * 0.17 * motion) * 0.55;
-              float breakup = smoothstep(-0.15, 0.65, brokenEdge);
+                sin(vArcPhase * 8.0 + time * 0.65 * motion) +
+                sin(vArcPhase * 21.0 - time * 0.42 * motion) * 0.55;
+              float breakup = smoothstep(-0.32, 0.55, brokenEdge);
               float sparkle =
-                0.9 +
-                sin(vArcPhase * 34.0 + time * 0.7 * motion) * 0.1;
+                0.68 +
+                sin(vArcPhase * 34.0 + time * 1.55 * motion) * 0.32;
               float alpha =
                 vBreaker *
-                mix(0.015, 0.66, breakup) *
+                mix(0.24, 0.96, breakup) *
                 sparkle;
 
               if (alpha < 0.025) {
@@ -1832,7 +1951,11 @@ function WaterPool({
   });
 
   return (
-    <group position={position} quaternion={orientation}>
+    <HorizonOccludedGroup
+      position={position}
+      quaternion={orientation}
+      revealHeight={0.22}
+    >
       <mesh
         geometry={waterGeometry}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -1989,7 +2112,7 @@ function WaterPool({
           side={DoubleSide}
         />
       </mesh>
-    </group>
+    </HorizonOccludedGroup>
   );
 }
 
@@ -2293,8 +2416,11 @@ function VegetationField({
   const bendAxisRef = useRef(new Vector3());
   const baseOrientationRef = useRef(new Quaternion());
   const bendRef = useRef(new Quaternion());
+  const visibilityProbeRef = useRef(new Vector3());
+  const occlusionRayRef = useRef(new Vector3());
+  const occlusionPointRef = useRef(new Vector3());
 
-  useFrame(({ clock }, delta) => {
+  useFrame(({ clock, camera }, delta) => {
     const frameDelta = Math.min(delta, 0.05);
     const movementSpeed = Math.abs(movementVelocityRef.current);
     const canBrush =
@@ -2304,6 +2430,20 @@ function VegetationField({
       const group = plantRefs.current[index];
 
       if (!group) {
+        return;
+      }
+
+      group.visible = !isOccludedBySphere(
+        visibilityProbeRef.current
+          .copy(plant.position)
+          .addScaledVector(plant.direction, 0.05),
+        camera.position,
+        OCEAN_SURFACE_RADIUS + 0.025,
+        occlusionRayRef.current,
+        occlusionPointRef.current,
+      );
+
+      if (!group.visible) {
         return;
       }
 
@@ -2517,18 +2657,46 @@ function LooseProps({
   const props = useMemo(createLooseProps, []);
   const propRefs = useRef<Array<Group | null>>([]);
   const splashRefs = useRef<Array<Group | null>>([]);
+  const bubbleRefs = useRef<Array<Group | null>>([]);
   const trajectoryRef = useRef<Group>(null);
   const trajectoryDotRefs = useRef<Array<Mesh | null>>([]);
+  const promptRef = useRef<ThreeSprite>(null);
+  const promptKindRef = useRef<LoosePropPromptKind | null>(null);
   const heldPropIndexRef = useRef<number | null>(null);
-  const interactionHeldRef = useRef(false);
+  const interactionPhaseRef =
+    useRef<LoosePropInteractionPhase>("idle");
+  const throwRequestedRef = useRef(false);
+  const cancelRequestedRef = useRef(false);
   const impulseRef = useRef(new Vector3());
   const axisRef = useRef(new Vector3());
   const nextDirectionRef = useRef(new Vector3());
   const orientationRef = useRef(new Quaternion());
-  const throwVelocityRef = useRef(new Vector3());
   const gravityRef = useRef(new Vector3());
   const previewPositionRef = useRef(new Vector3());
   const previewVelocityRef = useRef(new Vector3());
+  const propOcclusionRayRef = useRef(new Vector3());
+  const propOcclusionPointRef = useRef(new Vector3());
+  const promptTextures = useMemo(
+    () => ({
+      pickup: createLoosePropPromptTexture("F  PICK UP"),
+      carrying: createLoosePropPromptTexture(
+        "HOLD F  THROW",
+        "ESC  DROP",
+      ),
+      charging: createLoosePropPromptTexture(
+        "RELEASE F  THROW",
+        "ESC  CANCEL",
+      ),
+    }),
+    [],
+  );
+
+  useEffect(
+    () => () => {
+      Object.values(promptTextures).forEach((texture) => texture?.dispose());
+    },
+    [promptTextures],
+  );
 
   const setThrowVelocity = (
     charge: number,
@@ -2540,14 +2708,21 @@ function LooseProps({
 
     return target
       .copy(forward)
-      .multiplyScalar(3.2 + easedCharge * 5.4)
-      .addScaledVector(up, 2.2 + easedCharge * 3);
+      .multiplyScalar(1.45 + easedCharge * 3.2)
+      .addScaledVector(up, 1.15 + easedCharge * 2.15);
   };
 
   useEffect(() => {
     const api: LoosePropInteractionApi = {
       beginInteraction: () => {
-        if (heldPropIndexRef.current !== null) {
+        const heldIndex = heldPropIndexRef.current;
+
+        if (heldIndex !== null) {
+          if (interactionPhaseRef.current === "carrying") {
+            interactionPhaseRef.current = "charging";
+            props[heldIndex].charge = 0.04;
+          }
+
           return true;
         }
 
@@ -2586,16 +2761,34 @@ function LooseProps({
 
         const prop = props[nearestIndex];
         prop.motion = "held";
-        prop.charge = 0.08;
+        prop.charge = 0;
         prop.tangentVelocity.set(0, 0, 0);
         prop.linearVelocity.set(0, 0, 0);
         heldPropIndexRef.current = nearestIndex;
-        interactionHeldRef.current = true;
+        interactionPhaseRef.current = "carrying";
+        throwRequestedRef.current = false;
+        cancelRequestedRef.current = false;
         onLoosePropImpact(0.28, nearestIndex);
         return true;
       },
-      setInteractionHeld: (held) => {
-        interactionHeldRef.current = held;
+      endInteraction: () => {
+        if (
+          heldPropIndexRef.current === null ||
+          interactionPhaseRef.current !== "charging"
+        ) {
+          return heldPropIndexRef.current !== null;
+        }
+
+        throwRequestedRef.current = true;
+        return true;
+      },
+      cancelInteraction: () => {
+        if (heldPropIndexRef.current === null) {
+          return false;
+        }
+
+        cancelRequestedRef.current = true;
+        return true;
       },
     };
 
@@ -2614,7 +2807,7 @@ function LooseProps({
     travelerDirectionRef,
   ]);
 
-  useFrame((_, delta) => {
+  useFrame(({ clock, camera }, delta) => {
     const frameDelta = Math.min(delta, 0.05);
     const travelerDirection = travelerDirectionRef.current;
     const travelerForward = travelerForwardRef.current;
@@ -2626,9 +2819,22 @@ function LooseProps({
     props.forEach((prop, index) => {
       const mesh = propRefs.current[index];
       const splash = splashRefs.current[index];
+      const bubbles = bubbleRefs.current[index];
 
       if (!mesh) {
         return;
+      }
+
+      mesh.visible = !isOccludedBySphere(
+        prop.worldPosition,
+        camera.position,
+        OCEAN_SURFACE_RADIUS + 0.025,
+        propOcclusionRayRef.current,
+        propOcclusionPointRef.current,
+      );
+
+      if (bubbles) {
+        bubbles.visible = false;
       }
 
       if (splash && prop.splashElapsed >= 0) {
@@ -2662,11 +2868,46 @@ function LooseProps({
       );
 
       if (prop.motion === "held") {
-        if (!exploreMode) {
+        if (!exploreMode || cancelRequestedRef.current) {
+          const dropDirection = nextDirectionRef.current.copy(
+            exploreMode ? travelerDirection : prop.spawnDirection,
+          );
+
+          if (exploreMode) {
+            const dropAxis = axisRef.current.crossVectors(
+              travelerDirection,
+              travelerForward,
+            );
+
+            if (dropAxis.lengthSq() > 0.00001) {
+              const forwardDrop = dropDirection
+                .clone()
+                .applyAxisAngle(dropAxis.normalize(), 0.055)
+                .normalize();
+
+              if (!isWaterDirection(forwardDrop)) {
+                dropDirection.copy(forwardDrop);
+              }
+            }
+          }
+
           prop.motion = "ground";
-          prop.direction.copy(prop.spawnDirection);
+          prop.direction.copy(dropDirection);
+          prop.worldPosition
+            .copy(dropDirection)
+            .multiplyScalar(
+              surfaceRadiusAt(dropDirection) + prop.scale * 0.72,
+            );
+          prop.charge = 0;
+          prop.linearVelocity.set(0, 0, 0);
+          prop.tangentVelocity.set(0, 0, 0);
+          prop.contactCooldown = 0.25;
+          mesh.position.copy(prop.worldPosition);
           heldPropIndexRef.current = null;
-          interactionHeldRef.current = false;
+          interactionPhaseRef.current = "idle";
+          throwRequestedRef.current = false;
+          cancelRequestedRef.current = false;
+          onLoosePropImpact(0.18, index);
           return;
         }
 
@@ -2677,10 +2918,16 @@ function LooseProps({
           .multiplyScalar(heldRadius)
           .addScaledVector(travelerForward, 0.34);
         prop.direction.copy(prop.worldPosition).normalize();
-        prop.charge = Math.min(
-          1,
-          prop.charge + frameDelta / LOOSE_PROP_CHARGE_SECONDS,
-        );
+
+        if (interactionPhaseRef.current === "charging") {
+          prop.charge = Math.min(
+            1,
+            prop.charge + frameDelta / LOOSE_PROP_CHARGE_SECONDS,
+          );
+        } else {
+          prop.charge = 0;
+        }
+
         mesh.position.copy(prop.worldPosition);
         mesh.scale.setScalar(1);
         mesh.quaternion.slerp(
@@ -2690,9 +2937,16 @@ function LooseProps({
           ),
           1 - Math.exp(-frameDelta * 12),
         );
-        mesh.rotateX(Math.sin(prop.charge * Math.PI) * frameDelta * 1.8);
+        mesh.rotateX(
+          Math.sin(prop.charge * Math.PI) *
+            frameDelta *
+            (interactionPhaseRef.current === "charging" ? 1.8 : 0.2),
+        );
 
-        if (trajectoryRef.current) {
+        if (
+          trajectoryRef.current &&
+          interactionPhaseRef.current === "charging"
+        ) {
           trajectoryRef.current.visible = true;
           const previewPosition = previewPositionRef.current.copy(
             prop.worldPosition,
@@ -2726,7 +2980,10 @@ function LooseProps({
           });
         }
 
-        if (!interactionHeldRef.current) {
+        if (
+          throwRequestedRef.current &&
+          interactionPhaseRef.current === "charging"
+        ) {
           prop.motion = "airborne";
           prop.charge = Math.max(0.16, prop.charge);
           setThrowVelocity(
@@ -2736,6 +2993,9 @@ function LooseProps({
             prop.linearVelocity,
           );
           heldPropIndexRef.current = null;
+          interactionPhaseRef.current = "idle";
+          throwRequestedRef.current = false;
+          cancelRequestedRef.current = false;
 
           if (trajectoryRef.current) {
             trajectoryRef.current.visible = false;
@@ -2824,22 +3084,71 @@ function LooseProps({
           .copy(prop.worldPosition)
           .normalize();
         prop.linearVelocity.multiplyScalar(
-          Math.exp(-frameDelta * 3.8),
-        );
-        prop.linearVelocity.addScaledVector(
-          sinkDirection,
-          -frameDelta * 1.1,
+          Math.exp(-frameDelta * 2.4),
         );
         prop.worldPosition.addScaledVector(
           prop.linearVelocity,
           frameDelta,
         );
+        prop.worldPosition.addScaledVector(
+          sinkDirection,
+          -frameDelta * (0.24 + prop.scale * 0.75),
+        );
+        const waterRadius =
+          waterSurfaceRef.current?.sampleRadius(sinkDirection) ??
+          OCEAN_SURFACE_RADIUS;
+        const submergedDepth =
+          waterRadius - prop.worldPosition.length();
+
+        prop.direction.copy(sinkDirection);
         mesh.position.copy(prop.worldPosition);
+        mesh.rotateX(frameDelta * 1.8);
+        mesh.rotateZ(frameDelta * 1.15);
         mesh.scale.setScalar(
-          1 - MathUtils.smoothstep(prop.sinkElapsed, 0.8, 2.2),
+          1 -
+            MathUtils.smoothstep(
+              submergedDepth,
+              0.62,
+              0.88,
+            ) *
+              0.35,
         );
 
-        if (prop.sinkElapsed >= 3.2) {
+        if (bubbles) {
+          bubbles.visible = mesh.visible;
+          bubbles.position.copy(prop.worldPosition);
+          bubbles.quaternion.copy(
+            orientationRef.current.setFromUnitVectors(
+              UP,
+              sinkDirection,
+            ),
+          );
+          const bubbleRise = Math.max(
+            0.14,
+            Math.min(0.78, submergedDepth + 0.08),
+          );
+
+          bubbles.children.forEach((bubble, bubbleIndex) => {
+            const cycle =
+              (prop.sinkElapsed * (0.72 + bubbleIndex * 0.035) +
+                bubbleIndex * 0.21) %
+              1;
+            bubble.position.set(
+              Math.sin(bubbleIndex * 2.3 + prop.sinkElapsed) * 0.035,
+              cycle * bubbleRise,
+              Math.cos(bubbleIndex * 1.7 - prop.sinkElapsed) * 0.035,
+            );
+            bubble.scale.setScalar(
+              (0.014 + cycle * 0.009) *
+                (0.8 + (bubbleIndex % 3) * 0.12),
+            );
+          });
+        }
+
+        if (
+          prop.worldPosition.length() <= OCEAN_FLOOR_RADIUS + 0.08 ||
+          prop.sinkElapsed >= 4.2
+        ) {
           prop.motion = "ground";
           prop.direction.copy(prop.spawnDirection);
           prop.worldPosition
@@ -2952,6 +3261,7 @@ function LooseProps({
         .multiplyScalar(
           surfaceRadiusAt(prop.direction) + prop.scale * 0.72,
         );
+      prop.worldPosition.copy(mesh.position);
       const orientation = orientationRef.current.setFromUnitVectors(
         UP,
         prop.direction,
@@ -2962,10 +3272,87 @@ function LooseProps({
       );
       mesh.scale.setScalar(1);
     });
+
+    const prompt = promptRef.current;
+
+    if (prompt) {
+      let promptIndex = heldPropIndexRef.current;
+      let promptKind: LoosePropPromptKind =
+        interactionPhaseRef.current === "charging"
+          ? "charging"
+          : "carrying";
+
+      if (promptIndex === null && exploreMode) {
+        let nearestDistance = Number.POSITIVE_INFINITY;
+
+        props.forEach((prop, index) => {
+          if (prop.motion !== "ground") {
+            return;
+          }
+
+          const distance = angularDistance(
+            prop.direction,
+            travelerDirection,
+          );
+
+          if (
+            distance < nearestDistance &&
+            distance <= LOOSE_PROP_PROMPT_ANGLE
+          ) {
+            nearestDistance = distance;
+            promptIndex = index;
+          }
+        });
+        promptKind = "pickup";
+      }
+
+      const promptProp =
+        promptIndex === null ? null : props[promptIndex];
+      const promptTexture = promptTextures[promptKind];
+
+      prompt.visible =
+        exploreMode &&
+        promptProp !== null &&
+        promptTexture !== null;
+
+      if (prompt.visible && promptProp && promptTexture) {
+        const material = prompt.material as SpriteMaterial;
+
+        if (promptKindRef.current !== promptKind) {
+          material.map = promptTexture;
+          material.needsUpdate = true;
+          promptKindRef.current = promptKind;
+        }
+
+        prompt.position
+          .copy(promptProp.worldPosition)
+          .addScaledVector(promptProp.direction, 0.5);
+        const pulse =
+          promptKind === "pickup" && !reduceMotion
+            ? 1 + Math.sin(clock.elapsedTime * 3.1) * 0.035
+            : 1;
+        prompt.scale.set(
+          (promptKind === "pickup" ? 1.55 : 1.78) * pulse,
+          (promptKind === "pickup" ? 0.36 : 0.56) * pulse,
+          1,
+        );
+      }
+    }
   });
 
   return (
     <group>
+      {promptTextures.pickup ? (
+        <sprite ref={promptRef} visible={false} renderOrder={42}>
+          <spriteMaterial
+            map={promptTextures.pickup}
+            transparent
+            depthTest
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </sprite>
+      ) : null}
       {props.map((prop, index) => (
         <group
           key={`${prop.id}-splash`}
@@ -3006,6 +3393,32 @@ function LooseProps({
               </mesh>
             );
           })}
+        </group>
+      ))}
+      {props.map((prop, index) => (
+        <group
+          key={`${prop.id}-bubbles`}
+          ref={(group) => {
+            bubbleRefs.current[index] = group;
+          }}
+          visible={false}
+        >
+          {Array.from({ length: 6 }, (_, bubbleIndex) => (
+            <mesh
+              key={bubbleIndex}
+              scale={0.018}
+              renderOrder={8}
+            >
+              <sphereGeometry args={[1, 8, 6]} />
+              <meshBasicMaterial
+                color="#bdeaff"
+                transparent
+                opacity={0.58}
+                depthTest={false}
+                depthWrite={false}
+              />
+            </mesh>
+          ))}
         </group>
       ))}
       <group ref={trajectoryRef} visible={false}>
@@ -3339,7 +3752,11 @@ function CountryFlag({
   });
 
   return (
-    <group position={position} quaternion={orientation}>
+    <HorizonOccludedGroup
+      position={position}
+      quaternion={orientation}
+      revealHeight={0.14}
+    >
       <mesh position={[0, 0.035, 0]} receiveShadow castShadow>
         <cylinderGeometry args={[0.13, 0.17, 0.07, 12]} />
         <meshToonMaterial color={biome.cliff} />
@@ -3363,7 +3780,7 @@ function CountryFlag({
           <CountryFlagPattern biomeId={biome.id} />
         </group>
       </group>
-    </group>
+    </HorizonOccludedGroup>
   );
 }
 
@@ -3383,10 +3800,9 @@ function LandmarkTerrain() {
     0.1,
     -0.025,
   );
-  const barnDirection = directionFromOffset(
-    unitedStates.center,
-    -0.29,
-    -0.07,
+  const barnDirection = landmarkDirectionOnLand(
+    unitedStates,
+    directionFromOffset(unitedStates.center, 0.18, -0.04),
   );
   const koreaDirection = directionFromOffset(
     southKorea.center,
@@ -3402,12 +3818,13 @@ function LandmarkTerrain() {
   return (
     <group>
       {mountainDirections.map((direction, index) => (
-        <group
+        <HorizonOccludedGroup
           key={`mountain-${index}`}
           position={direction
             .clone()
             .multiplyScalar(surfaceRadiusAt(direction) - 0.03)}
           quaternion={new Quaternion().setFromUnitVectors(UP, direction)}
+          revealHeight={0.12}
         >
           <mesh
             position={[0, 0.25 + index * 0.06, 0]}
@@ -3429,14 +3846,15 @@ function LandmarkTerrain() {
             <coneGeometry args={[0.11, 0.21, 9]} />
             <meshToonMaterial color="#e8ded0" />
           </mesh>
-        </group>
+        </HorizonOccludedGroup>
       ))}
 
-      <group
+      <HorizonOccludedGroup
         position={barnDirection
           .clone()
           .multiplyScalar(surfaceRadiusAt(barnDirection))}
         quaternion={new Quaternion().setFromUnitVectors(UP, barnDirection)}
+        revealHeight={0}
       >
         <mesh position={[0, 0.11, 0]} castShadow receiveShadow>
           <boxGeometry args={[0.26, 0.2, 0.2]} />
@@ -3458,13 +3876,14 @@ function LandmarkTerrain() {
           <coneGeometry args={[0.08, 0.08, 10]} />
           <meshToonMaterial color="#8d9895" />
         </mesh>
-      </group>
+      </HorizonOccludedGroup>
 
-      <group
+      <HorizonOccludedGroup
         position={beachDirection
           .clone()
           .multiplyScalar(surfaceRadiusAt(beachDirection))}
         quaternion={new Quaternion().setFromUnitVectors(UP, beachDirection)}
+        revealHeight={0.04}
       >
         <mesh position={[0, 0.025, 0]} receiveShadow>
           <cylinderGeometry args={[0.22, 0.26, 0.05, 16]} />
@@ -3478,13 +3897,14 @@ function LandmarkTerrain() {
           <coneGeometry args={[0.14, 0.07, 12]} />
           <meshToonMaterial color="#e35d58" />
         </mesh>
-      </group>
+      </HorizonOccludedGroup>
 
-      <group
+      <HorizonOccludedGroup
         position={koreaDirection
           .clone()
           .multiplyScalar(surfaceRadiusAt(koreaDirection))}
         quaternion={new Quaternion().setFromUnitVectors(UP, koreaDirection)}
+        revealHeight={0.06}
       >
         {[0, 1, 2].map((tier) => (
           <group key={tier} position={[0, 0.08 + tier * 0.105, 0]}>
@@ -3508,13 +3928,14 @@ function LandmarkTerrain() {
             </mesh>
           </group>
         ))}
-      </group>
+      </HorizonOccludedGroup>
 
-      <group
+      <HorizonOccludedGroup
         position={gardenHill
           .clone()
           .multiplyScalar(surfaceRadiusAt(gardenHill))}
         quaternion={new Quaternion().setFromUnitVectors(UP, gardenHill)}
+        revealHeight={0.08}
       >
         <mesh position={[0, 0.12, 0]} castShadow>
           <cylinderGeometry args={[0.16, 0.25, 0.24, 8]} />
@@ -3536,7 +3957,7 @@ function LandmarkTerrain() {
           <boxGeometry args={[0.25, 0.035, 0.05]} />
           <meshToonMaterial color="#e16858" />
         </mesh>
-      </group>
+      </HorizonOccludedGroup>
     </group>
   );
 }
@@ -3565,10 +3986,10 @@ function BasePlanetoid({ skyPhase }: { skyPhase: SkyPhase }) {
   );
 }
 
-function OceanDepthShell({ skyPhase }: { skyPhase: SkyPhase }) {
+function OceanBody({ skyPhase }: { skyPhase: SkyPhase }) {
   const geometry = useMemo(() => {
     const nextGeometry = new IcosahedronGeometry(
-      OCEAN_SURFACE_RADIUS - 0.28,
+      OCEAN_FLOOR_RADIUS + 0.025,
       5,
     );
     nextGeometry.computeVertexNormals();
@@ -3578,11 +3999,17 @@ function OceanDepthShell({ skyPhase }: { skyPhase: SkyPhase }) {
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   return (
-    <mesh geometry={geometry} receiveShadow renderOrder={-1}>
+    <mesh
+      geometry={geometry}
+      receiveShadow
+      castShadow
+      renderOrder={-1}
+    >
       <meshStandardMaterial
-        color={skyPhase === "night" ? "#03152b" : "#07385c"}
+        color={skyPhase === "night" ? "#021022" : "#062943"}
         roughness={1}
         metalness={0}
+        flatShading
       />
     </mesh>
   );
@@ -4475,7 +4902,7 @@ export function PlanetoidWorld({
   return (
     <group>
       <BasePlanetoid skyPhase={skyPhase} />
-      <OceanDepthShell skyPhase={skyPhase} />
+      <OceanBody skyPhase={skyPhase} />
       <OceanSurface
         travelerDirectionRef={travelerDirectionRef}
         travelerForwardRef={travelerForwardRef}
