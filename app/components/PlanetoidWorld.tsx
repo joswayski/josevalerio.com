@@ -1400,6 +1400,111 @@ function createCoastlineFoamGeometry(biome: BiomeDefinition) {
   return geometry;
 }
 
+function createShoreBreakerGeometry(biome: BiomeDefinition) {
+  const positions: number[] = [];
+  const breakerProgress: number[] = [];
+  const arcPhase: number[] = [];
+  const indices: number[] = [];
+  const segments = 112;
+  const rows = 12;
+  const oceanHeight = OCEAN_SURFACE_RADIUS - PLANET_RADIUS;
+
+  biome.parts.forEach((part, partIndex) => {
+    const vertexOffset = positions.length / 3;
+
+    for (let segment = 0; segment < segments; segment += 1) {
+      const angle = (segment / segments) * Math.PI * 2;
+      let shoreProgress = 0.68;
+
+      for (let sample = 0; sample <= 40; sample += 1) {
+        const progress = 0.68 + (sample / 40) * 0.32;
+        const direction = islandPartDirection(
+          biome,
+          part,
+          progress,
+          angle,
+        );
+
+        if (biomeHeightAt(direction, biome) > oceanHeight + 0.006) {
+          shoreProgress = progress;
+        } else {
+          break;
+        }
+      }
+
+      const coastlineWobble =
+        Math.sin(segment * 1.91 + biome.seed + partIndex) * 0.004;
+
+      for (let row = 0; row <= rows; row += 1) {
+        const across = row / rows;
+        const offshoreOffset =
+          0.006 +
+          across * 0.082 +
+          Math.sin(
+            angle * 5.3 + across * 4.2 + biome.seed * 0.17,
+          ) *
+            0.0025;
+        const direction = islandPartDirection(
+          biome,
+          part,
+          shoreProgress + coastlineWobble + offshoreOffset,
+          angle,
+        );
+        const position = direction
+          .clone()
+          .multiplyScalar(OCEAN_SURFACE_RADIUS + 0.02);
+
+        positions.push(position.x, position.y, position.z);
+        breakerProgress.push(across);
+        arcPhase.push(
+          (segment / segments) * Math.PI * 2 + partIndex * 1.73,
+        );
+      }
+    }
+
+    const rowStride = rows + 1;
+
+    for (let segment = 0; segment < segments; segment += 1) {
+      const nextSegment = (segment + 1) % segments;
+
+      for (let row = 0; row < rows; row += 1) {
+        const current = vertexOffset + segment * rowStride + row;
+        const next = vertexOffset + nextSegment * rowStride + row;
+        const outer = current + 1;
+        const nextOuter = next + 1;
+
+        indices.push(
+          current,
+          outer,
+          next,
+          next,
+          outer,
+          nextOuter,
+        );
+      }
+    }
+  });
+
+  const geometry = new BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new Float32BufferAttribute(positions, 3),
+  );
+  geometry.setAttribute(
+    "breakerProgress",
+    new Float32BufferAttribute(breakerProgress, 1),
+  );
+  geometry.setAttribute(
+    "arcPhase",
+    new Float32BufferAttribute(arcPhase, 1),
+  );
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+
+  return geometry;
+}
+
 function createBeachGeometry(biome: BiomeDefinition) {
   const positions: number[] = [];
   const indices: number[] = [];
@@ -1473,23 +1578,48 @@ function createBeachGeometry(biome: BiomeDefinition) {
   return geometry;
 }
 
-function CoastlineFoam({ biome }: { biome: BiomeDefinition }) {
+function CoastlineFoam({
+  biome,
+  reduceMotion,
+}: {
+  biome: BiomeDefinition;
+  reduceMotion: boolean;
+}) {
   const foamGeometry = useMemo(
     () => createCoastlineFoamGeometry(biome),
+    [biome],
+  );
+  const breakerGeometry = useMemo(
+    () => createShoreBreakerGeometry(biome),
     [biome],
   );
   const beachGeometry = useMemo(
     () => createBeachGeometry(biome),
     [biome],
   );
+  const breakerUniforms = useMemo(
+    () => ({
+      time: { value: 0 },
+      motion: { value: reduceMotion ? 0 : 1 },
+      phase: { value: (biome.seed % 19) / 19 },
+      foamColor: { value: new Color("#f2fbff") },
+    }),
+    [biome.seed, reduceMotion],
+  );
 
   useEffect(
     () => () => {
       foamGeometry.dispose();
+      breakerGeometry.dispose();
       beachGeometry.dispose();
     },
-    [beachGeometry, foamGeometry],
+    [beachGeometry, breakerGeometry, foamGeometry],
   );
+
+  useFrame(({ clock }) => {
+    breakerUniforms.time.value = clock.elapsedTime;
+    breakerUniforms.motion.value = reduceMotion ? 0 : 1;
+  });
 
   return (
     <group>
@@ -1510,6 +1640,89 @@ function CoastlineFoam({ biome }: { biome: BiomeDefinition }) {
           color="#effaf0"
           transparent
           opacity={0.68}
+          depthWrite={false}
+          side={DoubleSide}
+        />
+      </mesh>
+      <mesh geometry={breakerGeometry} renderOrder={5}>
+        <shaderMaterial
+          uniforms={breakerUniforms}
+          vertexShader={`
+            attribute float breakerProgress;
+            attribute float arcPhase;
+            uniform float time;
+            uniform float motion;
+            uniform float phase;
+            varying float vBreaker;
+            varying float vArcPhase;
+
+            float breakerBand(float offset, float weight) {
+              float cycle = fract(
+                time * 0.105 * motion +
+                phase +
+                offset +
+                sin(arcPhase * 2.3) * 0.012
+              );
+              float front = 1.0 - cycle;
+              float band = 1.0 - smoothstep(
+                0.035,
+                0.115,
+                abs(breakerProgress - front)
+              );
+              float arrival = smoothstep(0.02, 0.16, cycle);
+              float dissolve =
+                1.0 - smoothstep(0.78, 1.0, cycle);
+
+              return band * arrival * dissolve * weight;
+            }
+
+            void main() {
+              vArcPhase = arcPhase;
+              vBreaker = max(
+                breakerBand(0.0, 1.0),
+                breakerBand(0.53, 0.66)
+              );
+              vec3 displaced =
+                position +
+                normalize(position) *
+                vBreaker *
+                0.026 *
+                motion;
+
+              gl_Position =
+                projectionMatrix *
+                modelViewMatrix *
+                vec4(displaced, 1.0);
+            }
+          `}
+          fragmentShader={`
+            uniform float time;
+            uniform float motion;
+            uniform vec3 foamColor;
+            varying float vBreaker;
+            varying float vArcPhase;
+
+            void main() {
+              float brokenEdge =
+                sin(vArcPhase * 8.0 + time * 0.28 * motion) +
+                sin(vArcPhase * 21.0 - time * 0.17 * motion) * 0.55;
+              float breakup = smoothstep(-0.15, 0.65, brokenEdge);
+              float sparkle =
+                0.9 +
+                sin(vArcPhase * 34.0 + time * 0.7 * motion) * 0.1;
+              float alpha =
+                vBreaker *
+                mix(0.015, 0.66, breakup) *
+                sparkle;
+
+              if (alpha < 0.025) {
+                discard;
+              }
+
+              gl_FragColor = vec4(foamColor, alpha);
+            }
+          `}
+          transparent
           depthWrite={false}
           side={DoubleSide}
         />
@@ -4292,7 +4505,10 @@ export function PlanetoidWorld({
         <group key={biome.id}>
           <TerrainChunk biome={biome} />
           <BiomePaths biome={biome} />
-          <CoastlineFoam biome={biome} />
+          <CoastlineFoam
+            biome={biome}
+            reduceMotion={reduceMotion}
+          />
         </group>
       ))}
 
