@@ -144,7 +144,8 @@ const CAMERA_ORBIT_ANGLE_RESPONSE = 8;
 const CAMERA_FOLLOW_RESPONSE = 4;
 const TRAVELER_TURN_RESPONSE = 9;
 const TRAVELER_RENDER_ORDER = 20;
-const TRAVELER_GROUND_CLEARANCE = 0.01;
+const TRAVELER_GROUND_CLEARANCE = 0.04;
+const SHALLOW_WATER_FLOOR_CLEARANCE = 0.04;
 const HORIZON_CLIP_MARGIN = 0.035;
 const DESTINATION_HORIZON_REVEAL_HEIGHT = 1.25;
 const UP = new Vector3(0, 1, 0);
@@ -3527,27 +3528,48 @@ function Traveler({
       : 0;
     const playerUp = playerUpRef.current;
     const playerForward = playerForwardRef.current;
+    const previousTraversalMode = previousTraversalModeRef.current;
 
     if (
       waterSurface &&
       oceanWater &&
-      previousTraversalModeRef.current !== traversalMode
+      previousTraversalMode !== traversalMode
     ) {
       waterSurface.disturb(
         playerUp,
-        previousTraversalModeRef.current === "land" ? -1.25 : -0.82,
-        previousTraversalModeRef.current === "land" ? 0.11 : 0.075,
+        previousTraversalMode === "land" ? -1.25 : -0.82,
+        previousTraversalMode === "land" ? 0.11 : 0.075,
       );
     }
     previousTraversalModeRef.current = traversalMode;
 
-    immersionRef.current = MathUtils.damp(
-      immersionRef.current,
-      boating ? -0.025 : swimming ? -0.28 : 0,
-      6,
-      Math.min(delta, 0.05),
-    );
     const staticSurfaceRadius = traversalSurfaceRadiusAt(playerUp);
+    const shallowWaterDepth =
+      swimming && !oceanWater
+        ? Math.max(
+            0,
+            staticSurfaceRadius -
+              planetSurfaceRadiusAt(playerUp) -
+              SHALLOW_WATER_FLOOR_CLEARANCE,
+          )
+        : Number.POSITIVE_INFINITY;
+    const immersionTarget = boating
+      ? -0.025
+      : swimming
+        ? -Math.min(0.28, shallowWaterDepth)
+        : 0;
+
+    if (traversalMode === "land" && previousTraversalMode !== "land") {
+      immersionRef.current = 0;
+    } else {
+      immersionRef.current = MathUtils.damp(
+        immersionRef.current,
+        immersionTarget,
+        6,
+        Math.min(delta, 0.05),
+      );
+    }
+
     const sampledSurfaceRadius =
       oceanWater && waterSurface
         ? waterSurface.sampleRadius(playerUp)
