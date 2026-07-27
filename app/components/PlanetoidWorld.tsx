@@ -39,6 +39,7 @@ import {
   oceanShoreProximityAt,
   surfaceRadiusAt,
   tangentBasis,
+  traversalSurfaceRadiusAt,
   waterSurfaceRadius,
   type BiomeDefinition,
   type BiomeKind,
@@ -53,7 +54,11 @@ type PlanetoidWorldProps = {
   movementVelocityRef: MutableRefObject<number>;
   traversalModeRef: MutableRefObject<"boat" | "land" | "swim">;
   waterSurfaceRef: MutableRefObject<OceanSurfaceApi | null>;
+  loosePropInteractionRef: MutableRefObject<
+    LoosePropInteractionApi | null
+  >;
   onLoosePropImpact: (strength: number, variation: number) => void;
+  onLoosePropSplash: (strength: number, variation: number) => void;
   onVegetationBrush: (
     strength: number,
     kind: VegetationKind,
@@ -76,6 +81,11 @@ export type OceanSurfaceApi = {
     strength: number,
     angularRadius?: number,
   ) => void;
+};
+
+export type LoosePropInteractionApi = {
+  beginInteraction: () => boolean;
+  setInteractionHeld: (held: boolean) => void;
 };
 
 type VegetationKind = "bush" | "tree";
@@ -103,13 +113,20 @@ type VegetationDefinition = {
 
 type LoosePropState = {
   id: string;
+  spawnDirection: Vector3;
   direction: Vector3;
   tangentVelocity: Vector3;
+  worldPosition: Vector3;
+  linearVelocity: Vector3;
   orientation: Quaternion;
   scale: number;
   color: string;
   accentColor: string;
   contactCooldown: number;
+  motion: "airborne" | "ground" | "held" | "sinking";
+  charge: number;
+  sinkElapsed: number;
+  splashElapsed: number;
 };
 
 type FishDefinition = {
@@ -140,14 +157,21 @@ type BirdDefinition = {
 };
 
 const UP = new Vector3(0, 1, 0);
-const TERRAIN_SEGMENTS = 108;
-const TERRAIN_RINGS = 36;
-const TERRAIN_SHELF_RINGS = 8;
+const TERRAIN_SEGMENTS = 144;
+const TERRAIN_RINGS = 56;
+const TERRAIN_SHELF_RINGS = 18;
 const TERRAIN_TOTAL_RINGS = TERRAIN_RINGS + TERRAIN_SHELF_RINGS;
+const TERRAIN_SHELF_EXTENT = 0.28;
 const TREE_INTERACTION_ANGLE = 0.052;
 const BUSH_INTERACTION_ANGLE = 0.088;
 const FISH_SCURRY_ENTER_ANGLE = 0.115;
 const FISH_SCURRY_EXIT_ANGLE = 0.18;
+const FISH_SHORE_AVOIDANCE = 0.48;
+const FISH_KAYAK_AVOID_ANGLE = 0.23;
+const LOOSE_PROP_INTERACTION_ANGLE = 0.09;
+const LOOSE_PROP_CHARGE_SECONDS = 1.25;
+const LOOSE_PROP_GRAVITY = 6.8;
+const LOOSE_PROP_TRAJECTORY_POINTS = 15;
 const MAX_OCEAN_TRAVEL_SPEED = 0.34;
 const FLAG_STAR = (() => {
   const shape = new Shape();
@@ -184,6 +208,37 @@ function angularDistance(a: Vector3, b: Vector3) {
   );
 }
 
+function isOccludedBySphere(
+  worldPosition: Vector3,
+  cameraPosition: Vector3,
+  radius: number,
+  ray: Vector3,
+  closestPoint: Vector3,
+) {
+  ray.copy(worldPosition).sub(cameraPosition);
+  const rayLengthSq = ray.lengthSq();
+
+  if (rayLengthSq < 0.000001) {
+    return false;
+  }
+
+  const closestProgress = MathUtils.clamp(
+    -cameraPosition.dot(ray) / rayLengthSq,
+    0,
+    1,
+  );
+
+  if (closestProgress <= 0 || closestProgress >= 1) {
+    return false;
+  }
+
+  closestPoint
+    .copy(cameraPosition)
+    .addScaledVector(ray, closestProgress);
+
+  return closestPoint.lengthSq() < radius * radius;
+}
+
 function createTerrainChunkGeometry(biome: BiomeDefinition) {
   const positions: number[] = [];
   const colors: number[] = [];
@@ -193,9 +248,8 @@ function createTerrainChunkGeometry(biome: BiomeDefinition) {
   const shore = new Color(biome.shore);
   const cliff = new Color(biome.cliff);
   const cliffDark = cliff.clone().multiplyScalar(0.62);
+  const seabed = new Color("#0b3049");
   const highlight = new Color("#d2d38d");
-  const random = createSeededRandom(biome.seed);
-
   biome.parts.forEach((part, partIndex) => {
     const vertexOffset = positions.length / 3;
 
@@ -207,13 +261,12 @@ function createTerrainChunkGeometry(biome: BiomeDefinition) {
       );
       const isShelf = ring > TERRAIN_RINGS;
       const ringProgress = isShelf
-        ? 1 + shelfProgress * 0.25
+        ? 1 + shelfProgress * TERRAIN_SHELF_EXTENT
         : ring / TERRAIN_RINGS;
 
       for (let segment = 0; segment < TERRAIN_SEGMENTS; segment += 1) {
         const angle =
-          (segment / TERRAIN_SEGMENTS) * Math.PI * 2 +
-          (ring % 2) * 0.026;
+          (segment / TERRAIN_SEGMENTS) * Math.PI * 2;
         const edgeJitter =
           ring >= TERRAIN_RINGS
             ? Math.sin(
@@ -256,7 +309,11 @@ function createTerrainChunkGeometry(biome: BiomeDefinition) {
               )
               .lerp(
                 cliffDark,
-                MathUtils.smoothstep(shelfProgress, 0.56, 1),
+                MathUtils.smoothstep(shelfProgress, 0.24, 0.52),
+              )
+              .lerp(
+                seabed,
+                MathUtils.smoothstep(shelfProgress, 0.3, 0.72),
               )
           : groundDark
               .clone()
@@ -270,8 +327,30 @@ function createTerrainChunkGeometry(biome: BiomeDefinition) {
                   : Math.max(0, heightMix - 0.8) * 0.28,
               );
 
+        const broadVariation =
+          Math.sin(
+            direction.x * 9.7 +
+              direction.y * 7.1 +
+              direction.z * 11.3 +
+              biome.seed * 0.31,
+          ) *
+            0.5 +
+          0.5;
+        const detailVariation =
+          Math.sin(
+            direction.x * 19.1 -
+              direction.y * 15.7 +
+              direction.z * 17.9 +
+              biome.seed * 0.73,
+          ) *
+            0.5 +
+          0.5;
+
         color.multiplyScalar(
-          0.9 + random() * 0.14 + partIndex * 0.012,
+          0.94 +
+            broadVariation * 0.075 +
+            detailVariation * 0.025 +
+            partIndex * 0.006,
         );
 
         positions.push(position.x, position.y, position.z);
@@ -616,7 +695,10 @@ function OceanSurface({
   skyPhase,
 }: Omit<
   PlanetoidWorldProps,
-  "onLoosePropImpact" | "onVegetationBrush"
+  | "loosePropInteractionRef"
+  | "onLoosePropImpact"
+  | "onLoosePropSplash"
+  | "onVegetationBrush"
 >) {
   const geometry = useMemo(createOceanSurfaceGeometry, []);
   const simulation = useMemo(() => {
@@ -665,6 +747,9 @@ function OceanSurface({
           skyPhase === "night"
             ? new Color("#b5d4e2")
             : new Color("#edf8ff"),
+      },
+      travelerDirection: {
+        value: new Vector3(0, 0, 1),
       },
     }),
     [skyPhase],
@@ -848,6 +933,7 @@ function OceanSurface({
   useFrame(({ clock }, delta) => {
     const frameDelta = Math.min(delta, 0.05);
     const travelerDirection = travelerDirectionRef.current;
+    uniforms.travelerDirection.value.copy(travelerDirection);
     const oceanTravel =
       exploreMode && isOceanDirection(travelerDirection);
     const movementBlend = MathUtils.clamp(
@@ -1067,7 +1153,7 @@ function OceanSurface({
               );
               gl_FragColor = vec4(
                 deepColor * 0.72,
-                0.2 + facing * 0.12
+                0.34 + facing * 0.16
               );
             }
           `}
@@ -1105,6 +1191,7 @@ function OceanSurface({
             uniform vec3 deepColor;
             uniform vec3 shallowColor;
             uniform vec3 foamColor;
+            uniform vec3 travelerDirection;
             varying vec3 vWorldPosition;
             varying vec3 vWorldNormal;
             varying float vWave;
@@ -1163,6 +1250,28 @@ function OceanSurface({
                 0.86,
                 deepWater
               );
+              float pathDensity =
+                smoothstep(
+                  0.012,
+                  0.18,
+                  1.0 - viewAlignment
+                ) *
+                mix(0.96, 1.0, deepWater);
+              float travelerSeparation =
+                1.0 -
+                clamp(
+                  dot(
+                    normalize(vWorldPosition),
+                    normalize(travelerDirection)
+                  ),
+                  -1.0,
+                  1.0
+                );
+              float distanceDensity = smoothstep(
+                0.0018,
+                0.016,
+                travelerSeparation
+              );
               vec3 water = mix(
                 shallowColor,
                 deepColor,
@@ -1182,12 +1291,23 @@ function OceanSurface({
               water = mix(
                 water,
                 deepColor * 0.78,
-                horizonOcclusion * (0.08 + deepWater * 0.84)
+                horizonOcclusion * (0.18 + deepWater * 0.76)
+              );
+              water = mix(
+                water,
+                deepColor * 0.74,
+                pathDensity * (0.34 + deepWater * 0.48)
               );
 
               float opacity = clamp(
-                mix(0.48, 0.98, depthOcclusion) +
-                horizonOcclusion * depthOcclusion * 0.025 +
+                mix(
+                  0.5,
+                  0.985,
+                  max(
+                    depthOcclusion,
+                    max(pathDensity, distanceDensity)
+                  )
+                ) +
                 crest * 0.045,
                 0.0,
                 1.0
@@ -2106,7 +2226,11 @@ function createLooseProps() {
 
         if (
           biomeForDirection(candidate)?.id === biome.id &&
-          !isWaterDirection(candidate)
+          !isWaterDirection(candidate) &&
+          Array.from(PLACE_DIRECTIONS.values()).every(
+            (placeDirection) =>
+              angularDistance(candidate, placeDirection) > 0.12,
+          )
         ) {
           direction = candidate;
           break;
@@ -2119,8 +2243,13 @@ function createLooseProps() {
 
       props.push({
         id: `${biome.id}-loose-prop-${index}`,
+        spawnDirection: direction.clone(),
         direction,
         tangentVelocity: new Vector3(),
+        worldPosition: direction
+          .clone()
+          .multiplyScalar(surfaceRadiusAt(direction)),
+        linearVelocity: new Vector3(),
         orientation: new Quaternion().setFromUnitVectors(UP, direction),
         scale: 0.075 + random() * 0.065,
         color:
@@ -2140,6 +2269,10 @@ function createLooseProps() {
               ? "#6d6861"
               : "#5f6661",
         contactCooldown: 0,
+        motion: "ground",
+        charge: 0,
+        sinkElapsed: 0,
+        splashElapsed: -1,
       });
     }
   });
@@ -2151,41 +2284,371 @@ function LooseProps({
   travelerDirectionRef,
   travelerForwardRef,
   movementVelocityRef,
+  waterSurfaceRef,
+  interactionRef,
   onLoosePropImpact,
+  onLoosePropSplash,
   exploreMode,
   reduceMotion,
 }: {
   travelerDirectionRef: MutableRefObject<Vector3>;
   travelerForwardRef: MutableRefObject<Vector3>;
   movementVelocityRef: MutableRefObject<number>;
+  waterSurfaceRef: MutableRefObject<OceanSurfaceApi | null>;
+  interactionRef: MutableRefObject<LoosePropInteractionApi | null>;
   onLoosePropImpact: (strength: number, variation: number) => void;
+  onLoosePropSplash: (strength: number, variation: number) => void;
   exploreMode: boolean;
   reduceMotion: boolean;
 }) {
   const props = useMemo(createLooseProps, []);
   const propRefs = useRef<Array<Group | null>>([]);
+  const splashRefs = useRef<Array<Group | null>>([]);
+  const trajectoryRef = useRef<Group>(null);
+  const trajectoryDotRefs = useRef<Array<Mesh | null>>([]);
+  const heldPropIndexRef = useRef<number | null>(null);
+  const interactionHeldRef = useRef(false);
   const impulseRef = useRef(new Vector3());
   const axisRef = useRef(new Vector3());
   const nextDirectionRef = useRef(new Vector3());
   const orientationRef = useRef(new Quaternion());
+  const throwVelocityRef = useRef(new Vector3());
+  const gravityRef = useRef(new Vector3());
+  const previewPositionRef = useRef(new Vector3());
+  const previewVelocityRef = useRef(new Vector3());
+
+  const setThrowVelocity = (
+    charge: number,
+    up: Vector3,
+    forward: Vector3,
+    target: Vector3,
+  ) => {
+    const easedCharge = charge * charge * (3 - 2 * charge);
+
+    return target
+      .copy(forward)
+      .multiplyScalar(3.2 + easedCharge * 5.4)
+      .addScaledVector(up, 2.2 + easedCharge * 3);
+  };
+
+  useEffect(() => {
+    const api: LoosePropInteractionApi = {
+      beginInteraction: () => {
+        if (heldPropIndexRef.current !== null) {
+          return true;
+        }
+
+        if (
+          !exploreMode ||
+          isWaterDirection(travelerDirectionRef.current)
+        ) {
+          return false;
+        }
+
+        let nearestIndex = -1;
+        let nearestDistance = Number.POSITIVE_INFINITY;
+
+        props.forEach((prop, index) => {
+          if (prop.motion !== "ground") {
+            return;
+          }
+
+          const distance = angularDistance(
+            prop.direction,
+            travelerDirectionRef.current,
+          );
+
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestIndex = index;
+          }
+        });
+
+        if (
+          nearestIndex < 0 ||
+          nearestDistance > LOOSE_PROP_INTERACTION_ANGLE
+        ) {
+          return false;
+        }
+
+        const prop = props[nearestIndex];
+        prop.motion = "held";
+        prop.charge = 0.08;
+        prop.tangentVelocity.set(0, 0, 0);
+        prop.linearVelocity.set(0, 0, 0);
+        heldPropIndexRef.current = nearestIndex;
+        interactionHeldRef.current = true;
+        onLoosePropImpact(0.28, nearestIndex);
+        return true;
+      },
+      setInteractionHeld: (held) => {
+        interactionHeldRef.current = held;
+      },
+    };
+
+    interactionRef.current = api;
+
+    return () => {
+      if (interactionRef.current === api) {
+        interactionRef.current = null;
+      }
+    };
+  }, [
+    exploreMode,
+    interactionRef,
+    onLoosePropImpact,
+    props,
+    travelerDirectionRef,
+  ]);
 
   useFrame((_, delta) => {
     const frameDelta = Math.min(delta, 0.05);
+    const travelerDirection = travelerDirectionRef.current;
+    const travelerForward = travelerForwardRef.current;
+
+    if (trajectoryRef.current) {
+      trajectoryRef.current.visible = false;
+    }
 
     props.forEach((prop, index) => {
       const mesh = propRefs.current[index];
+      const splash = splashRefs.current[index];
 
       if (!mesh) {
         return;
       }
 
-      const travelerDistance = angularDistance(
-        prop.direction,
-        travelerDirectionRef.current,
-      );
+      if (splash && prop.splashElapsed >= 0) {
+        prop.splashElapsed += frameDelta;
+        splash.visible = prop.splashElapsed < 0.72;
+
+        if (splash.visible) {
+          const splashRadius =
+            waterSurfaceRef.current?.sampleRadius(prop.direction) ??
+            traversalSurfaceRadiusAt(prop.direction);
+          splash.position
+            .copy(prop.direction)
+            .multiplyScalar(splashRadius + 0.012);
+          splash.quaternion.copy(
+            orientationRef.current.setFromUnitVectors(
+              UP,
+              prop.direction,
+            ),
+          );
+          splash.scale.setScalar(
+            0.55 + MathUtils.smoothstep(prop.splashElapsed, 0, 0.72) * 3.2,
+          );
+        } else {
+          prop.splashElapsed = -1;
+        }
+      }
+
       prop.contactCooldown = Math.max(
         0,
         prop.contactCooldown - frameDelta,
+      );
+
+      if (prop.motion === "held") {
+        if (!exploreMode) {
+          prop.motion = "ground";
+          prop.direction.copy(prop.spawnDirection);
+          heldPropIndexRef.current = null;
+          interactionHeldRef.current = false;
+          return;
+        }
+
+        const heldRadius =
+          traversalSurfaceRadiusAt(travelerDirection) + 0.44;
+        prop.worldPosition
+          .copy(travelerDirection)
+          .multiplyScalar(heldRadius)
+          .addScaledVector(travelerForward, 0.34);
+        prop.direction.copy(prop.worldPosition).normalize();
+        prop.charge = Math.min(
+          1,
+          prop.charge + frameDelta / LOOSE_PROP_CHARGE_SECONDS,
+        );
+        mesh.position.copy(prop.worldPosition);
+        mesh.scale.setScalar(1);
+        mesh.quaternion.slerp(
+          orientationRef.current.setFromUnitVectors(
+            UP,
+            travelerDirection,
+          ),
+          1 - Math.exp(-frameDelta * 12),
+        );
+        mesh.rotateX(Math.sin(prop.charge * Math.PI) * frameDelta * 1.8);
+
+        if (trajectoryRef.current) {
+          trajectoryRef.current.visible = true;
+          const previewPosition = previewPositionRef.current.copy(
+            prop.worldPosition,
+          );
+          const previewVelocity = setThrowVelocity(
+            prop.charge,
+            travelerDirection,
+            travelerForward,
+            previewVelocityRef.current,
+          );
+          const previewStep = 0.065;
+
+          trajectoryDotRefs.current.forEach((dot) => {
+            if (!dot) {
+              return;
+            }
+
+            gravityRef.current
+              .copy(previewPosition)
+              .normalize()
+              .multiplyScalar(-LOOSE_PROP_GRAVITY);
+            previewVelocity.addScaledVector(
+              gravityRef.current,
+              previewStep,
+            );
+            previewPosition.addScaledVector(
+              previewVelocity,
+              previewStep,
+            );
+            dot.position.copy(previewPosition);
+          });
+        }
+
+        if (!interactionHeldRef.current) {
+          prop.motion = "airborne";
+          prop.charge = Math.max(0.16, prop.charge);
+          setThrowVelocity(
+            prop.charge,
+            travelerDirection,
+            travelerForward,
+            prop.linearVelocity,
+          );
+          heldPropIndexRef.current = null;
+
+          if (trajectoryRef.current) {
+            trajectoryRef.current.visible = false;
+          }
+        }
+
+        return;
+      }
+
+      if (prop.motion === "airborne") {
+        gravityRef.current
+          .copy(prop.worldPosition)
+          .normalize()
+          .multiplyScalar(-LOOSE_PROP_GRAVITY);
+        prop.linearVelocity.addScaledVector(
+          gravityRef.current,
+          frameDelta,
+        );
+        prop.worldPosition.addScaledVector(
+          prop.linearVelocity,
+          frameDelta,
+        );
+        const radialDistance = prop.worldPosition.length();
+        const direction = nextDirectionRef.current
+          .copy(prop.worldPosition)
+          .normalize();
+
+        if (isWaterDirection(direction)) {
+          const waterRadius = isOceanDirection(direction)
+            ? (waterSurfaceRef.current?.sampleRadius(direction) ??
+              OCEAN_SURFACE_RADIUS)
+            : traversalSurfaceRadiusAt(direction);
+
+          if (radialDistance <= waterRadius) {
+            prop.motion = "sinking";
+            prop.sinkElapsed = 0;
+            prop.splashElapsed = 0;
+            prop.direction.copy(direction);
+            prop.linearVelocity.multiplyScalar(0.2);
+            waterSurfaceRef.current?.disturb(
+              direction,
+              -0.9 - prop.charge * 0.8,
+              0.045 + prop.scale * 0.08,
+            );
+            onLoosePropSplash(
+              0.45 + prop.charge * 0.55,
+              index,
+            );
+          }
+        } else {
+          const groundRadius =
+            surfaceRadiusAt(direction) + prop.scale * 0.72;
+
+          if (radialDistance <= groundRadius) {
+            const impactSpeed = prop.linearVelocity.length();
+            prop.motion = "ground";
+            prop.direction.copy(direction);
+            prop.worldPosition
+              .copy(direction)
+              .multiplyScalar(groundRadius);
+            prop.tangentVelocity
+              .copy(prop.linearVelocity)
+              .addScaledVector(
+                direction,
+                -prop.linearVelocity.dot(direction),
+              )
+              .multiplyScalar(0.035);
+            prop.linearVelocity.set(0, 0, 0);
+            prop.contactCooldown = 0.22;
+            onLoosePropImpact(
+              MathUtils.clamp(impactSpeed / 6.5, 0.2, 1),
+              index,
+            );
+          }
+        }
+
+        mesh.position.copy(prop.worldPosition);
+        mesh.rotateX(frameDelta * 5.8);
+        mesh.rotateZ(frameDelta * 3.6);
+        return;
+      }
+
+      if (prop.motion === "sinking") {
+        prop.sinkElapsed += frameDelta;
+        const sinkDirection = nextDirectionRef.current
+          .copy(prop.worldPosition)
+          .normalize();
+        prop.linearVelocity.multiplyScalar(
+          Math.exp(-frameDelta * 3.8),
+        );
+        prop.linearVelocity.addScaledVector(
+          sinkDirection,
+          -frameDelta * 1.1,
+        );
+        prop.worldPosition.addScaledVector(
+          prop.linearVelocity,
+          frameDelta,
+        );
+        mesh.position.copy(prop.worldPosition);
+        mesh.scale.setScalar(
+          1 - MathUtils.smoothstep(prop.sinkElapsed, 0.8, 2.2),
+        );
+
+        if (prop.sinkElapsed >= 3.2) {
+          prop.motion = "ground";
+          prop.direction.copy(prop.spawnDirection);
+          prop.worldPosition
+            .copy(prop.direction)
+            .multiplyScalar(
+              surfaceRadiusAt(prop.direction) + prop.scale * 0.72,
+            );
+          prop.linearVelocity.set(0, 0, 0);
+          prop.tangentVelocity.set(0, 0, 0);
+          prop.charge = 0;
+          prop.sinkElapsed = 0;
+          prop.contactCooldown = 0.5;
+          mesh.position.copy(prop.worldPosition);
+          mesh.scale.setScalar(1);
+        }
+
+        return;
+      }
+
+      const travelerDistance = angularDistance(
+        prop.direction,
+        travelerDirection,
       );
 
       if (
@@ -2195,10 +2658,10 @@ function LooseProps({
         Math.abs(movementVelocityRef.current) > 0.08
       ) {
         const impulse = impulseRef.current
-          .copy(travelerForwardRef.current)
+          .copy(travelerForward)
           .addScaledVector(
             prop.direction,
-            -travelerForwardRef.current.dot(prop.direction),
+            -travelerForward.dot(prop.direction),
           );
         const pushStrength =
           0.52 + Math.abs(movementVelocityRef.current) * 0.42;
@@ -2246,11 +2709,17 @@ function LooseProps({
           .normalize();
 
         if (isWaterDirection(nextDirection)) {
-          prop.tangentVelocity.multiplyScalar(-0.28);
-          prop.contactCooldown = Math.max(
-            prop.contactCooldown,
-            0.18,
-          );
+          prop.motion = "airborne";
+          prop.worldPosition
+            .copy(prop.direction)
+            .multiplyScalar(
+              surfaceRadiusAt(prop.direction) + prop.scale * 0.72,
+            );
+          prop.linearVelocity
+            .copy(prop.tangentVelocity)
+            .multiplyScalar(PLANET_RADIUS * 0.92)
+            .addScaledVector(prop.direction, 0.32);
+          prop.tangentVelocity.set(0, 0, 0);
         } else {
           prop.direction.copy(nextDirection);
           prop.tangentVelocity
@@ -2278,11 +2747,74 @@ function LooseProps({
         orientation,
         1 - Math.exp(-frameDelta * 2.5),
       );
+      mesh.scale.setScalar(1);
     });
   });
 
   return (
     <group>
+      {props.map((prop, index) => (
+        <group
+          key={`${prop.id}-splash`}
+          ref={(group) => {
+            splashRefs.current[index] = group;
+          }}
+          visible={false}
+        >
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.09, 0.012, 6, 20]} />
+            <meshBasicMaterial
+              color="#d8f4ff"
+              transparent
+              opacity={0.72}
+              depthWrite={false}
+            />
+          </mesh>
+          {Array.from({ length: 7 }, (_, splashIndex) => {
+            const angle = (splashIndex / 7) * Math.PI * 2;
+
+            return (
+              <mesh
+                key={splashIndex}
+                position={[
+                  Math.cos(angle) * 0.09,
+                  0.045 + (splashIndex % 3) * 0.018,
+                  Math.sin(angle) * 0.09,
+                ]}
+                scale={0.022 + (splashIndex % 2) * 0.006}
+              >
+                <sphereGeometry args={[1, 7, 5]} />
+                <meshBasicMaterial
+                  color="#bdeaff"
+                  transparent
+                  opacity={0.8}
+                  depthWrite={false}
+                />
+              </mesh>
+            );
+          })}
+        </group>
+      ))}
+      <group ref={trajectoryRef} visible={false}>
+        {Array.from({ length: LOOSE_PROP_TRAJECTORY_POINTS }, (_, index) => (
+          <mesh
+            key={`rock-trajectory-${index}`}
+            ref={(mesh) => {
+              trajectoryDotRefs.current[index] = mesh;
+            }}
+            scale={0.035 + index * 0.0018}
+            renderOrder={32}
+          >
+            <sphereGeometry args={[1, 7, 5]} />
+            <meshBasicMaterial
+              color={index < 9 ? "#ffd65c" : "#ff765f"}
+              transparent
+              opacity={0.82}
+              depthWrite={false}
+            />
+          </mesh>
+        ))}
+      </group>
       {props.map((prop, index) => (
         <group
           key={prop.id}
@@ -2857,14 +3389,26 @@ function createFishDefinitions() {
 
   for (let school = 0; school < schoolKinds.length; school += 1) {
     const kind = schoolKinds[school];
-    const longitude = random() * Math.PI * 2;
-    const vertical = random() * 1.5 - 0.75;
-    const horizontal = Math.sqrt(1 - vertical * vertical);
-    const center = new Vector3(
-      Math.cos(longitude) * horizontal,
-      vertical,
-      Math.sin(longitude) * horizontal,
-    ).normalize();
+    const center = new Vector3(1, 0, 0);
+
+    for (let attempt = 0; attempt < 48; attempt += 1) {
+      const longitude = random() * Math.PI * 2;
+      const vertical = random() * 1.5 - 0.75;
+      const horizontal = Math.sqrt(1 - vertical * vertical);
+      const candidate = new Vector3(
+        Math.cos(longitude) * horizontal,
+        vertical,
+        Math.sin(longitude) * horizontal,
+      ).normalize();
+
+      if (
+        isOceanDirection(candidate) &&
+        oceanShoreProximityAt(candidate) < 0.2
+      ) {
+        center.copy(candidate);
+        break;
+      }
+    }
     const { east, north } = tangentBasis(center);
     const travelDirection = east
       .clone()
@@ -2884,14 +3428,28 @@ function createFishDefinitions() {
       kind === "fish" ? 4 : kind === "dolphin" ? 3 : 2;
 
     for (let fish = 0; fish < schoolSize; fish += 1) {
-      definitions.push({
-        id: `fish-${school}-${fish}`,
-        kind,
-        direction: directionFromOffset(
+      const fishDirection = center.clone();
+
+      for (let attempt = 0; attempt < 16; attempt += 1) {
+        const candidate = directionFromOffset(
           center,
           (random() - 0.5) * 0.18,
           (random() - 0.5) * 0.12,
-        ),
+        );
+
+        if (
+          isOceanDirection(candidate) &&
+          oceanShoreProximityAt(candidate) < 0.32
+        ) {
+          fishDirection.copy(candidate);
+          break;
+        }
+      }
+
+      definitions.push({
+        id: `fish-${school}-${fish}`,
+        kind,
+        direction: fishDirection,
         orbitAxis: orbitAxis.clone(),
         phase: (random() - 0.5) * 0.08,
         speed: schoolSpeed * (0.92 + random() * 0.16),
@@ -3110,24 +3668,46 @@ function SwimmingFish({
   reduceMotion,
   exploreMode,
   travelerDirectionRef,
+  travelerForwardRef,
+  movementVelocityRef,
+  traversalModeRef,
+  waterSurfaceRef,
 }: {
   definition: FishDefinition;
   reduceMotion: boolean;
   exploreMode: boolean;
   travelerDirectionRef: MutableRefObject<Vector3>;
+  travelerForwardRef: MutableRefObject<Vector3>;
+  movementVelocityRef: MutableRefObject<number>;
+  traversalModeRef: MutableRefObject<"boat" | "land" | "swim">;
+  waterSurfaceRef: MutableRefObject<OceanSurfaceApi | null>;
 }) {
   const groupRef = useRef<Group>(null);
   const tailRef = useRef<Group>(null);
-  const directionRef = useRef(new Vector3());
+  const directionRef = useRef(definition.direction.clone());
+  const headingRef = useRef(
+    new Vector3()
+      .crossVectors(definition.orbitAxis, definition.direction)
+      .normalize(),
+  );
   const positionRef = useRef(new Vector3());
-  const tangentRef = useRef(new Vector3());
   const lookTargetRef = useRef(new Vector3());
-  const travelAngleRef = useRef(definition.phase);
+  const desiredHeadingRef = useRef(new Vector3());
+  const movementAxisRef = useRef(new Vector3());
+  const aheadDirectionRef = useRef(new Vector3());
+  const leftHeadingRef = useRef(new Vector3());
+  const rightHeadingRef = useRef(new Vector3());
+  const leftDirectionRef = useRef(new Vector3());
+  const rightDirectionRef = useRef(new Vector3());
+  const travelerAwayRef = useRef(new Vector3());
+  const occlusionRayRef = useRef(new Vector3());
+  const occlusionPointRef = useRef(new Vector3());
   const tailPhaseRef = useRef(definition.bobPhase);
   const scurryStrengthRef = useRef(0);
   const scurryActiveRef = useRef(false);
+  const diveStrengthRef = useRef(0);
 
-  useFrame(({ clock }, delta) => {
+  useFrame(({ clock, camera }, delta) => {
     const group = groupRef.current;
 
     if (!group) {
@@ -3136,15 +3716,18 @@ function SwimmingFish({
 
     const frameDelta = Math.min(delta, 0.05);
     const elapsed = reduceMotion ? 0 : clock.elapsedTime;
-    const direction = directionRef.current
-      .copy(definition.direction)
-      .applyAxisAngle(definition.orbitAxis, travelAngleRef.current)
-      .normalize();
+    const direction = directionRef.current;
+    const heading = headingRef.current;
     const travelerDirection = travelerDirectionRef.current;
     const travelerAngle = angularDistance(
       direction,
       travelerDirection,
     );
+    const kayakThreat =
+      exploreMode &&
+      traversalModeRef.current === "boat" &&
+      Math.abs(movementVelocityRef.current) > 0.025 &&
+      travelerAngle < FISH_KAYAK_AVOID_ANGLE;
 
     if (
       exploreMode &&
@@ -3166,7 +3749,18 @@ function SwimmingFish({
       scurryActiveRef.current = false;
     }
 
-    const targetScurry = scurryActiveRef.current ? 1 : 0;
+    const collisionAvoidance = exploreMode
+      ? 1 -
+        MathUtils.smoothstep(
+          travelerAngle,
+          kayakThreat ? 0.055 : 0.035,
+          kayakThreat ? FISH_KAYAK_AVOID_ANGLE : 0.11,
+        )
+      : 0;
+    const targetScurry = Math.max(
+      scurryActiveRef.current ? 1 : 0,
+      collisionAvoidance,
+    );
     scurryStrengthRef.current = MathUtils.damp(
       scurryStrengthRef.current,
       targetScurry,
@@ -3174,49 +3768,187 @@ function SwimmingFish({
       frameDelta,
     );
     const scurryStrength = scurryStrengthRef.current;
+    const targetDive = kayakThreat
+      ? MathUtils.smoothstep(collisionAvoidance, 0.05, 0.72)
+      : 0;
+    diveStrengthRef.current = MathUtils.damp(
+      diveStrengthRef.current,
+      targetDive,
+      targetDive > diveStrengthRef.current ? 10 : 2.8,
+      frameDelta,
+    );
 
     if (!reduceMotion) {
       const speciesBoost =
         definition.kind === "fish"
-          ? 4.2
+          ? 7.2
           : definition.kind === "dolphin"
-            ? 3.4
-            : 2.5;
-      travelAngleRef.current +=
+            ? 6.2
+            : 4.8;
+      const desiredHeading = desiredHeadingRef.current.copy(heading);
+      const lookAheadAngle = 0.11;
+      const movementAxis = movementAxisRef.current
+        .crossVectors(direction, heading)
+        .normalize();
+      const aheadDirection = aheadDirectionRef.current
+        .copy(direction)
+        .applyAxisAngle(movementAxis, lookAheadAngle)
+        .normalize();
+      const aheadShore = oceanShoreProximityAt(aheadDirection);
+
+      if (
+        !isOceanDirection(aheadDirection) ||
+        aheadShore > FISH_SHORE_AVOIDANCE
+      ) {
+        const leftHeading = leftHeadingRef.current
+          .copy(heading)
+          .applyAxisAngle(direction, 0.76)
+          .normalize();
+        const rightHeading = rightHeadingRef.current
+          .copy(heading)
+          .applyAxisAngle(direction, -0.76)
+          .normalize();
+        const leftDirection = leftDirectionRef.current
+          .copy(direction)
+          .applyAxisAngle(
+            movementAxisRef.current
+              .crossVectors(direction, leftHeading)
+              .normalize(),
+            lookAheadAngle,
+          )
+          .normalize();
+        const leftScore =
+          (isOceanDirection(leftDirection) ? 0 : 10) +
+          oceanShoreProximityAt(leftDirection);
+        const rightDirection = rightDirectionRef.current
+          .copy(direction)
+          .applyAxisAngle(
+            movementAxisRef.current
+              .crossVectors(direction, rightHeading)
+              .normalize(),
+            lookAheadAngle,
+          )
+          .normalize();
+        const rightScore =
+          (isOceanDirection(rightDirection) ? 0 : 10) +
+          oceanShoreProximityAt(rightDirection);
+
+        desiredHeading.copy(
+          leftScore <= rightScore ? leftHeading : rightHeading,
+        );
+      }
+
+      if (collisionAvoidance > 0.01) {
+        const predictedTraveler = aheadDirectionRef.current
+          .copy(travelerDirection)
+          .addScaledVector(
+            travelerForwardRef.current,
+            kayakThreat ? 0.055 : 0.018,
+          )
+          .normalize();
+        const travelerAway = travelerAwayRef.current
+          .copy(predictedTraveler)
+          .addScaledVector(
+            direction,
+            -predictedTraveler.dot(direction),
+          )
+          .multiplyScalar(-1);
+
+        if (travelerAway.lengthSq() > 0.00001) {
+          travelerAway.normalize();
+          desiredHeading
+            .lerp(
+              travelerAway,
+              Math.min(0.94, collisionAvoidance * 0.92),
+            )
+            .normalize();
+        }
+      }
+
+      heading
+        .lerp(
+          desiredHeading,
+          1 -
+            Math.exp(
+              -frameDelta *
+                (aheadShore > FISH_SHORE_AVOIDANCE ? 10 : 5.5),
+            ),
+        )
+        .addScaledVector(direction, -heading.dot(direction))
+        .normalize();
+      const swimAngle =
         definition.speed *
         (1 + scurryStrength * speciesBoost) *
         frameDelta;
-      direction
-        .copy(definition.direction)
-        .applyAxisAngle(definition.orbitAxis, travelAngleRef.current)
+      const swimAxis = movementAxisRef.current
+        .crossVectors(direction, heading)
         .normalize();
+      const nextDirection = aheadDirectionRef.current
+        .copy(direction)
+        .applyAxisAngle(swimAxis, swimAngle)
+        .normalize();
+
+      if (
+        isOceanDirection(nextDirection) &&
+        oceanShoreProximityAt(nextDirection) < 0.46
+      ) {
+        direction.copy(nextDirection);
+        heading
+          .applyAxisAngle(swimAxis, swimAngle)
+          .addScaledVector(direction, -heading.dot(direction))
+          .normalize();
+      } else {
+        heading.applyAxisAngle(
+          direction,
+          frameDelta * (definition.phase >= 0 ? 2.2 : -2.2),
+        );
+      }
+
       tailPhaseRef.current +=
         frameDelta *
         (definition.kind === "fish" ? 7.5 : 5.5) *
-        (1 + scurryStrength * 0.8);
+      (1 + scurryStrength * 0.8);
     }
 
-    group.visible = isOceanDirection(direction);
+    const shoreProximity = oceanShoreProximityAt(direction);
+    const baseDepth =
+      definition.kind === "fish"
+        ? 0.2
+        : definition.kind === "dolphin"
+          ? 0.255
+          : 0.29;
+    const swimDepth =
+      baseDepth +
+      diveStrengthRef.current * 0.24 +
+      (reduceMotion
+        ? 0
+        : Math.sin(elapsed * 1.35 + definition.bobPhase) * 0.012);
+    const waterRadius =
+      waterSurfaceRef.current?.sampleRadius(direction) ??
+      OCEAN_SURFACE_RADIUS;
+    const position = positionRef.current
+      .copy(direction)
+      .multiplyScalar(waterRadius - swimDepth);
+    const hiddenByWorld = isOccludedBySphere(
+      position,
+      camera.position,
+      OCEAN_FLOOR_RADIUS + 0.06,
+      occlusionRayRef.current,
+      occlusionPointRef.current,
+    );
+
+    group.visible =
+      isOceanDirection(direction) &&
+      shoreProximity < 0.42 &&
+      !hiddenByWorld;
 
     if (!group.visible) {
       return;
     }
 
-    const swimDepth = reduceMotion
-      ? 0.072
-      : 0.066 +
-        (Math.sin(elapsed * 1.35 + definition.bobPhase) * 0.5 + 0.5) *
-          0.018;
-    const position = positionRef.current
-      .copy(direction)
-      .multiplyScalar(OCEAN_SURFACE_RADIUS - swimDepth);
-    const tangent = tangentRef.current
-      .crossVectors(definition.orbitAxis, direction)
-      .normalize();
-
     group.position.copy(position);
     group.up.copy(direction);
-    group.lookAt(lookTargetRef.current.copy(position).add(tangent));
+    group.lookAt(lookTargetRef.current.copy(position).add(heading));
     group.rotation.z = reduceMotion
       ? 0
       : Math.sin(elapsed * 3.2 + definition.bobPhase) * 0.08;
@@ -3246,10 +3978,18 @@ function OceanLife({
   reduceMotion,
   exploreMode,
   travelerDirectionRef,
+  travelerForwardRef,
+  movementVelocityRef,
+  traversalModeRef,
+  waterSurfaceRef,
 }: {
   reduceMotion: boolean;
   exploreMode: boolean;
   travelerDirectionRef: MutableRefObject<Vector3>;
+  travelerForwardRef: MutableRefObject<Vector3>;
+  movementVelocityRef: MutableRefObject<number>;
+  traversalModeRef: MutableRefObject<"boat" | "land" | "swim">;
+  waterSurfaceRef: MutableRefObject<OceanSurfaceApi | null>;
 }) {
   const fish = useMemo(createFishDefinitions, []);
 
@@ -3262,6 +4002,10 @@ function OceanLife({
           reduceMotion={reduceMotion}
           exploreMode={exploreMode}
           travelerDirectionRef={travelerDirectionRef}
+          travelerForwardRef={travelerForwardRef}
+          movementVelocityRef={movementVelocityRef}
+          traversalModeRef={traversalModeRef}
+          waterSurfaceRef={waterSurfaceRef}
         />
       ))}
     </group>
@@ -3325,10 +4069,12 @@ function FlyingBird({
   definition,
   reduceMotion,
   skyPhase,
+  travelerDirectionRef,
 }: {
   definition: BirdDefinition;
   reduceMotion: boolean;
   skyPhase: SkyPhase;
+  travelerDirectionRef: MutableRefObject<Vector3>;
 }) {
   const groupRef = useRef<Group>(null);
   const leftWingRef = useRef<Group>(null);
@@ -3337,8 +4083,10 @@ function FlyingBird({
   const positionRef = useRef(new Vector3());
   const tangentRef = useRef(new Vector3());
   const lookTargetRef = useRef(new Vector3());
+  const occlusionRayRef = useRef(new Vector3());
+  const occlusionPointRef = useRef(new Vector3());
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera }) => {
     const group = groupRef.current;
 
     if (!group) {
@@ -3354,9 +4102,8 @@ function FlyingBird({
       skyPhase !== "night" &&
       cycle < definition.activeDuration;
 
-    group.visible = active;
-
     if (!active) {
+      group.visible = false;
       return;
     }
 
@@ -3372,6 +4119,7 @@ function FlyingBird({
         elapsed * definition.speed + definition.phase,
       )
       .normalize();
+
     const surfaceRadius = Math.max(
       OCEAN_SURFACE_RADIUS,
       surfaceRadiusAt(direction),
@@ -3382,6 +4130,22 @@ function FlyingBird({
     const position = positionRef.current
       .copy(direction)
       .multiplyScalar(surfaceRadius + altitude);
+    const hiddenByWorld = isOccludedBySphere(
+      position,
+      camera.position,
+      OCEAN_SURFACE_RADIUS + 0.035,
+      occlusionRayRef.current,
+      occlusionPointRef.current,
+    );
+
+    group.visible =
+      !hiddenByWorld &&
+      direction.dot(travelerDirectionRef.current) > -0.18;
+
+    if (!group.visible) {
+      return;
+    }
+
     const tangent = tangentRef.current
       .crossVectors(definition.orbitAxis, direction)
       .normalize();
@@ -3458,9 +4222,11 @@ function FlyingBird({
 function AmbientBirds({
   reduceMotion,
   skyPhase,
+  travelerDirectionRef,
 }: {
   reduceMotion: boolean;
   skyPhase: SkyPhase;
+  travelerDirectionRef: MutableRefObject<Vector3>;
 }) {
   const birds = useMemo(createBirdDefinitions, []);
 
@@ -3472,6 +4238,7 @@ function AmbientBirds({
           definition={definition}
           reduceMotion={reduceMotion}
           skyPhase={skyPhase}
+          travelerDirectionRef={travelerDirectionRef}
         />
       ))}
     </group>
@@ -3484,7 +4251,9 @@ export function PlanetoidWorld({
   movementVelocityRef,
   traversalModeRef,
   waterSurfaceRef,
+  loosePropInteractionRef,
   onLoosePropImpact,
+  onLoosePropSplash,
   onVegetationBrush,
   exploreMode,
   reduceMotion,
@@ -3508,10 +4277,15 @@ export function PlanetoidWorld({
         reduceMotion={reduceMotion}
         exploreMode={exploreMode}
         travelerDirectionRef={travelerDirectionRef}
+        travelerForwardRef={travelerForwardRef}
+        movementVelocityRef={movementVelocityRef}
+        traversalModeRef={traversalModeRef}
+        waterSurfaceRef={waterSurfaceRef}
       />
       <AmbientBirds
         reduceMotion={reduceMotion}
         skyPhase={skyPhase}
+        travelerDirectionRef={travelerDirectionRef}
       />
 
       {BIOMES.map((biome) => (
@@ -3554,7 +4328,10 @@ export function PlanetoidWorld({
         travelerDirectionRef={travelerDirectionRef}
         travelerForwardRef={travelerForwardRef}
         movementVelocityRef={movementVelocityRef}
+        waterSurfaceRef={waterSurfaceRef}
+        interactionRef={loosePropInteractionRef}
         onLoosePropImpact={onLoosePropImpact}
+        onLoosePropSplash={onLoosePropSplash}
         exploreMode={exploreMode}
         reduceMotion={reduceMotion}
       />

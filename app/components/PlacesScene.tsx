@@ -55,6 +55,7 @@ import {
 } from "../data/planetoid";
 import {
   PlanetoidWorld,
+  type LoosePropInteractionApi,
   type OceanSurfaceApi,
 } from "./PlanetoidWorld";
 
@@ -66,6 +67,7 @@ export type ExploreInput = {
   zoom: number;
   jumpReady: boolean;
   jumpSequence: number;
+  interacting: boolean;
   interactSequence: number;
 };
 
@@ -94,6 +96,7 @@ type PlacesSceneProps = {
     strokeIndex: number,
   ) => void;
   onLoosePropImpact: (strength: number, variation: number) => void;
+  onLoosePropSplash: (strength: number, variation: number) => void;
   onVegetationBrush: (
     strength: number,
     kind: "bush" | "tree",
@@ -3943,6 +3946,7 @@ function PlanetExperience({
   onTraversalAudio,
   onWaterStroke,
   onLoosePropImpact,
+  onLoosePropSplash,
   onVegetationBrush,
   skyPhase,
   solarDirection,
@@ -3985,6 +3989,8 @@ function PlanetExperience({
     exploreInputRef.current.interactSequence,
   );
   const waterSurfaceRef = useRef<OceanSurfaceApi | null>(null);
+  const loosePropInteractionRef =
+    useRef<LoosePropInteractionApi | null>(null);
   const { camera, gl } = useThree();
 
   const traversalModeForDirection = (direction: Vector3) => {
@@ -4199,12 +4205,17 @@ function PlanetExperience({
         input.interactSequence !== lastInteractSequenceRef.current
       ) {
         lastInteractSequenceRef.current = input.interactSequence;
+        const rockInteractionStarted =
+          loosePropInteractionRef.current?.beginInteraction() ?? false;
 
-        if (isOceanDirection(playerUp)) {
+        if (!rockInteractionStarted && isOceanDirection(playerUp)) {
           oceanTraversalModeRef.current =
             oceanTraversalModeRef.current === "boat" ? "swim" : "boat";
         }
       }
+      loosePropInteractionRef.current?.setInteractionHeld(
+        input.interacting,
+      );
 
       const traversalMode = traversalModeForDirection(playerUp);
       const swimming = traversalMode === "swim";
@@ -4570,7 +4581,9 @@ function PlanetExperience({
           movementVelocityRef={movementVelocityRef}
           traversalModeRef={traversalModeRef}
           waterSurfaceRef={waterSurfaceRef}
+          loosePropInteractionRef={loosePropInteractionRef}
           onLoosePropImpact={onLoosePropImpact}
+          onLoosePropSplash={onLoosePropSplash}
           onVegetationBrush={onVegetationBrush}
           exploreMode={exploreMode}
           reduceMotion={reduceMotion}

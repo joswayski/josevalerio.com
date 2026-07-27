@@ -325,6 +325,7 @@ export function PlacesGlobe() {
     zoom: 0,
     jumpReady: true,
     jumpSequence: 0,
+    interacting: false,
     interactSequence: 0,
   });
   const pressedKeysRef = useRef(new Set<string>());
@@ -672,6 +673,7 @@ export function PlacesGlobe() {
       zoom: 0,
       jumpReady: exploreInputRef.current.jumpReady,
       jumpSequence: exploreInputRef.current.jumpSequence,
+      interacting: false,
       interactSequence: exploreInputRef.current.interactSequence,
     };
     photoGalleryRef.current?.focus();
@@ -688,6 +690,7 @@ export function PlacesGlobe() {
         zoom: 0,
         jumpReady: true,
         jumpSequence: exploreInputRef.current.jumpSequence,
+        interacting: false,
         interactSequence: exploreInputRef.current.interactSequence,
       };
       return;
@@ -712,6 +715,7 @@ export function PlacesGlobe() {
         zoom: Number(zoomIn) - Number(zoomOut),
         jumpReady: exploreInputRef.current.jumpReady,
         jumpSequence: exploreInputRef.current.jumpSequence,
+        interacting: exploreInputRef.current.interacting,
         interactSequence: exploreInputRef.current.interactSequence,
       };
     };
@@ -765,6 +769,7 @@ export function PlacesGlobe() {
         zoom: 0,
         jumpReady: true,
         jumpSequence: exploreInputRef.current.jumpSequence,
+        interacting: false,
         interactSequence: exploreInputRef.current.interactSequence,
       };
     };
@@ -1143,6 +1148,17 @@ export function PlacesGlobe() {
     [ensureAudioContext],
   );
 
+  const playLoosePropSplashSound = useCallback(
+    (strength: number, variation: number) => {
+      playWaterStrokeSound(
+        "swim",
+        Math.min(1, Math.max(0.38, strength)),
+        variation,
+      );
+    },
+    [playWaterStrokeSound],
+  );
+
   const playVegetationBrushSound = useCallback(
     (
       strength: number,
@@ -1267,17 +1283,26 @@ export function PlacesGlobe() {
     playJumpSound();
   }, [playJumpSound]);
 
-  const triggerInteraction = useCallback(() => {
+  const startInteraction = useCallback(() => {
     if (nearbyPlaceId) {
       openPlaceGallery(nearbyPlaceId);
       return;
     }
 
+    ensureAudioContext();
     exploreInputRef.current = {
       ...exploreInputRef.current,
+      interacting: true,
       interactSequence: exploreInputRef.current.interactSequence + 1,
     };
-  }, [nearbyPlaceId, openPlaceGallery]);
+  }, [ensureAudioContext, nearbyPlaceId, openPlaceGallery]);
+
+  const stopInteraction = useCallback(() => {
+    exploreInputRef.current = {
+      ...exploreInputRef.current,
+      interacting: false,
+    };
+  }, []);
 
   useEffect(() => {
     if (!exploreMode) {
@@ -1297,6 +1322,7 @@ export function PlacesGlobe() {
         (normalizedKey === "f" || normalizedKey === "Escape")
       ) {
         event.preventDefault();
+        stopInteraction();
         setExpandedGallery(null);
         return;
       }
@@ -1320,17 +1346,35 @@ export function PlacesGlobe() {
 
       if (normalizedKey === "f") {
         event.preventDefault();
-        triggerInteraction();
+        startInteraction();
       }
     };
 
+    const handleActionKeyUp = (event: KeyboardEvent) => {
+      const normalizedKey =
+        event.key.length === 1 ? event.key.toLowerCase() : event.key;
+
+      if (normalizedKey !== "f") {
+        return;
+      }
+
+      event.preventDefault();
+      stopInteraction();
+    };
+
     window.addEventListener("keydown", handleActionKey);
-    return () => window.removeEventListener("keydown", handleActionKey);
+    window.addEventListener("keyup", handleActionKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleActionKey);
+      window.removeEventListener("keyup", handleActionKeyUp);
+      stopInteraction();
+    };
   }, [
     expandedGallery,
     exploreMode,
     showRelativePhoto,
-    triggerInteraction,
+    startInteraction,
+    stopInteraction,
     triggerJump,
   ]);
 
@@ -1396,6 +1440,7 @@ export function PlacesGlobe() {
                   onTraversalAudio={updateTraversalAudio}
                   onWaterStroke={playWaterStrokeSound}
                   onLoosePropImpact={playLoosePropImpactSound}
+                  onLoosePropSplash={playLoosePropSplashSound}
                   onVegetationBrush={playVegetationBrushSound}
                   skyPhase={celestialState.skyPhase}
                   solarDirection={celestialState.solarDirection}
@@ -1504,7 +1549,22 @@ export function PlacesGlobe() {
               className="explore-dpad-interact"
               aria-label="Interact or enter and exit the kayak"
               title="Interact"
-              onClick={triggerInteraction}
+              onPointerDown={(event) => {
+                event.currentTarget.setPointerCapture(event.pointerId);
+                startInteraction();
+              }}
+              onPointerUp={(event) => {
+                stopInteraction();
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+              }}
+              onPointerCancel={(event) => {
+                stopInteraction();
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+              }}
             >
               F
             </button>
