@@ -1,7 +1,11 @@
 import type { Route } from "./+types/home";
 import { CopyEmail } from "../components/CopyEmail";
+import { ExternalLink } from "../components/ExternalLink";
+import { PlacesGlobe } from "../components/PlacesGlobe";
 import { PoastPreview } from "../components/PoastPreview";
+import { ProjectPreview } from "../components/ProjectPreview";
 import { postPreviews } from "../data/postPreviews";
+import { projects } from "../data/projects";
 import { getSocialMeta } from "../data/siteMeta";
 
 export function meta({}: Route.MetaArgs) {
@@ -27,10 +31,32 @@ export default function Home() {
     <main className="page-shell">
       <div className="site-panel">
         <section className="home-hero" aria-labelledby="home-title">
-          <h1 id="home-title" className="hero-name">Jose Valerio</h1>
+          <h1 id="home-title" className="hero-name">
+            Jose Valerio
+          </h1>
+          <p className="hero-blurb">
+            I&apos;m a senior software engineer at{" "}
+            <ExternalLink href="https://stockx.com">StockX</ExternalLink>.
+            Sometimes I make things.
+          </p>
         </section>
 
-        {/* Future project entries can reuse this indexed section and row system. */}
+        <section
+          className="index-section"
+          id="projects"
+          aria-labelledby="projects-title"
+        >
+          <div className="section-heading">
+            <h2 id="projects-title">Projects</h2>
+          </div>
+
+          <div className="project-list">
+            {projects.map((project) => (
+              <ProjectPreview key={project.title} {...project} />
+            ))}
+          </div>
+        </section>
+
         <section
           className="index-section"
           id="writing"
@@ -46,6 +72,39 @@ export default function Home() {
             ))}
           </div>
         </section>
+
+        <section
+          className="index-section"
+          id="places"
+          aria-labelledby="places-title"
+        >
+          <div className="section-heading section-heading--places">
+            <h2 id="places-title">Places I&apos;ve Been</h2>
+          </div>
+
+          <PlacesGlobe />
+        </section>
+
+        {/*
+        <section
+          className="index-section"
+          id="reviews"
+          aria-labelledby="reviews-title"
+        >
+          <div className="section-heading">
+            <h2 id="reviews-title">Reviews</h2>
+          </div>
+
+          <div className="review-categories">
+            <section>
+              <h3>Restaurants</h3>
+            </section>
+            <section>
+              <h3>Wine</h3>
+            </section>
+          </div>
+        </section>
+        */}
 
         <footer className="site-footer">
           <CopyEmail compact />
