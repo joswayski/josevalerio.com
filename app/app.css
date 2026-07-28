@@ -364,10 +364,12 @@ button {
 }
 
 .places-explorer {
-  --space-top: #6f9db5;
-  --space-middle: #9fc0cd;
-  --space-bottom: #d8e3e4;
-  --space-glow: rgba(235, 247, 249, 0.38);
+  --space-top: #4f7d9b;
+  --space-middle: #8eb4c0;
+  --space-bottom: #d9e8e1;
+  --space-glow: rgba(236, 249, 244, 0.52);
+  --space-sun: rgba(255, 237, 191, 0.32);
+  --space-vignette: rgba(13, 35, 48, 0.2);
   --space-ui-muted: #293b46;
   min-width: 0;
   border-bottom: 1px solid var(--line-strong);
@@ -379,6 +381,8 @@ button {
   --space-middle: #50445e;
   --space-bottom: #b77d73;
   --space-glow: rgba(255, 190, 142, 0.24);
+  --space-sun: rgba(255, 174, 123, 0.3);
+  --space-vignette: rgba(11, 13, 33, 0.3);
   --space-ui-muted: #f0e4df;
 }
 
@@ -387,6 +391,8 @@ button {
   --space-middle: #10182c;
   --space-bottom: #222e46;
   --space-glow: rgba(99, 122, 170, 0.18);
+  --space-sun: rgba(123, 151, 211, 0.12);
+  --space-vignette: rgba(0, 3, 12, 0.46);
   --space-ui-muted: #d1d9e7;
 }
 
@@ -395,7 +401,13 @@ button {
   min-width: 0;
   min-height: clamp(32rem, 70vw, 42rem);
   overflow: hidden;
+  isolation: isolate;
   background:
+    radial-gradient(
+      circle at 78% 13%,
+      var(--space-sun) 0,
+      transparent 28%
+    ),
     radial-gradient(
       ellipse 85% 72% at 50% 100%,
       var(--space-glow) 0,
@@ -407,6 +419,23 @@ button {
       var(--space-middle) 58%,
       var(--space-bottom) 100%
     );
+}
+
+.globe-stage::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      transparent 62%,
+      rgba(2, 11, 20, 0.08) 100%
+    );
+  box-shadow:
+    inset 0 0 5rem var(--space-vignette),
+    inset 0 -2.5rem 4.5rem rgba(2, 12, 22, 0.12);
+  content: "";
+  pointer-events: none;
 }
 
 .places-explorer--explore .globe-stage {
@@ -421,6 +450,7 @@ button {
 }
 
 .places-scene-shell {
+  z-index: 0;
   touch-action: none;
 }
 
@@ -1234,6 +1264,11 @@ button {
 
   .places-explorer--explore .globe-stage {
     min-height: 70vh;
+  }
+
+  .globe-instructions {
+    justify-content: flex-start;
+    text-align: left;
   }
 
   .place-photo-projection {

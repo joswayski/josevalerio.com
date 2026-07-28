@@ -7,6 +7,8 @@ import {
   type ReactNode,
 } from "react";
 import {
+  AdditiveBlending,
+  BackSide,
   CanvasTexture,
   BufferGeometry,
   Color,
@@ -16,6 +18,7 @@ import {
   IcosahedronGeometry,
   LinearFilter,
   MathUtils,
+  Object3D,
   Quaternion,
   SRGBColorSpace,
   Shape,
@@ -25,6 +28,7 @@ import {
   type Sprite as ThreeSprite,
   type SpriteMaterial,
   type Group,
+  type InstancedMesh,
   type Mesh,
 } from "three";
 import {
@@ -33,6 +37,7 @@ import {
   OCEAN_FLOOR_RADIUS,
   OCEAN_SURFACE_RADIUS,
   PLACE_DIRECTIONS,
+  PLANET_MAX_SURFACE_RADIUS,
   PLANET_RADIUS,
   WATER_FEATURES,
   biomeForDirection,
@@ -72,6 +77,7 @@ type PlanetoidWorldProps = {
   exploreMode: boolean;
   reduceMotion: boolean;
   skyPhase: SkyPhase;
+  solarDirection: [number, number, number];
 };
 
 export type OceanSurfaceApi = {
@@ -115,6 +121,16 @@ type VegetationDefinition = {
     | "cypress"
     | "palm"
     | "pine";
+};
+
+type SurfaceDetailDefinition = {
+  id: string;
+  kind: "grass" | "rock";
+  position: Vector3;
+  orientation: Quaternion;
+  rotation: number;
+  scale: Vector3;
+  variant: number;
 };
 
 type LoosePropState = {
@@ -354,14 +370,15 @@ function HorizonOccludedGroup({
 function createTerrainChunkGeometry(biome: BiomeDefinition) {
   const positions: number[] = [];
   const colors: number[] = [];
+  const causticVisibility: number[] = [];
   const indices: number[] = [];
   const ground = new Color(biome.ground);
   const groundDark = new Color(biome.groundDark);
   const shore = new Color(biome.shore);
   const cliff = new Color(biome.cliff);
   const cliffDark = cliff.clone().multiplyScalar(0.62);
-  const seabed = new Color("#0b3049");
-  const highlight = new Color("#d2d38d");
+  const seabed = new Color("#155263");
+  const highlight = new Color("#c9ce83");
   biome.parts.forEach((part, partIndex) => {
     const vertexOffset = positions.length / 3;
 
@@ -467,6 +484,17 @@ function createTerrainChunkGeometry(biome: BiomeDefinition) {
 
         positions.push(position.x, position.y, position.z);
         colors.push(color.r, color.g, color.b);
+        causticVisibility.push(
+          isShelf
+            ? MathUtils.smoothstep(shelfProgress, 0.04, 0.2) *
+                (1 -
+                  MathUtils.smoothstep(
+                    shelfProgress,
+                    0.58,
+                    0.98,
+                  ))
+            : 0,
+        );
       }
     }
 
@@ -509,6 +537,10 @@ function createTerrainChunkGeometry(biome: BiomeDefinition) {
     "color",
     new Float32BufferAttribute(colors, 3),
   );
+  geometry.setAttribute(
+    "causticVisibility",
+    new Float32BufferAttribute(causticVisibility, 1),
+  );
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
@@ -516,10 +548,39 @@ function createTerrainChunkGeometry(biome: BiomeDefinition) {
   return geometry;
 }
 
-function TerrainChunk({ biome }: { biome: BiomeDefinition }) {
+function TerrainChunk({
+  biome,
+  reduceMotion,
+  skyPhase,
+  solarDirection,
+}: {
+  biome: BiomeDefinition;
+  reduceMotion: boolean;
+  skyPhase: SkyPhase;
+  solarDirection: [number, number, number];
+}) {
   const terrainGeometry = useMemo(
     () => createTerrainChunkGeometry(biome),
     [biome],
+  );
+  const causticUniforms = useMemo(
+    () => ({
+      time: { value: 0 },
+      motion: { value: reduceMotion ? 0.18 : 1 },
+      causticColor: {
+        value: new Color(
+          skyPhase === "night"
+            ? "#3c8295"
+            : skyPhase === "twilight"
+              ? "#d2d6af"
+              : "#bdebd7",
+        ),
+      },
+      sunDirection: {
+        value: new Vector3(...solarDirection).normalize(),
+      },
+    }),
+    [reduceMotion, skyPhase, solarDirection],
   );
 
   useEffect(
@@ -529,15 +590,119 @@ function TerrainChunk({ biome }: { biome: BiomeDefinition }) {
     [terrainGeometry],
   );
 
+  useFrame(({ clock }) => {
+    causticUniforms.time.value = clock.elapsedTime;
+    causticUniforms.motion.value = reduceMotion ? 0.18 : 1;
+    causticUniforms.sunDirection.value
+      .set(...solarDirection)
+      .normalize();
+  });
+
   return (
-    <mesh
-      geometry={terrainGeometry}
-      castShadow
-      receiveShadow
-      renderOrder={2}
-    >
-      <meshToonMaterial vertexColors />
-    </mesh>
+    <group>
+      <mesh
+        geometry={terrainGeometry}
+        castShadow
+        receiveShadow
+        renderOrder={2}
+      >
+        <meshStandardMaterial
+          vertexColors
+          flatShading
+          roughness={0.9}
+          metalness={0}
+        />
+      </mesh>
+      <mesh
+        geometry={terrainGeometry}
+        renderOrder={3}
+      >
+        <shaderMaterial
+          uniforms={causticUniforms}
+          vertexShader={`
+            attribute float causticVisibility;
+            varying float vCausticVisibility;
+            varying vec3 vWorldPosition;
+
+            void main() {
+              vec4 worldPosition =
+                modelMatrix * vec4(position, 1.0);
+
+              vCausticVisibility = causticVisibility;
+              vWorldPosition = worldPosition.xyz;
+              gl_Position =
+                projectionMatrix *
+                viewMatrix *
+                worldPosition;
+            }
+          `}
+          fragmentShader={`
+            uniform float time;
+            uniform float motion;
+            uniform vec3 causticColor;
+            uniform vec3 sunDirection;
+            varying float vCausticVisibility;
+            varying vec3 vWorldPosition;
+
+            void main() {
+              vec3 samplePosition = vWorldPosition * 5.2;
+              float phase = time * motion;
+              float fieldA =
+                sin(
+                  samplePosition.x +
+                  samplePosition.z * 0.82 +
+                  phase * 0.72
+                ) +
+                sin(
+                  samplePosition.y * 1.16 -
+                  samplePosition.x * 0.74 -
+                  phase * 0.51
+                );
+              float fieldB =
+                sin(
+                  samplePosition.z * 1.24 -
+                  samplePosition.y * 0.9 -
+                  phase * 0.61
+                ) +
+                sin(
+                  samplePosition.x * 0.68 +
+                  samplePosition.y * 1.06 +
+                  phase * 0.43
+                );
+              float ribbons = 1.0 - smoothstep(
+                0.08,
+                0.48,
+                abs(fieldA - fieldB)
+              );
+              ribbons = pow(ribbons, 2.4);
+              float daylight = 0.34 + 0.66 * max(
+                dot(
+                  normalize(vWorldPosition),
+                  normalize(sunDirection)
+                ),
+                0.0
+              );
+              float alpha =
+                vCausticVisibility *
+                ribbons *
+                daylight *
+                0.34;
+
+              if (alpha < 0.012) {
+                discard;
+              }
+
+              gl_FragColor = vec4(causticColor, alpha);
+            }
+          `}
+          transparent
+          depthWrite={false}
+          blending={AdditiveBlending}
+          polygonOffset
+          polygonOffsetFactor={-2}
+        />
+      </mesh>
+    </group>
   );
 }
 
@@ -720,35 +885,35 @@ function ambientOceanHeight(
 
   const swell =
     Math.sin(
-      direction.x * 9.5 +
-        direction.z * 4.8 +
-        elapsedTime * 0.52,
+      direction.x * 8.6 +
+        direction.z * 4.4 +
+        elapsedTime * 0.58,
     ) *
-      0.014 +
+      0.035 +
     Math.sin(
-      direction.y * 12.5 -
-        direction.x * 5.2 -
-        elapsedTime * 0.43,
+      direction.y * 11.2 -
+        direction.x * 5.4 -
+        elapsedTime * 0.46,
     ) *
-      0.01;
+      0.024;
   const crossingWave =
     Math.sin(
-      (direction.x + direction.y) * 20 +
-        elapsedTime * 0.78,
+      (direction.x + direction.y) * 18 +
+        elapsedTime * 0.74,
     ) *
-      0.005 +
+      0.012 +
     Math.sin(
-      (direction.z - direction.x) * 27 -
-        elapsedTime * 0.66,
+      (direction.z - direction.x) * 24 -
+        elapsedTime * 0.69,
     ) *
-      0.003;
+      0.008;
   const windRipple =
     Math.sin(
-      direction.x * 31 +
-        direction.z * 17 -
+      direction.x * 34 +
+        direction.z * 19 -
         direction.y * 8 +
-        elapsedTime * 1.05,
-    ) * 0.002;
+        elapsedTime * 1.12,
+    ) * 0.004;
 
   return (swell + crossingWave + windRipple) * openWater * motion;
 }
@@ -805,6 +970,7 @@ function OceanSurface({
   exploreMode,
   reduceMotion,
   skyPhase,
+  solarDirection,
 }: Omit<
   PlanetoidWorldProps,
   | "loosePropInteractionRef"
@@ -845,14 +1011,18 @@ function OceanSurface({
       deepColor: {
         value:
           skyPhase === "night"
-            ? new Color("#061a35")
-            : new Color("#0a3f73"),
+            ? new Color("#041a2e")
+            : skyPhase === "twilight"
+              ? new Color("#1b5968")
+              : new Color("#0b6879"),
       },
       shallowColor: {
         value:
           skyPhase === "night"
-            ? new Color("#174c73")
-            : new Color("#348fbe"),
+            ? new Color("#1d5c70")
+            : skyPhase === "twilight"
+              ? new Color("#4f8f91")
+              : new Color("#4bbdc2"),
       },
       foamColor: {
         value:
@@ -860,6 +1030,28 @@ function OceanSurface({
             ? new Color("#b5d4e2")
             : new Color("#edf8ff"),
       },
+      horizonColor: {
+        value: new Color(
+          skyPhase === "night"
+            ? "#31435f"
+            : skyPhase === "twilight"
+              ? "#b97f73"
+              : "#8fb8bc",
+        ),
+      },
+      zenithColor: {
+        value: new Color(
+          skyPhase === "night"
+            ? "#071127"
+            : skyPhase === "twilight"
+              ? "#41465f"
+              : "#4f85a7",
+        ),
+      },
+      sunDirection: {
+        value: new Vector3(...solarDirection).normalize(),
+      },
+      time: { value: 0 },
       floorRadius: {
         value: OCEAN_FLOOR_RADIUS + 0.025,
       },
@@ -867,7 +1059,7 @@ function OceanSurface({
         value: OCEAN_SURFACE_RADIUS,
       },
     }),
-    [skyPhase],
+    [skyPhase, solarDirection],
   );
   const wakeDirectionRef = useRef(new Vector3());
   const wakeSideRef = useRef(new Vector3());
@@ -1058,6 +1250,10 @@ function OceanSurface({
     );
     simulation.elapsedTime = clock.elapsedTime;
     simulation.disturbanceAccumulator += frameDelta;
+    uniforms.time.value = clock.elapsedTime;
+    uniforms.sunDirection.value
+      .set(...solarDirection)
+      .normalize();
 
     if (
       oceanTravel &&
@@ -1211,9 +1407,35 @@ function OceanSurface({
         simulation.heights[vertex] * openWater;
       const ambientCrest = MathUtils.smoothstep(
         ambientHeight,
-        0.016,
-        0.052,
+        0.045,
+        0.09,
       );
+      const chopAmount =
+        reduceMotion
+          ? 0
+          : (Math.cos(
+                directionX * 8.6 +
+                  directionZ * 4.4 +
+                  simulation.elapsedTime * 0.58,
+              ) *
+                0.026 +
+              Math.cos(
+                (directionX + directionY) * 18 +
+                  simulation.elapsedTime * 0.74,
+              ) *
+                0.014) *
+            openWater;
+      const chopTangent = wakeSideRef.current.set(
+        directionZ,
+        0,
+        -directionX,
+      );
+
+      if (chopTangent.lengthSq() < 0.0001) {
+        chopTangent.set(1, 0, 0);
+      } else {
+        chopTangent.normalize();
+      }
       const radius =
         OCEAN_SURFACE_RADIUS +
         MathUtils.clamp(
@@ -1222,13 +1444,16 @@ function OceanSurface({
           0.2,
         );
 
-      positionArray[offset] = directionX * radius;
-      positionArray[offset + 1] = directionY * radius;
-      positionArray[offset + 2] = directionZ * radius;
+      positionArray[offset] =
+        directionX * radius + chopTangent.x * chopAmount;
+      positionArray[offset + 1] =
+        directionY * radius + chopTangent.y * chopAmount;
+      positionArray[offset + 2] =
+        directionZ * radius + chopTangent.z * chopAmount;
       energyArray[vertex] = MathUtils.clamp(
         Math.abs(simulatedHeight) * 5.2 +
           Math.abs(simulation.velocities[vertex]) * 0.2 +
-          ambientCrest * 0.82,
+          ambientCrest * 0.5,
         0,
         1,
       );
@@ -1269,6 +1494,10 @@ function OceanSurface({
             uniform vec3 deepColor;
             uniform vec3 shallowColor;
             uniform vec3 foamColor;
+            uniform vec3 horizonColor;
+            uniform vec3 zenithColor;
+            uniform vec3 sunDirection;
+            uniform float time;
             uniform float floorRadius;
             uniform float surfaceRadius;
             varying vec3 vWorldPosition;
@@ -1289,17 +1518,24 @@ function OceanSurface({
               vec3 viewDirection = normalize(
                 cameraPosition - vWorldPosition
               );
-              float viewAlignment = abs(
-                dot(normal, viewDirection)
+              float viewAlignment = clamp(
+                dot(normal, viewDirection),
+                0.0,
+                1.0
               );
-              float fresnel = pow(
+              float fresnel = 0.035 + 0.965 * pow(
                 1.0 - viewAlignment,
-                2.25
+                5.0
               );
-              vec3 lightDirection = normalize(
-                vec3(-0.45, 0.82, 0.34)
+              vec3 lightDirection = normalize(sunDirection);
+              float directLight = max(
+                dot(normal, lightDirection),
+                0.0
               );
-              float glint = pow(
+              float toonLight = floor(
+                (0.34 + directLight * 0.66) * 5.0
+              ) / 5.0;
+              float sharpGlint = pow(
                 max(
                   dot(
                     reflect(-lightDirection, normal),
@@ -1307,9 +1543,56 @@ function OceanSurface({
                   ),
                   0.0
                 ),
-                38.0
+                72.0
               );
-              float crest = smoothstep(0.5, 0.9, vWave);
+              float broadGlint = pow(
+                max(
+                  dot(
+                    reflect(-lightDirection, normal),
+                    viewDirection
+                  ),
+                  0.0
+                ),
+                13.0
+              );
+              vec3 reflectedDirection = reflect(
+                -viewDirection,
+                normal
+              );
+              float reflectedHeight = clamp(
+                dot(
+                  reflectedDirection,
+                  normalize(vWorldPosition)
+                ),
+                0.0,
+                1.0
+              );
+              vec3 skyReflection = mix(
+                horizonColor,
+                zenithColor,
+                pow(reflectedHeight, 0.55)
+              );
+              float surfaceNoise =
+                sin(
+                  dot(vWorldPosition, vec3(5.7, 3.1, 4.3)) +
+                  time * 0.86
+                ) *
+                  0.5 +
+                sin(
+                  dot(vWorldPosition, vec3(-8.2, 4.6, 5.1)) -
+                  time * 0.63
+                ) *
+                  0.32 +
+                sin(
+                  dot(vWorldPosition, vec3(12.7, 7.3, -6.4)) +
+                  time * 1.12
+                ) *
+                  0.18;
+              float crest = smoothstep(
+                0.7,
+                0.96,
+                vWave + surfaceNoise * 0.045
+              );
               float waveShoulder = smoothstep(
                 0.14,
                 0.72,
@@ -1319,6 +1602,21 @@ function OceanSurface({
                 clamp(1.0 - vShoreProximity, 0.0, 1.0),
                 0.72
               );
+              float shoreBand = smoothstep(
+                0.68,
+                0.97,
+                vShoreProximity
+              );
+              float shoreBreakup = smoothstep(
+                -0.22,
+                0.58,
+                surfaceNoise
+              );
+              float shorelineFoam =
+                shoreBand *
+                shoreBreakup *
+                (0.12 + crest * 0.68) *
+                (1.0 - deepWater);
               vec3 volumeRay = normalize(
                 vWorldPosition - cameraPosition
               );
@@ -1360,8 +1658,8 @@ function OceanSurface({
                 4.5
               );
               float absorption = mix(
-                2.1,
-                4.35,
+                1.65,
+                3.9,
                 deepWater
               );
               float transmission = exp(
@@ -1379,37 +1677,56 @@ function OceanSurface({
               vec3 water = mix(
                 shallowColor,
                 deepColor,
-                deepWater * 0.94
+                deepWater * 0.92
+              );
+              water *= 0.78 + toonLight * 0.34;
+              water = mix(
+                water,
+                deepColor * 0.82,
+                volumeDensity * (0.18 + deepWater * 0.48)
               );
               water = mix(
                 water,
-                shallowColor * 1.1 + vec3(0.015, 0.025, 0.055),
-                fresnel * 0.28 + waveShoulder * 0.12
+                shallowColor * 0.88 + foamColor * 0.07,
+                (1.0 - transmission) *
+                  (1.0 - deepWater) *
+                  0.2
               );
-              water += glint * vec3(0.68, 0.9, 1.0);
+              water = mix(
+                water,
+                skyReflection,
+                fresnel * (0.4 + deepWater * 0.18)
+              );
+              water +=
+                broadGlint *
+                vec3(0.12, 0.2, 0.24) *
+                (0.34 + directLight);
+              water +=
+                sharpGlint *
+                vec3(0.88, 0.96, 1.0) *
+                0.62;
+              float foam = clamp(
+                max(
+                  crest * (0.72 + fresnel * 0.2),
+                  shorelineFoam * 0.78
+                ) +
+                  waveShoulder * shoreBand * 0.08,
+                0.0,
+                1.0
+              );
               water = mix(
                 water,
                 foamColor,
-                crest * (0.18 + fresnel * 0.16)
-              );
-              water = mix(
-                water,
-                deepColor * 0.68,
-                volumeDensity * (0.28 + deepWater * 0.56)
-              );
-              water = mix(
-                water,
-                shallowColor * 0.72 + foamColor * 0.08,
-                (1.0 - transmission) *
-                  (1.0 - deepWater) *
-                  0.22
+                foam
               );
 
               float opacity = clamp(
-                mix(0.28, 0.985, volumeOpacity) +
-                crest * 0.045,
-                0.0,
-                1.0
+                mix(0.62, 0.975, deepWater) +
+                  volumeOpacity * 0.12 +
+                  fresnel * 0.16 +
+                  foam * 0.12,
+                0.58,
+                0.995
               );
 
               gl_FragColor = vec4(water, opacity);
@@ -2557,6 +2874,203 @@ function VegetationField({
           )}
         </group>
       ))}
+    </group>
+  );
+}
+
+function createSurfaceDetails() {
+  return BIOMES.flatMap((biome) => {
+    const random = createSeededRandom(biome.seed * 307);
+    const details: SurfaceDetailDefinition[] = [];
+    const grassCount =
+      biome.id === "united-states"
+        ? 92
+        : biome.id === "turkiye"
+          ? 58
+          : biome.id === "japan"
+            ? 48
+            : biome.id === "south-korea"
+              ? 38
+              : 32;
+    const rockCount =
+      biome.id === "united-states" ? 18 : 11;
+    const count = grassCount + rockCount;
+
+    for (let index = 0; index < count; index += 1) {
+      const kind: SurfaceDetailDefinition["kind"] =
+        index < grassCount ? "grass" : "rock";
+      let direction: Vector3 | null = null;
+
+      for (let attempt = 0; attempt < 24; attempt += 1) {
+        const candidate = directionFromOffset(
+          biome.center,
+          (random() - 0.5) * biome.angularRadius * 1.78,
+          (random() - 0.5) * biome.angularRadius * 1.78,
+        );
+        const clearOfDestination = Array.from(
+          PLACE_DIRECTIONS.values(),
+        ).every(
+          (placeDirection) =>
+            angularDistance(candidate, placeDirection) >
+            (kind === "rock" ? 0.055 : 0.042),
+        );
+
+        if (
+          biomeForDirection(candidate)?.id === biome.id &&
+          !isWaterDirection(candidate) &&
+          clearOfDestination
+        ) {
+          direction = candidate;
+          break;
+        }
+      }
+
+      if (!direction) {
+        continue;
+      }
+
+      const size =
+        kind === "grass"
+          ? 0.6 + random() * 0.72
+          : 0.58 + random() * 1.08;
+      const lift =
+        kind === "grass" ? 0.055 * size : 0.035 * size;
+
+      details.push({
+        id: `${biome.id}-${kind}-${index}`,
+        kind,
+        position: direction
+          .clone()
+          .multiplyScalar(surfaceRadiusAt(direction) + lift),
+        orientation: new Quaternion().setFromUnitVectors(
+          UP,
+          direction,
+        ),
+        rotation: random() * Math.PI * 2,
+        scale:
+          kind === "grass"
+            ? new Vector3(
+                size * (0.58 + random() * 0.28),
+                size,
+                size * (0.7 + random() * 0.34),
+              )
+            : new Vector3(
+                size * (0.7 + random() * 0.42),
+                size * (0.46 + random() * 0.36),
+                size * (0.72 + random() * 0.44),
+              ),
+        variant: Math.floor(random() * 3),
+      });
+    }
+
+    return details;
+  });
+}
+
+function SurfaceDetailField() {
+  const details = useMemo(createSurfaceDetails, []);
+  const grassDark = useMemo(
+    () =>
+      details.filter(
+        (detail) =>
+          detail.kind === "grass" && detail.variant % 2 === 0,
+      ),
+    [details],
+  );
+  const grassLight = useMemo(
+    () =>
+      details.filter(
+        (detail) =>
+          detail.kind === "grass" && detail.variant % 2 === 1,
+      ),
+    [details],
+  );
+  const rocks = useMemo(
+    () => details.filter((detail) => detail.kind === "rock"),
+    [details],
+  );
+  const grassDarkRef = useRef<InstancedMesh | null>(null);
+  const grassLightRef = useRef<InstancedMesh | null>(null);
+  const rocksRef = useRef<InstancedMesh | null>(null);
+
+  useEffect(() => {
+    const transform = new Object3D();
+    const rotation = new Quaternion();
+
+    const applyInstances = (
+      mesh: InstancedMesh | null,
+      instances: SurfaceDetailDefinition[],
+    ) => {
+      if (!mesh) {
+        return;
+      }
+
+      instances.forEach((detail, index) => {
+        transform.position.copy(detail.position);
+        transform.quaternion
+          .copy(detail.orientation)
+          .multiply(
+            rotation.setFromAxisAngle(UP, detail.rotation),
+          );
+        transform.scale.copy(detail.scale);
+        transform.updateMatrix();
+        mesh.setMatrixAt(index, transform.matrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+    };
+
+    applyInstances(grassDarkRef.current, grassDark);
+    applyInstances(grassLightRef.current, grassLight);
+    applyInstances(rocksRef.current, rocks);
+  }, [grassDark, grassLight, rocks]);
+
+  return (
+    <group>
+      <instancedMesh
+        ref={grassDarkRef}
+        args={[undefined, undefined, grassDark.length]}
+        castShadow
+        receiveShadow
+        frustumCulled={false}
+      >
+        <coneGeometry args={[0.032, 0.13, 4]} />
+        <meshStandardMaterial
+          color="#5b8554"
+          roughness={0.96}
+          metalness={0}
+          flatShading
+        />
+      </instancedMesh>
+      <instancedMesh
+        ref={grassLightRef}
+        args={[undefined, undefined, grassLight.length]}
+        castShadow
+        receiveShadow
+        frustumCulled={false}
+      >
+        <coneGeometry args={[0.028, 0.115, 4]} />
+        <meshStandardMaterial
+          color="#7fa263"
+          roughness={0.96}
+          metalness={0}
+          flatShading
+        />
+      </instancedMesh>
+      <instancedMesh
+        ref={rocksRef}
+        args={[undefined, undefined, rocks.length]}
+        castShadow
+        receiveShadow
+        frustumCulled={false}
+      >
+        <dodecahedronGeometry args={[0.072, 0]} />
+        <meshStandardMaterial
+          color="#888377"
+          roughness={0.98}
+          metalness={0}
+          flatShading
+        />
+      </instancedMesh>
     </group>
   );
 }
@@ -3962,6 +4476,112 @@ function LandmarkTerrain() {
   );
 }
 
+function AtmosphereShell({
+  skyPhase,
+  solarDirection,
+}: {
+  skyPhase: SkyPhase;
+  solarDirection: [number, number, number];
+}) {
+  const geometry = useMemo(
+    () =>
+      new SphereGeometry(
+        PLANET_MAX_SURFACE_RADIUS + 0.48,
+        64,
+        36,
+      ),
+    [],
+  );
+  const uniforms = useMemo(
+    () => ({
+      atmosphereColor: {
+        value: new Color(
+          skyPhase === "night"
+            ? "#5f82b2"
+            : skyPhase === "twilight"
+              ? "#f0a57f"
+              : "#bfe8e8",
+        ),
+      },
+      sunDirection: {
+        value: new Vector3(...solarDirection).normalize(),
+      },
+    }),
+    [skyPhase, solarDirection],
+  );
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  return (
+    <mesh geometry={geometry} renderOrder={0}>
+      <shaderMaterial
+        uniforms={uniforms}
+        vertexShader={`
+          varying vec3 vWorldNormal;
+          varying vec3 vWorldPosition;
+
+          void main() {
+            vec4 worldPosition =
+              modelMatrix * vec4(position, 1.0);
+
+            vWorldPosition = worldPosition.xyz;
+            vWorldNormal = normalize(
+              mat3(modelMatrix) * normal
+            );
+            gl_Position =
+              projectionMatrix *
+              viewMatrix *
+              worldPosition;
+          }
+        `}
+        fragmentShader={`
+          uniform vec3 atmosphereColor;
+          uniform vec3 sunDirection;
+          varying vec3 vWorldNormal;
+          varying vec3 vWorldPosition;
+
+          void main() {
+            vec3 viewDirection = normalize(
+              cameraPosition - vWorldPosition
+            );
+            float rim = pow(
+              1.0 - abs(
+                dot(
+                  normalize(vWorldNormal),
+                  viewDirection
+                )
+              ),
+              2.7
+            );
+            float sunlight = 0.32 + 0.68 * smoothstep(
+              -0.28,
+              0.62,
+              dot(
+                normalize(vWorldNormal),
+                normalize(sunDirection)
+              )
+            );
+            float alpha = rim * sunlight * 0.2;
+
+            if (alpha < 0.004) {
+              discard;
+            }
+
+            gl_FragColor = vec4(
+              atmosphereColor,
+              alpha
+            );
+          }
+        `}
+        transparent
+        depthWrite={false}
+        side={BackSide}
+        blending={AdditiveBlending}
+      />
+    </mesh>
+  );
+}
+
 function BasePlanetoid({ skyPhase }: { skyPhase: SkyPhase }) {
   const geometry = useMemo(() => {
     const nextGeometry = new IcosahedronGeometry(
@@ -3977,7 +4597,7 @@ function BasePlanetoid({ skyPhase }: { skyPhase: SkyPhase }) {
   return (
     <mesh geometry={geometry} castShadow receiveShadow>
       <meshStandardMaterial
-        color={skyPhase === "night" ? "#020b19" : "#06233d"}
+        color={skyPhase === "night" ? "#020b19" : "#073247"}
         roughness={1}
         metalness={0}
         flatShading
@@ -4006,7 +4626,7 @@ function OceanBody({ skyPhase }: { skyPhase: SkyPhase }) {
       renderOrder={-1}
     >
       <meshStandardMaterial
-        color={skyPhase === "night" ? "#021022" : "#062943"}
+        color={skyPhase === "night" ? "#031328" : "#0b5263"}
         roughness={1}
         metalness={0}
         flatShading
@@ -4898,9 +5518,14 @@ export function PlanetoidWorld({
   exploreMode,
   reduceMotion,
   skyPhase,
+  solarDirection,
 }: PlanetoidWorldProps) {
   return (
     <group>
+      <AtmosphereShell
+        skyPhase={skyPhase}
+        solarDirection={solarDirection}
+      />
       <BasePlanetoid skyPhase={skyPhase} />
       <OceanBody skyPhase={skyPhase} />
       <OceanSurface
@@ -4912,6 +5537,7 @@ export function PlanetoidWorld({
         exploreMode={exploreMode}
         reduceMotion={reduceMotion}
         skyPhase={skyPhase}
+        solarDirection={solarDirection}
       />
       <OceanLife
         reduceMotion={reduceMotion}
@@ -4930,7 +5556,12 @@ export function PlanetoidWorld({
 
       {BIOMES.map((biome) => (
         <group key={biome.id}>
-          <TerrainChunk biome={biome} />
+          <TerrainChunk
+            biome={biome}
+            reduceMotion={reduceMotion}
+            skyPhase={skyPhase}
+            solarDirection={solarDirection}
+          />
           <BiomePaths biome={biome} />
           <CoastlineFoam
             biome={biome}
@@ -4959,6 +5590,7 @@ export function PlanetoidWorld({
       ))}
 
       <LandmarkTerrain />
+      <SurfaceDetailField />
       <VegetationField
         travelerDirectionRef={travelerDirectionRef}
         movementVelocityRef={movementVelocityRef}

@@ -21,6 +21,7 @@ import {
   type RefObject,
 } from "react";
 import {
+  ACESFilmicToneMapping,
   BackSide,
   BufferGeometry,
   Color,
@@ -29,8 +30,11 @@ import {
   Float32BufferAttribute,
   MathUtils,
   Object3D,
+  PCFShadowMap,
   Quaternion,
+  SRGBColorSpace,
   Vector3,
+  type DirectionalLight,
   type Group,
   type InstancedBufferAttribute,
   type InstancedMesh,
@@ -126,15 +130,15 @@ const BROWSE_CAMERA_POSITION = new Vector3(
   0.45 * WORLD_SCALE,
   18.8 * WORLD_SCALE,
 );
-const CLOSE_CAMERA_HEIGHT = 9.4 * WORLD_SCALE;
-const CLOSE_CAMERA_TRAIL = 4.2 * WORLD_SCALE;
-const CLOSE_TARGET_HEIGHT = 5 * WORLD_SCALE;
-const CLOSE_TARGET_LEAD = 2.6 * WORLD_SCALE;
+const CLOSE_CAMERA_HEIGHT = 8.15 * WORLD_SCALE;
+const CLOSE_CAMERA_TRAIL = 3.55 * WORLD_SCALE;
+const CLOSE_TARGET_HEIGHT = 5.72 * WORLD_SCALE;
+const CLOSE_TARGET_LEAD = 2.95 * WORLD_SCALE;
 const OVERVIEW_CAMERA_HEIGHT = 21 * WORLD_SCALE;
 const OVERVIEW_CAMERA_TRAIL = 6 * WORLD_SCALE;
 const OVERVIEW_TARGET_HEIGHT = 0.5 * WORLD_SCALE;
 const OVERVIEW_TARGET_LEAD = 3 * WORLD_SCALE;
-const DEFAULT_CAMERA_DISTANCE = 0.3;
+const DEFAULT_CAMERA_DISTANCE = 0.1;
 const CAMERA_DISTANCE_RATE = 0.75;
 const CAMERA_ORBIT_SPEED = 0.85;
 const CAMERA_ORBIT_RESPONSE = 2.1;
@@ -240,10 +244,10 @@ type CloudPuff = {
   phase: number;
 };
 
-const CLOUD_INTERACTION_RADIUS = 1.75;
+const CLOUD_INTERACTION_RADIUS = 1.35;
 
 function createSessionCloudDefinitions(): CloudDefinition[] {
-  const cloudCount = 7 + Math.floor(Math.random() * 3);
+  const cloudCount = 5 + Math.floor(Math.random() * 3);
 
   return Array.from({ length: cloudCount }, (_, index) => {
     const roll = Math.random();
@@ -259,16 +263,16 @@ function createSessionCloudDefinitions(): CloudDefinition[] {
               : "cumulus";
     const width =
       kind === "stratus"
-        ? 3.8 + Math.random() * 1.8
+        ? 2.65 + Math.random() * 1.05
         : kind === "storm"
-          ? 2.8 + Math.random() * 1.25
-          : 1.6 + Math.random() * 1.15;
+          ? 2.05 + Math.random() * 0.85
+          : 1.2 + Math.random() * 0.78;
     const puffCount =
       kind === "stratus"
-        ? 88 + Math.floor(Math.random() * 26)
+        ? 52 + Math.floor(Math.random() * 18)
         : kind === "storm"
-          ? 82 + Math.floor(Math.random() * 28)
-          : 54 + Math.floor(Math.random() * 28);
+          ? 48 + Math.floor(Math.random() * 18)
+          : 34 + Math.floor(Math.random() * 18);
     const altitude =
       kind === "cumulus"
         ? 1 + Math.random() * 0.42
@@ -678,7 +682,7 @@ function createCloudPuffs(definition: CloudDefinition) {
       radialOffset =
         definition.altitude +
         (random() + random() - 1) * definition.width * 0.04;
-      radius = 0.22 + random() * 0.18;
+      radius = 0.15 + random() * 0.12;
     } else {
       const horizontalAngle = random() * Math.PI * 2;
       const horizontalDistribution = isCore
@@ -711,11 +715,11 @@ function createCloudPuffs(definition: CloudDefinition) {
       radius =
         definition.kind === "storm"
           ? isCore
-            ? 0.3 + random() * 0.22
-            : 0.2 + random() * 0.2
+            ? 0.22 + random() * 0.16
+            : 0.14 + random() * 0.14
           : isCore
-            ? 0.25 + random() * 0.2
-            : 0.14 + random() * 0.17;
+            ? 0.18 + random() * 0.15
+            : 0.1 + random() * 0.12;
     }
 
     const basePosition = centerDirection
@@ -771,15 +775,15 @@ function createCloudPuffs(definition: CloudDefinition) {
     const opacity =
       definition.kind === "storm"
         ? isCore
-          ? 0.42 + random() * 0.16
-          : 0.24 + random() * 0.15
+          ? 0.72 + random() * 0.16
+          : 0.46 + random() * 0.17
         : definition.kind === "stratus"
           ? isCore
-            ? 0.28 + random() * 0.12
-            : 0.14 + random() * 0.11
+            ? 0.64 + random() * 0.14
+            : 0.38 + random() * 0.16
           : isCore
-            ? 0.36 + random() * 0.16
-            : 0.16 + random() * 0.14;
+            ? 0.74 + random() * 0.16
+            : 0.44 + random() * 0.18;
 
     puffs.push({
       basePosition,
@@ -1128,8 +1132,8 @@ function CloudCluster({
               normalize(vViewDirection)
             ));
             float edge = pow(
-              smoothstep(0.025, 0.68, facing),
-              0.48
+              smoothstep(0.04, 0.62, facing),
+              0.34
             );
             float erosion = mix(
               0.82,
@@ -1138,7 +1142,7 @@ function CloudCluster({
             );
             float density = edge * erosion;
 
-            if (density < 0.055) {
+            if (density < 0.12) {
               discard;
             }
 
@@ -1164,14 +1168,22 @@ function CloudCluster({
             vec3 shadedColor =
               cloudColor * light * mix(0.94, 1.06, density);
 
-            gl_FragColor = vec4(
-              shadedColor,
-              min(vOpacity * density, 0.94)
+            float alpha = min(
+              vOpacity *
+                smoothstep(0.1, 0.72, density) *
+                1.16,
+              0.98
             );
+
+            if (alpha < 0.045) {
+              discard;
+            }
+
+            gl_FragColor = vec4(shadedColor, alpha);
           }
         `}
           transparent
-          depthWrite={false}
+          depthWrite
           side={DoubleSide}
         />
       </instancedMesh>
@@ -4657,6 +4669,7 @@ function PlanetExperience({
           exploreMode={exploreMode}
           reduceMotion={reduceMotion}
           skyPhase={skyPhase}
+          solarDirection={solarDirection}
         />
 
         {places.map((place) => (
@@ -4725,6 +4738,34 @@ function PlanetExperience({
   );
 }
 
+function CameraFillLight({ skyPhase }: { skyPhase: SkyPhase }) {
+  const lightRef = useRef<DirectionalLight>(null);
+
+  useFrame(({ camera }) => {
+    if (!lightRef.current) {
+      return;
+    }
+
+    lightRef.current.position
+      .copy(camera.position)
+      .multiplyScalar(0.82);
+  });
+
+  return (
+    <directionalLight
+      ref={lightRef}
+      intensity={skyPhase === "night" ? 0.42 : 0.68}
+      color={
+        skyPhase === "night"
+          ? "#9bbde3"
+          : skyPhase === "twilight"
+            ? "#ffd1ac"
+            : "#d9edf0"
+      }
+    />
+  );
+}
+
 export function PlacesScene(props: PlacesSceneProps) {
   const sunlightPosition = useMemo(
     () =>
@@ -4749,15 +4790,21 @@ export function PlacesScene(props: PlacesSceneProps) {
         near: 0.05,
         far: 120,
       }}
-      dpr={[1, 1.5]}
+      dpr={[1, 1.75]}
       gl={{
         alpha: true,
         antialias: true,
         powerPreference: "high-performance",
       }}
-      shadows="soft"
+      shadows="percentage"
       onCreated={({ gl }) => {
         gl.setClearColor(new Color("#000000"), 0);
+        gl.outputColorSpace = SRGBColorSpace;
+        gl.toneMapping = ACESFilmicToneMapping;
+        gl.toneMappingExposure =
+          props.skyPhase === "night" ? 0.92 : 1.08;
+        gl.shadowMap.enabled = true;
+        gl.shadowMap.type = PCFShadowMap;
         gl.domElement.style.cursor = props.exploreMode ? "none" : "grab";
         gl.domElement.style.touchAction = "none";
       }}
@@ -4766,11 +4813,24 @@ export function PlacesScene(props: PlacesSceneProps) {
         skyPhase={props.skyPhase}
         reduceMotion={props.reduceMotion}
       />
-      <ambientLight intensity={0.95} />
-      <hemisphereLight args={["#fff7eb", "#263c4f", 0.95]} />
+      <ambientLight intensity={props.skyPhase === "night" ? 0.2 : 0.28} />
+      <hemisphereLight
+        args={[
+          props.skyPhase === "night" ? "#7895be" : "#fff3dc",
+          props.skyPhase === "night" ? "#07101f" : "#1c3b48",
+          props.skyPhase === "night" ? 0.62 : 0.86,
+        ]}
+      />
       <directionalLight
         position={sunlightPosition}
-        intensity={3.1}
+        intensity={props.skyPhase === "night" ? 1.1 : 3.35}
+        color={
+          props.skyPhase === "night"
+            ? "#7999c2"
+            : props.skyPhase === "twilight"
+              ? "#ffd0a5"
+              : "#fff0d2"
+        }
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
@@ -4778,11 +4838,16 @@ export function PlacesScene(props: PlacesSceneProps) {
         shadow-camera-right={10 * WORLD_SCALE}
         shadow-camera-top={10 * WORLD_SCALE}
         shadow-camera-bottom={-10 * WORLD_SCALE}
+        shadow-camera-near={0.5}
+        shadow-camera-far={80}
+        shadow-bias={-0.00008}
+        shadow-normalBias={0.035}
       />
+      <CameraFillLight skyPhase={props.skyPhase} />
       <directionalLight
         position={[-5, -2, 3]}
-        intensity={0.28}
-        color="#b9d5d0"
+        intensity={props.skyPhase === "night" ? 0.36 : 0.22}
+        color={props.skyPhase === "night" ? "#6f8ec4" : "#91c4c1"}
       />
       <PlanetExperience {...props} />
     </Canvas>
