@@ -15,7 +15,6 @@ import {
   DoubleSide,
   DynamicDrawUsage,
   Float32BufferAttribute,
-  IcosahedronGeometry,
   LinearFilter,
   MathUtils,
   Object3D,
@@ -55,6 +54,10 @@ import {
   type BiomeKind,
   type WaterFeature,
 } from "../data/planetoid";
+import {
+  BlenderAsset,
+  type PlacesAssetName,
+} from "./BlenderAsset";
 
 type SkyPhase = "day" | "twilight" | "night";
 
@@ -184,9 +187,9 @@ type BirdDefinition = {
 const UP = new Vector3(0, 1, 0);
 const TERRAIN_SEGMENTS = 144;
 const TERRAIN_RINGS = 56;
-const TERRAIN_SHELF_RINGS = 18;
+const TERRAIN_SHELF_RINGS = 14;
 const TERRAIN_TOTAL_RINGS = TERRAIN_RINGS + TERRAIN_SHELF_RINGS;
-const TERRAIN_SHELF_EXTENT = 0.28;
+const TERRAIN_SHELF_EXTENT = 0.14;
 const TREE_INTERACTION_ANGLE = 0.052;
 const BUSH_INTERACTION_ANGLE = 0.088;
 const FISH_SCURRY_ENTER_ANGLE = 0.115;
@@ -686,7 +689,7 @@ function TerrainChunk({
                 vCausticVisibility *
                 ribbons *
                 daylight *
-                0.34;
+                0.11;
 
               if (alpha < 0.012) {
                 discard;
@@ -918,6 +921,36 @@ function ambientOceanHeight(
   return (swell + crossingWave + windRipple) * openWater * motion;
 }
 
+function shorelineOceanHeight(
+  direction: Vector3,
+  elapsedTime: number,
+  motion: number,
+  shoreProximity: number,
+) {
+  if (motion === 0 || shoreProximity < 0.08) {
+    return 0;
+  }
+
+  const shoreMask = MathUtils.smoothstep(shoreProximity, 0.08, 0.88);
+  const advancingWave = Math.sin(
+    elapsedTime * 1.22 -
+      shoreProximity * 13.5 +
+      direction.x * 5.3 +
+      direction.z * 3.7,
+  );
+  const secondaryWave = Math.sin(
+    elapsedTime * 0.72 -
+      shoreProximity * 8.2 -
+      direction.y * 4.1,
+  );
+
+  return (
+    (advancingWave * 0.014 + secondaryWave * 0.006) *
+    shoreMask *
+    motion
+  );
+}
+
 function createOceanSurfaceGeometry() {
   const geometry = new SphereGeometry(
     OCEAN_SURFACE_RADIUS,
@@ -1094,17 +1127,24 @@ function OceanSurface({
 
   const sampleRadius = (direction: Vector3) => {
     const normalized = direction.clone().normalize();
+    const shoreProximity = oceanShoreProximityAt(normalized);
     const openWater = MathUtils.lerp(
       1,
       0.1,
-      oceanShoreProximityAt(normalized),
+      shoreProximity,
     );
     const ambientHeight = ambientOceanHeight(
       normalized,
       simulation.elapsedTime,
       reduceMotion ? 0 : 1,
       openWater,
-    );
+    ) +
+      shorelineOceanHeight(
+        normalized,
+        simulation.elapsedTime,
+        reduceMotion ? 0 : 1,
+        shoreProximity,
+      );
     const simulatedHeight =
       sampleDynamicHeight(normalized) * openWater;
 
@@ -1392,17 +1432,25 @@ function OceanSurface({
         directionY,
         directionZ,
       );
+      const shoreProximity = shoreAttribute.getX(vertex);
       const openWater = MathUtils.lerp(
         1,
         0.1,
-        shoreAttribute.getX(vertex),
+        shoreProximity,
       );
-      const ambientHeight = ambientOceanHeight(
-        direction,
-        simulation.elapsedTime,
-        reduceMotion ? 0 : 1,
-        openWater,
-      );
+      const ambientHeight =
+        ambientOceanHeight(
+          direction,
+          simulation.elapsedTime,
+          reduceMotion ? 0 : 1,
+          openWater,
+        ) +
+        shorelineOceanHeight(
+          direction,
+          simulation.elapsedTime,
+          reduceMotion ? 0 : 1,
+          shoreProximity,
+        );
       const simulatedHeight =
         simulation.heights[vertex] * openWater;
       const ambientCrest = MathUtils.smoothstep(
@@ -1461,6 +1509,8 @@ function OceanSurface({
 
     positionAttribute.needsUpdate = true;
     energyAttribute.needsUpdate = true;
+    geometry.computeVertexNormals();
+    geometry.getAttribute("normal").needsUpdate = true;
   });
 
   return (
@@ -1485,7 +1535,7 @@ function OceanSurface({
               vShoreProximity = shoreProximity;
               vWorldPosition = worldPosition.xyz;
               vWorldNormal = normalize(
-                mat3(modelMatrix) * direction
+                mat3(modelMatrix) * normal
               );
               gl_Position = projectionMatrix * viewMatrix * worldPosition;
             }
@@ -1506,14 +1556,31 @@ function OceanSurface({
             varying float vShoreProximity;
 
             void main() {
-              vec3 normal = normalize(cross(
-                dFdx(vWorldPosition),
-                dFdy(vWorldPosition)
+              vec3 normal = normalize(vWorldNormal);
+              vec3 radialNormal = normalize(vWorldPosition);
+              vec3 waveTangent = normalize(cross(
+                abs(radialNormal.y) < 0.92
+                  ? vec3(0.0, 1.0, 0.0)
+                  : vec3(1.0, 0.0, 0.0),
+                radialNormal
               ));
-
-              if (dot(normal, vWorldNormal) < 0.0) {
-                normal *= -1.0;
-              }
+              vec3 waveBitangent = normalize(cross(
+                radialNormal,
+                waveTangent
+              ));
+              float microWaveA = sin(
+                dot(vWorldPosition, vec3(3.1, 5.4, -4.2)) +
+                time * 0.82
+              );
+              float microWaveB = sin(
+                dot(vWorldPosition, vec3(-5.7, 2.8, 4.9)) -
+                time * 0.64
+              );
+              normal = normalize(
+                normal +
+                waveTangent * microWaveA * 0.026 +
+                waveBitangent * microWaveB * 0.022
+              );
 
               vec3 viewDirection = normalize(
                 cameraPosition - vWorldPosition
@@ -1588,14 +1655,9 @@ function OceanSurface({
                   time * 1.12
                 ) *
                   0.18;
-              float crest = smoothstep(
-                0.7,
-                0.96,
-                vWave + surfaceNoise * 0.045
-              );
-              float waveShoulder = smoothstep(
-                0.14,
-                0.72,
+              float waveResponse = smoothstep(
+                0.12,
+                0.88,
                 vWave
               );
               float deepWater = pow(
@@ -1615,7 +1677,7 @@ function OceanSurface({
               float shorelineFoam =
                 shoreBand *
                 shoreBreakup *
-                (0.12 + crest * 0.68) *
+                (0.16 + waveResponse * 0.18) *
                 (1.0 - deepWater);
               vec3 volumeRay = normalize(
                 vWorldPosition - cameraPosition
@@ -1706,11 +1768,7 @@ function OceanSurface({
                 vec3(0.88, 0.96, 1.0) *
                 0.62;
               float foam = clamp(
-                max(
-                  crest * (0.72 + fresnel * 0.2),
-                  shorelineFoam * 0.78
-                ) +
-                  waveShoulder * shoreBand * 0.08,
+                shorelineFoam * 0.72,
                 0.0,
                 1.0
               );
@@ -1854,8 +1912,8 @@ function createShoreBreakerGeometry(biome: BiomeDefinition) {
       for (let row = 0; row <= rows; row += 1) {
         const across = row / rows;
         const offshoreOffset =
-          0.008 +
-          across * 0.15 +
+          0.006 +
+          across * 0.055 +
           Math.sin(
             angle * 5.3 + across * 4.2 + biome.seed * 0.17,
           ) *
@@ -2529,145 +2587,19 @@ function TreeModel({
 }: {
   style: VegetationDefinition["style"];
 }) {
-  if (style === "palm") {
-    return (
-      <>
-        <mesh
-          position={[0.015, 0.2, 0]}
-          rotation={[0, 0, -0.08]}
-          castShadow
-        >
-          <cylinderGeometry args={[0.025, 0.048, 0.4, 8]} />
-          <meshToonMaterial color="#93633e" />
-        </mesh>
-        {[0, 1, 2, 3, 4, 5, 6].map((leaf) => (
-          <mesh
-            key={leaf}
-            position={[0.03, 0.405, 0]}
-            rotation={[
-              0.08 + (leaf % 2) * 0.12,
-              (leaf / 7) * Math.PI * 2,
-              Math.PI / 2.75,
-            ]}
-            castShadow
-          >
-            <coneGeometry args={[0.068, 0.3, 5]} />
-            <meshToonMaterial
-              color={leaf % 2 === 0 ? "#3f8c64" : "#58a76e"}
-            />
-          </mesh>
-        ))}
-        {[0, 1, 2].map((coconut) => (
-          <mesh
-            key={`coconut-${coconut}`}
-            position={[
-              -0.015 + coconut * 0.025,
-              0.385 - (coconut % 2) * 0.018,
-              0.015,
-            ]}
-            castShadow
-          >
-            <dodecahedronGeometry args={[0.026, 0]} />
-            <meshToonMaterial color="#6e4932" />
-          </mesh>
-        ))}
-      </>
-    );
-  }
+  const assetByStyle: Record<
+    VegetationDefinition["style"],
+    PlacesAssetName
+  > = {
+    blossom: "tree_blossom",
+    broadleaf: "tree_broadleaf",
+    conifer: "tree_conifer",
+    cypress: "tree_cypress",
+    palm: "tree_palm",
+    pine: "tree_pine",
+  };
 
-  if (style === "conifer" || style === "pine") {
-    const pine = style === "pine";
-
-    return (
-      <>
-        <mesh position={[0, 0.16, 0]} castShadow>
-          <cylinderGeometry args={[0.023, 0.044, 0.32, 7]} />
-          <meshToonMaterial color="#76513a" />
-        </mesh>
-        {[
-          [0.23, 0.18, 0.24],
-          [0.34, 0.15, 0.23],
-          [0.44, 0.115, 0.2],
-        ].map(([height, radius, length], tier) => (
-          <mesh key={tier} position={[0, height, 0]} castShadow>
-            <coneGeometry args={[radius, length, pine ? 9 : 7]} />
-            <meshToonMaterial
-              color={
-                pine
-                  ? tier === 1
-                    ? "#39725a"
-                    : "#4c8263"
-                  : tier === 1
-                    ? "#416e59"
-                    : "#537c63"
-              }
-            />
-          </mesh>
-        ))}
-      </>
-    );
-  }
-
-  if (style === "cypress") {
-    return (
-      <>
-        <mesh position={[0, 0.17, 0]} castShadow>
-          <cylinderGeometry args={[0.018, 0.035, 0.34, 7]} />
-          <meshToonMaterial color="#70513b" />
-        </mesh>
-        <mesh position={[0, 0.32, 0]} scale={[0.7, 1.55, 0.7]} castShadow>
-          <dodecahedronGeometry args={[0.12, 1]} />
-          <meshToonMaterial color="#3d684f" />
-        </mesh>
-        <mesh position={[0.01, 0.47, 0]} scale={[0.48, 1.25, 0.48]} castShadow>
-          <dodecahedronGeometry args={[0.1, 1]} />
-          <meshToonMaterial color="#52785a" />
-        </mesh>
-      </>
-    );
-  }
-
-  const blossom = style === "blossom";
-  const crownColors = blossom
-    ? ["#e795a7", "#f0afb7", "#f6c5c4", "#dc829d"]
-    : ["#4f8a5c", "#639c64", "#78aa69", "#5a9460"];
-  const crownPositions: [number, number, number, number][] = [
-    [-0.055, 0.34, 0.01, 0.12],
-    [0.065, 0.355, -0.025, 0.135],
-    [0.005, 0.43, 0.015, 0.13],
-    [0.105, 0.41, 0.035, 0.095],
-  ];
-
-  return (
-    <>
-      <mesh position={[0, 0.17, 0]} castShadow>
-        <cylinderGeometry args={[0.025, 0.047, 0.34, 8]} />
-        <meshToonMaterial color="#78513d" />
-      </mesh>
-      {[-1, 1].map((side) => (
-        <mesh
-          key={side}
-          position={[side * 0.045, 0.27, 0]}
-          rotation={[0, 0, side * -0.62]}
-          castShadow
-        >
-          <cylinderGeometry args={[0.012, 0.016, 0.16, 6]} />
-          <meshToonMaterial color="#78513d" />
-        </mesh>
-      ))}
-      {crownPositions.map(([x, y, z, radius], index) => (
-        <mesh
-          key={index}
-          position={[x, y, z]}
-          scale={[1.12, 0.86, 1]}
-          castShadow
-        >
-          <dodecahedronGeometry args={[radius, 1]} />
-          <meshToonMaterial color={crownColors[index]} />
-        </mesh>
-      ))}
-    </>
-  );
+  return <BlenderAsset name={assetByStyle[style]} />;
 }
 
 function BushModel({
@@ -2675,38 +2607,16 @@ function BushModel({
 }: {
   style: VegetationDefinition["style"];
 }) {
-  const colors =
+  const assetName: PlacesAssetName =
     style === "blossom"
-      ? ["#d97996", "#e795a7", "#f0afb7", "#c86888"]
+      ? "bush_blossom"
       : style === "palm"
-        ? ["#3e8d62", "#56a56d", "#72b978", "#317a58"]
-        : style === "cypress"
-          ? ["#3c6c50", "#4f805b", "#669466", "#345f49"]
-          : style === "pine"
-            ? ["#386b56", "#4c8063", "#5f9470", "#315f4d"]
-            : ["#4d8758", "#659c63", "#7aad6d", "#43794f"];
-  const clusters: [number, number, number, number][] = [
-    [-0.09, 0.1, 0.015, 0.105],
-    [0.085, 0.105, -0.02, 0.115],
-    [0, 0.155, 0.03, 0.12],
-    [0.02, 0.09, -0.095, 0.09],
-  ];
+        ? "bush_palm"
+        : style === "pine" || style === "conifer" || style === "cypress"
+          ? "bush_pine"
+          : "bush_green";
 
-  return (
-    <>
-      {clusters.map(([x, y, z, radius], index) => (
-        <mesh
-          key={index}
-          position={[x, y, z]}
-          scale={[1.18, 0.82, 1]}
-          castShadow
-        >
-          <dodecahedronGeometry args={[radius, 1]} />
-          <meshToonMaterial color={colors[index]} />
-        </mesh>
-      ))}
-    </>
-  );
+  return <BlenderAsset name={assetName} />;
 }
 
 function VegetationField({
@@ -2967,8 +2877,64 @@ function createSurfaceDetails() {
   });
 }
 
+function createGrassClumpGeometry() {
+  const positions: number[] = [];
+  const indices: number[] = [];
+
+  for (let blade = 0; blade < 3; blade += 1) {
+    const angle = (blade / 3) * Math.PI;
+    const forward = new Vector3(Math.cos(angle), 0, Math.sin(angle));
+    const right = new Vector3(-forward.z, 0, forward.x);
+    const center = forward.clone().multiplyScalar(0.009);
+    const vertexOffset = positions.length / 3;
+    const points = [
+      center.clone().addScaledVector(right, -0.013).setY(-0.06),
+      center.clone().addScaledVector(right, 0.013).setY(-0.06),
+      center
+        .clone()
+        .addScaledVector(right, -0.009)
+        .addScaledVector(forward, 0.006)
+        .setY(0.015),
+      center
+        .clone()
+        .addScaledVector(right, 0.009)
+        .addScaledVector(forward, 0.006)
+        .setY(0.015),
+      center
+        .clone()
+        .addScaledVector(forward, 0.022)
+        .setY(0.075),
+    ];
+
+    points.forEach((point) => {
+      positions.push(point.x, point.y, point.z);
+    });
+    indices.push(
+      vertexOffset,
+      vertexOffset + 1,
+      vertexOffset + 2,
+      vertexOffset + 1,
+      vertexOffset + 3,
+      vertexOffset + 2,
+      vertexOffset + 2,
+      vertexOffset + 3,
+      vertexOffset + 4,
+    );
+  }
+
+  const geometry = new BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new Float32BufferAttribute(positions, 3),
+  );
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 function SurfaceDetailField() {
   const details = useMemo(createSurfaceDetails, []);
+  const grassGeometry = useMemo(createGrassClumpGeometry, []);
   const grassDark = useMemo(
     () =>
       details.filter(
@@ -2992,6 +2958,8 @@ function SurfaceDetailField() {
   const grassDarkRef = useRef<InstancedMesh | null>(null);
   const grassLightRef = useRef<InstancedMesh | null>(null);
   const rocksRef = useRef<InstancedMesh | null>(null);
+
+  useEffect(() => () => grassGeometry.dispose(), [grassGeometry]);
 
   useEffect(() => {
     const transform = new Object3D();
@@ -3028,32 +2996,30 @@ function SurfaceDetailField() {
     <group>
       <instancedMesh
         ref={grassDarkRef}
+        geometry={grassGeometry}
         args={[undefined, undefined, grassDark.length]}
-        castShadow
         receiveShadow
         frustumCulled={false}
       >
-        <coneGeometry args={[0.032, 0.13, 4]} />
         <meshStandardMaterial
-          color="#5b8554"
+          color="#456f42"
           roughness={0.96}
           metalness={0}
-          flatShading
+          side={DoubleSide}
         />
       </instancedMesh>
       <instancedMesh
         ref={grassLightRef}
+        geometry={grassGeometry}
         args={[undefined, undefined, grassLight.length]}
-        castShadow
         receiveShadow
         frustumCulled={false}
       >
-        <coneGeometry args={[0.028, 0.115, 4]} />
         <meshStandardMaterial
-          color="#7fa263"
+          color="#759a5d"
           roughness={0.96}
           metalness={0}
-          flatShading
+          side={DoubleSide}
         />
       </instancedMesh>
       <instancedMesh
@@ -3063,12 +3029,11 @@ function SurfaceDetailField() {
         receiveShadow
         frustumCulled={false}
       >
-        <dodecahedronGeometry args={[0.072, 0]} />
+        <sphereGeometry args={[0.072, 14, 9]} />
         <meshStandardMaterial
           color="#888377"
           roughness={0.98}
           metalness={0}
-          flatShading
         />
       </instancedMesh>
     </group>
@@ -4340,26 +4305,11 @@ function LandmarkTerrain() {
           quaternion={new Quaternion().setFromUnitVectors(UP, direction)}
           revealHeight={0.12}
         >
-          <mesh
-            position={[0, 0.25 + index * 0.06, 0]}
+          <BlenderAsset
+            name="landmark_mountain"
             rotation={[0, index * 0.8, 0]}
-            castShadow
-            receiveShadow
-          >
-            <coneGeometry
-              args={[0.28 - index * 0.025, 0.58 + index * 0.14, 9]}
-            />
-            <meshToonMaterial
-              color={index === 1 ? "#7d766b" : "#8c816d"}
-            />
-          </mesh>
-          <mesh
-            position={[0, 0.49 + index * 0.09, 0]}
-            rotation={[0, index * 0.8, 0]}
-          >
-            <coneGeometry args={[0.11, 0.21, 9]} />
-            <meshToonMaterial color="#e8ded0" />
-          </mesh>
+            scale={0.82 + index * 0.12}
+          />
         </HorizonOccludedGroup>
       ))}
 
@@ -4370,26 +4320,11 @@ function LandmarkTerrain() {
         quaternion={new Quaternion().setFromUnitVectors(UP, barnDirection)}
         revealHeight={0}
       >
-        <mesh position={[0, 0.11, 0]} castShadow receiveShadow>
-          <boxGeometry args={[0.26, 0.2, 0.2]} />
-          <meshToonMaterial color="#a94a3e" />
-        </mesh>
-        <mesh position={[0, 0.245, 0]} rotation={[0, Math.PI / 4, 0]}>
-          <coneGeometry args={[0.19, 0.15, 4]} />
-          <meshToonMaterial color="#e3d4b9" />
-        </mesh>
-        <mesh position={[0, 0.1, 0.102]}>
-          <planeGeometry args={[0.075, 0.11]} />
-          <meshToonMaterial color="#f3e8d2" />
-        </mesh>
-        <mesh position={[0.22, 0.16, 0]} castShadow>
-          <cylinderGeometry args={[0.055, 0.07, 0.32, 10]} />
-          <meshToonMaterial color="#b6c0b8" />
-        </mesh>
-        <mesh position={[0.22, 0.34, 0]}>
-          <coneGeometry args={[0.08, 0.08, 10]} />
-          <meshToonMaterial color="#8d9895" />
-        </mesh>
+        <BlenderAsset
+          name="ambient_barn"
+          rotation={[0, -0.28, 0]}
+          scale={0.78}
+        />
       </HorizonOccludedGroup>
 
       <HorizonOccludedGroup
@@ -4399,18 +4334,11 @@ function LandmarkTerrain() {
         quaternion={new Quaternion().setFromUnitVectors(UP, beachDirection)}
         revealHeight={0.04}
       >
-        <mesh position={[0, 0.025, 0]} receiveShadow>
-          <cylinderGeometry args={[0.22, 0.26, 0.05, 16]} />
-          <meshToonMaterial color="#edd08a" />
-        </mesh>
-        <mesh position={[0.08, 0.13, -0.02]} rotation={[0, 0, -0.18]}>
-          <cylinderGeometry args={[0.009, 0.012, 0.25, 7]} />
-          <meshToonMaterial color="#80624d" />
-        </mesh>
-        <mesh position={[0.08, 0.25, -0.02]} rotation={[0, 0, -0.18]}>
-          <coneGeometry args={[0.14, 0.07, 12]} />
-          <meshToonMaterial color="#e35d58" />
-        </mesh>
+        <BlenderAsset
+          name="scenery_new-jersey"
+          rotation={[0, 0.2, 0]}
+          scale={0.74}
+        />
       </HorizonOccludedGroup>
 
       <HorizonOccludedGroup
@@ -4420,28 +4348,11 @@ function LandmarkTerrain() {
         quaternion={new Quaternion().setFromUnitVectors(UP, koreaDirection)}
         revealHeight={0.06}
       >
-        {[0, 1, 2].map((tier) => (
-          <group key={tier} position={[0, 0.08 + tier * 0.105, 0]}>
-            <mesh castShadow>
-              <boxGeometry
-                args={[
-                  0.2 - tier * 0.045,
-                  0.07,
-                  0.17 - tier * 0.035,
-                ]}
-              />
-              <meshToonMaterial
-                color={tier % 2 === 0 ? "#78766d" : "#918b7e"}
-              />
-            </mesh>
-            <mesh position={[0, 0.055, 0]} rotation={[0, Math.PI / 4, 0]}>
-              <coneGeometry
-                args={[0.15 - tier * 0.035, 0.055, 4]}
-              />
-              <meshToonMaterial color="#4f6e5d" />
-            </mesh>
-          </group>
-        ))}
+        <BlenderAsset
+          name="ambient_korean-pavilion"
+          rotation={[0, 0.35, 0]}
+          scale={0.78}
+        />
       </HorizonOccludedGroup>
 
       <HorizonOccludedGroup
@@ -4451,26 +4362,22 @@ function LandmarkTerrain() {
         quaternion={new Quaternion().setFromUnitVectors(UP, gardenHill)}
         revealHeight={0.08}
       >
-        <mesh position={[0, 0.12, 0]} castShadow>
-          <cylinderGeometry args={[0.16, 0.25, 0.24, 8]} />
-          <meshToonMaterial color="#657965" />
-        </mesh>
-        <mesh position={[-0.12, 0.34, 0]} castShadow>
-          <boxGeometry args={[0.035, 0.34, 0.045]} />
-          <meshToonMaterial color="#c94a42" />
-        </mesh>
-        <mesh position={[0.12, 0.34, 0]} castShadow>
-          <boxGeometry args={[0.035, 0.34, 0.045]} />
-          <meshToonMaterial color="#c94a42" />
-        </mesh>
-        <mesh position={[0, 0.49, 0]} castShadow>
-          <boxGeometry args={[0.32, 0.04, 0.055]} />
-          <meshToonMaterial color="#d45449" />
-        </mesh>
-        <mesh position={[0, 0.445, 0]} castShadow>
-          <boxGeometry args={[0.25, 0.035, 0.05]} />
-          <meshToonMaterial color="#e16858" />
-        </mesh>
+        <BlenderAsset
+          name="landmark_torii"
+          rotation={[0, -0.18, 0]}
+          scale={0.82}
+        />
+        <BlenderAsset
+          name="bush_blossom"
+          position={[-0.2, 0, 0.08]}
+          scale={0.68}
+        />
+        <BlenderAsset
+          name="bush_blossom"
+          position={[0.21, 0, 0.06]}
+          rotation={[0, 1.2, 0]}
+          scale={0.58}
+        />
       </HorizonOccludedGroup>
     </group>
   );
@@ -4584,9 +4491,10 @@ function AtmosphereShell({
 
 function BasePlanetoid({ skyPhase }: { skyPhase: SkyPhase }) {
   const geometry = useMemo(() => {
-    const nextGeometry = new IcosahedronGeometry(
+    const nextGeometry = new SphereGeometry(
       OCEAN_FLOOR_RADIUS,
-      5,
+      128,
+      64,
     );
     nextGeometry.computeVertexNormals();
     return nextGeometry;
@@ -4600,7 +4508,6 @@ function BasePlanetoid({ skyPhase }: { skyPhase: SkyPhase }) {
         color={skyPhase === "night" ? "#020b19" : "#073247"}
         roughness={1}
         metalness={0}
-        flatShading
       />
     </mesh>
   );
@@ -4608,9 +4515,10 @@ function BasePlanetoid({ skyPhase }: { skyPhase: SkyPhase }) {
 
 function OceanBody({ skyPhase }: { skyPhase: SkyPhase }) {
   const geometry = useMemo(() => {
-    const nextGeometry = new IcosahedronGeometry(
+    const nextGeometry = new SphereGeometry(
       OCEAN_FLOOR_RADIUS + 0.025,
-      5,
+      128,
+      64,
     );
     nextGeometry.computeVertexNormals();
     return nextGeometry;
@@ -4629,7 +4537,34 @@ function OceanBody({ skyPhase }: { skyPhase: SkyPhase }) {
         color={skyPhase === "night" ? "#031328" : "#0b5263"}
         roughness={1}
         metalness={0}
-        flatShading
+      />
+    </mesh>
+  );
+}
+
+function OceanDepthOccluder({ skyPhase }: { skyPhase: SkyPhase }) {
+  const geometry = useMemo(() => {
+    const nextGeometry = new SphereGeometry(
+      OCEAN_SURFACE_RADIUS - 0.18,
+      160,
+      80,
+    );
+    nextGeometry.computeVertexNormals();
+    return nextGeometry;
+  }, []);
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  return (
+    <mesh
+      geometry={geometry}
+      receiveShadow
+      renderOrder={0}
+    >
+      <meshStandardMaterial
+        color={skyPhase === "night" ? "#031b2d" : "#075365"}
+        roughness={0.72}
+        metalness={0.02}
       />
     </mesh>
   );
@@ -5528,6 +5463,7 @@ export function PlanetoidWorld({
       />
       <BasePlanetoid skyPhase={skyPhase} />
       <OceanBody skyPhase={skyPhase} />
+      <OceanDepthOccluder skyPhase={skyPhase} />
       <OceanSurface
         travelerDirectionRef={travelerDirectionRef}
         travelerForwardRef={travelerForwardRef}

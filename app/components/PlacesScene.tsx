@@ -36,7 +36,6 @@ import {
   Vector3,
   type DirectionalLight,
   type Group,
-  type InstancedBufferAttribute,
   type InstancedMesh,
   type Mesh,
   type MeshBasicMaterial,
@@ -62,6 +61,10 @@ import {
   type LoosePropInteractionApi,
   type OceanSurfaceApi,
 } from "./PlanetoidWorld";
+import {
+  BlenderAsset,
+  type PlacesAssetName,
+} from "./BlenderAsset";
 
 export type ExploreInput = {
   horizontal: number;
@@ -130,15 +133,15 @@ const BROWSE_CAMERA_POSITION = new Vector3(
   0.45 * WORLD_SCALE,
   18.8 * WORLD_SCALE,
 );
-const CLOSE_CAMERA_HEIGHT = 8.15 * WORLD_SCALE;
-const CLOSE_CAMERA_TRAIL = 3.55 * WORLD_SCALE;
-const CLOSE_TARGET_HEIGHT = 5.72 * WORLD_SCALE;
-const CLOSE_TARGET_LEAD = 2.95 * WORLD_SCALE;
+const CLOSE_CAMERA_HEIGHT = 7.25 * WORLD_SCALE;
+const CLOSE_CAMERA_TRAIL = 2.85 * WORLD_SCALE;
+const CLOSE_TARGET_HEIGHT = 6.05 * WORLD_SCALE;
+const CLOSE_TARGET_LEAD = 2.1 * WORLD_SCALE;
 const OVERVIEW_CAMERA_HEIGHT = 21 * WORLD_SCALE;
 const OVERVIEW_CAMERA_TRAIL = 6 * WORLD_SCALE;
 const OVERVIEW_TARGET_HEIGHT = 0.5 * WORLD_SCALE;
 const OVERVIEW_TARGET_LEAD = 3 * WORLD_SCALE;
-const DEFAULT_CAMERA_DISTANCE = 0.1;
+const DEFAULT_CAMERA_DISTANCE = 0.02;
 const CAMERA_DISTANCE_RATE = 0.75;
 const CAMERA_ORBIT_SPEED = 0.85;
 const CAMERA_ORBIT_RESPONSE = 2.1;
@@ -232,28 +235,17 @@ type CloudDefinition = {
   rain: boolean;
 };
 
-type CloudPuff = {
-  basePosition: Vector3;
-  currentPosition: Vector3;
-  velocity: Vector3;
-  baseScale: Vector3;
-  rotation: Quaternion;
-  driftDirection: Vector3;
-  scatterDirection: Vector3;
-  opacity: number;
-  phase: number;
-};
-
 const CLOUD_INTERACTION_RADIUS = 1.35;
 
 function createSessionCloudDefinitions(): CloudDefinition[] {
-  const cloudCount = 5 + Math.floor(Math.random() * 3);
+  const random = createSeededRandom(92_021);
+  const cloudCount = 4 + Math.floor(random() * 2);
 
   return Array.from({ length: cloudCount }, (_, index) => {
-    const roll = Math.random();
+    const roll = random();
     const kind: CloudDefinition["kind"] =
       index === 0
-        ? "stratus"
+        ? "cumulus"
         : index === 1
           ? "storm"
           : roll < 0.2
@@ -263,33 +255,33 @@ function createSessionCloudDefinitions(): CloudDefinition[] {
               : "cumulus";
     const width =
       kind === "stratus"
-        ? 2.65 + Math.random() * 1.05
+        ? 0.95 + random() * 0.35
         : kind === "storm"
-          ? 2.05 + Math.random() * 0.85
-          : 1.2 + Math.random() * 0.78;
+          ? 0.78 + random() * 0.3
+          : 0.56 + random() * 0.25;
     const puffCount =
       kind === "stratus"
-        ? 52 + Math.floor(Math.random() * 18)
+        ? 7
         : kind === "storm"
-          ? 48 + Math.floor(Math.random() * 18)
-          : 34 + Math.floor(Math.random() * 18);
+          ? 8
+          : 7;
     const altitude =
       kind === "cumulus"
-        ? 1 + Math.random() * 0.42
-        : 0.72 + Math.random() * 0.3;
+        ? 0.72 + random() * 0.16
+        : 0.6 + random() * 0.14;
 
     return {
       id: `session-cloud-${index}`,
       kind,
       coordinates: [
-        Math.random() * 360 - 180,
-        Math.random() * 116 - 58,
+        random() * 360 - 180,
+        random() * 116 - 58,
       ],
-      seed: Math.floor(Math.random() * 100_000) + index * 997,
+      seed: Math.floor(random() * 100_000) + index * 997,
       width,
       puffCount,
       altitude,
-      rain: kind === "storm" && Math.random() < 0.3,
+      rain: kind === "storm" && random() < 0.3,
     };
   });
 }
@@ -643,172 +635,6 @@ function createSeededRandom(seed: number) {
   };
 }
 
-function createCloudPuffs(definition: CloudDefinition) {
-  const random = createSeededRandom(definition.seed);
-  const centerDirection = latLonToVector3(definition.coordinates).normalize();
-  const east = new Vector3().crossVectors(Y_AXIS, centerDirection);
-
-  if (east.lengthSq() < 0.0001) {
-    east.set(0, 0, 1);
-  } else {
-    east.normalize();
-  }
-
-  const north = new Vector3()
-    .crossVectors(centerDirection, east)
-    .normalize();
-  const surfaceRadius = traversalSurfaceRadiusAt(centerDirection);
-  const puffs: CloudPuff[] = [];
-  const coreCount = Math.floor(definition.puffCount * 0.72);
-  const surfaceOrientation = new Quaternion().setFromUnitVectors(
-    UP,
-    centerDirection,
-  );
-
-  for (let index = 0; index < definition.puffCount; index += 1) {
-    const isCore = index < coreCount;
-    let eastOffset: number;
-    let northOffset: number;
-    let radialOffset: number;
-    let radius: number;
-
-    if (definition.kind === "stratus") {
-      eastOffset = (random() - 0.5) * definition.width * 1.18;
-      northOffset =
-        (random() - 0.5) * definition.width * 0.34 +
-        Math.sin((eastOffset / definition.width) * Math.PI * 1.5) *
-          definition.width *
-          0.045;
-      radialOffset =
-        definition.altitude +
-        (random() + random() - 1) * definition.width * 0.04;
-      radius = 0.15 + random() * 0.12;
-    } else {
-      const horizontalAngle = random() * Math.PI * 2;
-      const horizontalDistribution = isCore
-        ? Math.pow(random(), 0.82) * 0.72
-        : 0.62 + Math.pow(random(), 0.5) * 0.38;
-      const horizontalRadius =
-        horizontalDistribution *
-        definition.width *
-        (definition.kind === "storm" ? 0.42 : 0.52);
-      eastOffset = Math.cos(horizontalAngle) * horizontalRadius;
-      northOffset =
-        Math.sin(horizontalAngle) *
-        horizontalRadius *
-        (definition.kind === "storm" ? 0.66 : 0.82);
-      const verticalSpread =
-        definition.width *
-        (definition.kind === "storm"
-          ? isCore
-            ? 0.22
-            : 0.3
-          : isCore
-            ? 0.11
-            : 0.17);
-      radialOffset =
-        definition.kind === "storm"
-          ? definition.altitude +
-            (Math.pow(random(), 0.7) - 0.22) * verticalSpread
-          : definition.altitude +
-            (random() + random() - 1) * verticalSpread;
-      radius =
-        definition.kind === "storm"
-          ? isCore
-            ? 0.22 + random() * 0.16
-            : 0.14 + random() * 0.14
-          : isCore
-            ? 0.18 + random() * 0.15
-            : 0.1 + random() * 0.12;
-    }
-
-    const basePosition = centerDirection
-      .clone()
-      .multiplyScalar(surfaceRadius + radialOffset)
-      .addScaledVector(east, eastOffset)
-      .addScaledVector(north, northOffset);
-    const scatterAngle = random() * Math.PI * 2;
-    const rotationAxis = new Vector3(
-      random() - 0.5,
-      random() - 0.5,
-      random() - 0.5,
-    );
-
-    if (rotationAxis.lengthSq() < 0.0001) {
-      rotationAxis.copy(UP);
-    } else {
-      rotationAxis.normalize();
-    }
-
-    const rotation =
-      definition.kind === "cumulus"
-        ? new Quaternion().setFromAxisAngle(
-            rotationAxis,
-            random() * Math.PI * 2,
-          )
-        : surfaceOrientation
-            .clone()
-            .multiply(
-              new Quaternion().setFromAxisAngle(
-                UP,
-                random() * Math.PI * 2,
-              ),
-            );
-    const baseScale =
-      definition.kind === "stratus"
-        ? new Vector3(
-            radius * (1.55 + random() * 0.6),
-            radius * (0.38 + random() * 0.2),
-            radius * (1.2 + random() * 0.55),
-          )
-        : definition.kind === "storm"
-          ? new Vector3(
-              radius * (1 + random() * 0.38),
-              radius * (1.15 + random() * 0.6),
-              radius * (1 + random() * 0.38),
-            )
-          : new Vector3(
-              radius * (1.05 + random() * 0.48),
-              radius * (0.7 + random() * 0.3),
-              radius * (1 + random() * 0.5),
-            );
-    const opacity =
-      definition.kind === "storm"
-        ? isCore
-          ? 0.72 + random() * 0.16
-          : 0.46 + random() * 0.17
-        : definition.kind === "stratus"
-          ? isCore
-            ? 0.64 + random() * 0.14
-            : 0.38 + random() * 0.16
-          : isCore
-            ? 0.74 + random() * 0.16
-            : 0.44 + random() * 0.18;
-
-    puffs.push({
-      basePosition,
-      currentPosition: basePosition.clone(),
-      velocity: new Vector3(),
-      baseScale,
-      rotation,
-      driftDirection: east
-        .clone()
-        .multiplyScalar(0.65 + random() * 0.35)
-        .addScaledVector(north, (random() - 0.5) * 0.45)
-        .normalize(),
-      scatterDirection: east
-        .clone()
-        .multiplyScalar(Math.cos(scatterAngle))
-        .addScaledVector(north, Math.sin(scatterAngle))
-        .normalize(),
-      opacity,
-      phase: random() * Math.PI * 2,
-    });
-  }
-
-  return { centerDirection, puffs };
-}
-
 type RainDrop = {
   x: number;
   z: number;
@@ -907,7 +733,7 @@ function CloudCluster({
   travelerDirectionRef,
   exploreMode,
   reduceMotion,
-  skyPhase,
+  skyPhase: _skyPhase,
 }: {
   definition: CloudDefinition;
   travelerDirectionRef: MutableRefObject<Vector3>;
@@ -915,282 +741,128 @@ function CloudCluster({
   reduceMotion: boolean;
   skyPhase: SkyPhase;
 }) {
-  const cloud = useMemo(
-    () => createCloudPuffs(definition),
-    [definition],
+  const groupRef = useRef<Group>(null);
+  const centerDirection = useMemo(
+    () =>
+      definition.id === "session-cloud-0"
+        ? (
+            PLACE_DIRECTIONS.get("new-york") ??
+            latLonToVector3(definition.coordinates)
+          )
+            .clone()
+            .normalize()
+        : latLonToVector3(definition.coordinates).normalize(),
+    [definition.coordinates, definition.id],
   );
-  const cloudMeshRef = useRef<InstancedMesh | null>(null);
-  const opacityAttributeRef =
-    useRef<InstancedBufferAttribute | null>(null);
-  const transformRef = useRef(new Object3D());
+  const surfaceRadius = traversalSurfaceRadiusAt(centerDirection);
+  const basePosition = useMemo(
+    () =>
+      centerDirection
+        .clone()
+        .multiplyScalar(surfaceRadius + definition.altitude),
+    [centerDirection, definition.altitude, surfaceRadius],
+  );
+  const orientation = useMemo(
+    () => new Quaternion().setFromUnitVectors(UP, centerDirection),
+    [centerDirection],
+  );
+  const driftDirection = useMemo(() => {
+    const east = new Vector3().crossVectors(Y_AXIS, centerDirection);
+
+    if (east.lengthSq() < 0.0001) {
+      east.set(0, 0, 1);
+    } else {
+      east.normalize();
+    }
+
+    return east;
+  }, [centerDirection]);
   const travelerPositionRef = useRef(new Vector3());
-  const targetPositionRef = useRef(new Vector3());
-  const separationRef = useRef(new Vector3());
-  const lateralRef = useRef(new Vector3());
-  const cloudColor = definition.kind === "storm"
-    ? skyPhase === "night"
-      ? "#6e7d88"
-      : "#b9c6c8"
-    : definition.kind === "stratus"
-      ? skyPhase === "night"
-        ? "#a8b4bd"
-        : skyPhase === "twilight"
-          ? "#d8dcda"
-          : "#e8ece8"
-    : skyPhase === "night"
-      ? "#b8c3ca"
-      : skyPhase === "twilight"
-        ? "#e8e9e6"
-        : "#f7f5ef";
-  const cloudUniforms = useMemo(
-    () => ({
-      cloudColor: { value: new Color(cloudColor) },
-      cloudUp: { value: cloud.centerDirection.clone() },
-    }),
-    [cloud.centerDirection, cloudColor],
-  );
-  const initialOpacities = useMemo(
-    () => new Float32Array(cloud.puffs.map((puff) => puff.opacity)),
-    [cloud.puffs],
-  );
+  const offsetRef = useRef(new Vector3());
+  const rotationRef = useRef(new Quaternion());
+  const twistRef = useRef(new Quaternion());
+  const assetName = `cloud_${definition.kind}` as PlacesAssetName;
+  const assetScale = definition.width * 1.08;
 
   useFrame(({ clock }, delta) => {
-    const cloudMesh = cloudMeshRef.current;
-    const opacityAttribute = opacityAttributeRef.current;
+    const group = groupRef.current;
 
-    if (!cloudMesh || !opacityAttribute) {
+    if (!group) {
       return;
     }
 
-    const travelerDirection = travelerDirectionRef.current;
+    const time = clock.elapsedTime;
     const travelerPosition = travelerPositionRef.current
-      .copy(travelerDirection)
+      .copy(travelerDirectionRef.current)
       .multiplyScalar(
-        traversalSurfaceRadiusAt(travelerDirection) + 0.34,
+        traversalSurfaceRadiusAt(travelerDirectionRef.current) + 0.34,
       );
-    const easeDelta = Math.min(delta, 0.05);
-
-    cloud.puffs.forEach((puff, index) => {
-      const drift = reduceMotion
-        ? 0
-        : Math.sin(clock.elapsedTime * 0.34 + puff.phase) * 0.055;
-      const targetPosition = targetPositionRef.current
-        .copy(puff.basePosition)
-        .addScaledVector(puff.driftDirection, drift);
-      const separation = separationRef.current
-        .copy(puff.currentPosition)
-        .sub(travelerPosition);
-      const distance = separation.length();
-      const interaction =
-        exploreMode && distance < CLOUD_INTERACTION_RADIUS
-          ? 1 -
-            MathUtils.smoothstep(
-              distance,
-              0.22,
-              CLOUD_INTERACTION_RADIUS,
-            )
-          : 0;
-
-      if (interaction > 0) {
-        const lateral = lateralRef.current
-          .copy(separation)
-          .addScaledVector(
-            cloud.centerDirection,
-            -separation.dot(cloud.centerDirection),
-          );
-
-        if (lateral.lengthSq() < 0.0001) {
-          lateral.copy(puff.scatterDirection);
-        } else {
-          lateral.normalize();
-        }
-
-        puff.velocity
-          .addScaledVector(
-            lateral,
-            interaction * easeDelta * 5.8,
+    const distance = travelerPosition.distanceTo(group.position);
+    const interaction =
+      exploreMode && distance < CLOUD_INTERACTION_RADIUS
+        ? 1 -
+          MathUtils.smoothstep(
+            distance,
+            0.25,
+            CLOUD_INTERACTION_RADIUS,
           )
-          .addScaledVector(
-            cloud.centerDirection,
-            interaction * easeDelta * 1.35,
-          );
-      }
+        : 0;
+    const drift = reduceMotion
+      ? 0
+      : Math.sin(time * 0.18 + definition.seed * 0.013) * 0.085;
+    const offset = offsetRef.current
+      .copy(driftDirection)
+      .multiplyScalar(drift)
+      .addScaledVector(centerDirection, interaction * 0.22);
 
-      puff.velocity.multiplyScalar(
-        Math.exp(-easeDelta * 5.1),
+    if (interaction > 0) {
+      offset.addScaledVector(
+        driftDirection,
+        Math.sin(definition.seed) * interaction * 0.26,
       );
-      puff.currentPosition.addScaledVector(
-        puff.velocity,
-        easeDelta,
-      );
-      const response = interaction > 0.01 ? 0.62 : 1.55;
-      puff.currentPosition.lerp(
-        targetPosition,
-        1 - Math.exp(-easeDelta * response),
-      );
-      const cloudOffset = separationRef.current
-        .copy(puff.currentPosition)
-        .sub(targetPosition);
+    }
 
-      if (cloudOffset.lengthSq() > 1.44) {
-        puff.currentPosition
-          .copy(targetPosition)
-          .addScaledVector(cloudOffset.normalize(), 1.2);
-        puff.velocity.multiplyScalar(0.35);
-      }
-      const breathing = reduceMotion
-        ? 0
-        : Math.sin(clock.elapsedTime * 0.5 + puff.phase) * 0.025;
-      const interactionScale = MathUtils.lerp(1, 0.84, interaction);
-      const transform = transformRef.current;
-
-      transform.position.copy(puff.currentPosition);
-      transform.quaternion.copy(puff.rotation);
-      transform.scale
-        .copy(puff.baseScale)
-        .multiplyScalar((1 + breathing) * interactionScale);
-      transform.updateMatrix();
-      cloudMesh.setMatrixAt(index, transform.matrix);
-      opacityAttribute.setX(
-        index,
-        puff.opacity * (1 - interaction * 0.74),
+    group.position.lerp(
+      basePosition.clone().add(offset),
+      1 - Math.exp(-Math.min(delta, 0.05) * 2.4),
+    );
+    rotationRef.current
+      .copy(orientation)
+      .multiply(
+        twistRef.current.setFromAxisAngle(
+          UP,
+          reduceMotion ? 0 : Math.sin(time * 0.055 + definition.seed) * 0.08,
+        ),
       );
-    });
-
-    cloudMesh.instanceMatrix.needsUpdate = true;
-    opacityAttribute.needsUpdate = true;
+    group.quaternion.slerp(
+      rotationRef.current,
+      1 - Math.exp(-Math.min(delta, 0.05) * 1.8),
+    );
+    const breathing = reduceMotion
+      ? 1
+      : 1 + Math.sin(time * 0.32 + definition.seed * 0.03) * 0.018;
+    const scale = breathing * (1 - interaction * 0.12);
+    group.scale.setScalar(scale);
   });
 
   return (
     <>
-      <instancedMesh
-        ref={cloudMeshRef}
-        args={[undefined, undefined, cloud.puffs.length]}
-        frustumCulled={false}
-        renderOrder={4}
-        castShadow
+      <group
+        ref={groupRef}
+        position={basePosition}
+        quaternion={orientation}
       >
-        <icosahedronGeometry args={[1, 1]}>
-          <instancedBufferAttribute
-            ref={opacityAttributeRef}
-            attach="attributes-instanceOpacity"
-            args={[initialOpacities, 1]}
-          />
-        </icosahedronGeometry>
-        <shaderMaterial
-          uniforms={cloudUniforms}
-          vertexShader={`
-          attribute float instanceOpacity;
-          varying float vOpacity;
-          varying vec3 vViewNormal;
-          varying vec3 vViewDirection;
-          varying vec3 vWorldPosition;
-          varying vec3 vWorldNormal;
-
-          void main() {
-            vec4 instancePosition =
-              instanceMatrix * vec4(position, 1.0);
-            vec4 viewPosition =
-              modelViewMatrix * instancePosition;
-            vec4 worldPosition =
-              modelMatrix * instancePosition;
-            vec3 instanceNormal =
-              mat3(instanceMatrix) * normal;
-
-            vOpacity = instanceOpacity;
-            vViewNormal = normalize(
-              normalMatrix * instanceNormal
-            );
-            vViewDirection = normalize(-viewPosition.xyz);
-            vWorldPosition = worldPosition.xyz;
-            vWorldNormal = normalize(
-              mat3(modelMatrix) * instanceNormal
-            );
-            gl_Position =
-              projectionMatrix * viewPosition;
-          }
-        `}
-          fragmentShader={`
-          uniform vec3 cloudColor;
-          uniform vec3 cloudUp;
-          varying float vOpacity;
-          varying vec3 vViewNormal;
-          varying vec3 vViewDirection;
-          varying vec3 vWorldPosition;
-          varying vec3 vWorldNormal;
-
-          float hash(vec3 value) {
-            return fract(sin(dot(
-              value,
-              vec3(12.9898, 78.233, 37.719)
-            )) * 43758.5453);
-          }
-
-          void main() {
-            float facing = abs(dot(
-              normalize(vViewNormal),
-              normalize(vViewDirection)
-            ));
-            float edge = pow(
-              smoothstep(0.04, 0.62, facing),
-              0.34
-            );
-            float erosion = mix(
-              0.82,
-              1.04,
-              hash(floor(vWorldPosition * 11.0))
-            );
-            float density = edge * erosion;
-
-            if (density < 0.12) {
-              discard;
-            }
-
-            vec3 faceNormal = normalize(cross(
-              dFdx(vWorldPosition),
-              dFdy(vWorldPosition)
-            ));
-
-            if (dot(faceNormal, vWorldNormal) < 0.0) {
-              faceNormal *= -1.0;
-            }
-
-            float topLight = dot(
-              faceNormal,
-              normalize(cloudUp + vec3(0.18, 0.3, 0.12))
-            );
-            float light = clamp(
-              0.82 + topLight * 0.12 + facing * 0.1,
-              0.72,
-              1.06
-            );
-            light = floor(light * 5.0 + 0.5) / 5.0;
-            vec3 shadedColor =
-              cloudColor * light * mix(0.94, 1.06, density);
-
-            float alpha = min(
-              vOpacity *
-                smoothstep(0.1, 0.72, density) *
-                1.16,
-              0.98
-            );
-
-            if (alpha < 0.045) {
-              discard;
-            }
-
-            gl_FragColor = vec4(shadedColor, alpha);
-          }
-        `}
-          transparent
-          depthWrite
-          side={DoubleSide}
+        <BlenderAsset
+          name={assetName}
+          scale={assetScale}
+          castShadow
+          receiveShadow={false}
         />
-      </instancedMesh>
+      </group>
       {definition.rain ? (
         <RainShower
           definition={definition}
-          centerDirection={cloud.centerDirection}
+          centerDirection={centerDirection}
           reduceMotion={reduceMotion}
         />
       ) : null}
@@ -2118,35 +1790,20 @@ function SushiDiorama() {
 
 function PlaceLandmarkDiorama({
   place,
-  color,
+  color: _color,
 }: {
   place: Place;
   color: string;
 }) {
-  switch (place.landmark) {
-    case "barbecue":
-      return <BarbecueDiorama />;
-    case "lighthouse":
-      return <LighthouseDiorama />;
-    case "mosque":
-      return <MosqueDiorama />;
-    case "mountain":
-      return <MountainDiorama color={color} />;
-    case "orange":
-      return <OrangeDiorama />;
-    case "palm":
-      return <CoastDiorama color={color} />;
-    case "sailboat":
-      return <SailboatDiorama />;
-    case "sushi":
-      return <SushiDiorama />;
-    case "torii":
-      return <ToriiDiorama />;
-    case "tower":
-      return <TowerDiorama />;
-    default:
-      return <CityDiorama color={color} />;
-  }
+  const assetName = `landmark_${place.landmark}` as PlacesAssetName;
+
+  return (
+    <BlenderAsset
+      name={assetName}
+      position={[0, 0.012, 0]}
+      scale={place.landmark === "skyline" ? 0.62 : 0.68}
+    />
+  );
 }
 
 function TaxiScenery() {
@@ -2754,28 +2411,29 @@ function OsakaCastleScenery() {
 }
 
 function PlaceSceneryModel({ placeId }: { placeId: string }) {
-  switch (placeId) {
-    case "new-york":
-      return <TaxiScenery />;
-    case "new-jersey":
-      return <BeachScenery />;
-    case "rhode-island":
-      return <BuoyScenery />;
-    case "chicago":
-      return <BeanScenery />;
-    case "austin":
-      return <GuitarScenery />;
-    case "central-florida":
-      return <RocketScenery />;
-    case "korean-dmz":
-      return <DmzObservationScenery />;
-    case "malatya":
-      return <ApricotTreeScenery />;
-    case "osaka":
-      return <OsakaCastleScenery />;
-    default:
-      return null;
+  const supportedScenery = new Set([
+    "new-york",
+    "new-jersey",
+    "rhode-island",
+    "chicago",
+    "austin",
+    "central-florida",
+    "korean-dmz",
+    "malatya",
+    "osaka",
+  ]);
+
+  if (!supportedScenery.has(placeId)) {
+    return null;
   }
+
+  return (
+    <BlenderAsset
+      name={`scenery_${placeId}` as PlacesAssetName}
+      position={[0, 0.012, 0]}
+      scale={0.82}
+    />
+  );
 }
 
 const PLACE_SCENERY_LAYOUT: Partial<
@@ -3079,8 +2737,8 @@ function DestinationBeacon({
 
     if (beaconRef.current) {
       beaconRef.current.position.y = reduceMotion
-        ? 0.72
-        : 0.72 + Math.sin(clock.elapsedTime * 1.65) * 0.045;
+        ? 0.54
+        : 0.54 + Math.sin(clock.elapsedTime * 1.65) * 0.025;
       beaconRef.current.rotation.y +=
         delta * (reduceMotion ? 0 : selected ? 1.25 : 0.75);
     }
@@ -3088,7 +2746,7 @@ function DestinationBeacon({
     if (beamRef.current) {
       const material = beamRef.current.material as MeshBasicMaterial;
       material.opacity =
-        (selected ? 0.18 : 0.11) *
+        (selected ? 0.1 : 0.055) *
         (reduceMotion
           ? 1
           : 0.88 + Math.sin(clock.elapsedTime * 2.1) * 0.12);
@@ -3103,11 +2761,11 @@ function DestinationBeacon({
         rotation={[Math.PI / 2, 0, 0]}
         renderOrder={15}
       >
-        <torusGeometry args={[0.265, 0.017, 8, 40]} />
+        <torusGeometry args={[0.225, 0.011, 10, 48]} />
         <meshBasicMaterial
           color={color}
           transparent
-          opacity={selected ? 0.94 : 0.78}
+          opacity={selected ? 0.88 : hovered ? 0.62 : 0.38}
           depthWrite={false}
           toneMapped={false}
         />
@@ -3118,52 +2776,56 @@ function DestinationBeacon({
         rotation={[Math.PI / 2, 0, Math.PI / 4]}
         renderOrder={15}
       >
-        <torusGeometry args={[0.205, 0.009, 6, 8]} />
+        <torusGeometry args={[0.168, 0.006, 8, 32]} />
         <meshBasicMaterial
           color={color}
           transparent
-          opacity={selected ? 0.88 : 0.62}
+          opacity={selected ? 0.72 : hovered ? 0.46 : 0.24}
           depthWrite={false}
           toneMapped={false}
         />
       </mesh>
-      <mesh
-        ref={beamRef}
-        position={[0, 0.39, 0]}
-        renderOrder={14}
-      >
-        <cylinderGeometry args={[0.045, 0.19, 0.68, 12, 1, true]} />
-        <meshBasicMaterial
-          color={color}
-          transparent
-          opacity={selected ? 0.18 : 0.11}
-          side={DoubleSide}
-          depthWrite={false}
-          toneMapped={false}
-        />
-      </mesh>
-      <mesh
-        ref={beaconRef}
-        position={[0, 0.72, 0]}
-        renderOrder={16}
-      >
-        <octahedronGeometry args={[0.09, 0]} />
-        <meshBasicMaterial
-          color={color}
-          depthWrite={false}
-          toneMapped={false}
-        />
-      </mesh>
-      <mesh position={[0, 0.72, 0]} renderOrder={13}>
-        <sphereGeometry args={[0.16, 12, 8]} />
-        <meshBasicMaterial
-          color={color}
-          transparent
-          opacity={selected ? 0.13 : 0.08}
-          depthWrite={false}
-          toneMapped={false}
-        />
-      </mesh>
+      {selected || hovered ? (
+        <>
+          <mesh
+            ref={beamRef}
+            position={[0, 0.29, 0]}
+            renderOrder={14}
+          >
+            <cylinderGeometry args={[0.022, 0.09, 0.48, 20, 1, true]} />
+            <meshBasicMaterial
+              color={color}
+              transparent
+              opacity={selected ? 0.1 : 0.055}
+              side={DoubleSide}
+              depthWrite={false}
+              toneMapped={false}
+            />
+          </mesh>
+          <mesh
+            ref={beaconRef}
+            position={[0, 0.54, 0]}
+            renderOrder={16}
+          >
+            <sphereGeometry args={[0.042, 18, 12]} />
+            <meshBasicMaterial
+              color={color}
+              depthWrite={false}
+              toneMapped={false}
+            />
+          </mesh>
+          <mesh position={[0, 0.54, 0]} renderOrder={13}>
+            <sphereGeometry args={[0.09, 18, 12]} />
+            <meshBasicMaterial
+              color={color}
+              transparent
+              opacity={selected ? 0.11 : 0.065}
+              depthWrite={false}
+              toneMapped={false}
+            />
+          </mesh>
+        </>
+      ) : null}
       {selected || hovered ? (
         <pointLight
           color={color}
@@ -3295,13 +2957,13 @@ function DestinationWorld({
       />
 
       <group position={[0, selected ? 0.075 : 0.025, 0]}>
-        <mesh position={[0, 0.015, 0]} castShadow receiveShadow>
-          <dodecahedronGeometry args={[0.14, 0]} />
+        <mesh position={[0, 0.018, 0]} castShadow receiveShadow>
+          <cylinderGeometry args={[0.145, 0.18, 0.045, 32]} />
           <meshStandardMaterial
             color={selected ? "#d04842" : "#d8c8aa"}
             emissive={selected ? "#7a1711" : "#614c19"}
-            emissiveIntensity={selected ? 0.4 : 0.16}
-            flatShading
+            emissiveIntensity={selected ? 0.28 : 0.08}
+            roughness={0.82}
           />
         </mesh>
 
@@ -3327,48 +2989,12 @@ function DestinationWorld({
 }
 
 function BasketballShoe({ side }: { side: -1 | 1 }) {
-  const outside = side * 0.031;
-
   return (
-    <group position={[0, -0.048, 0.018]}>
-      <mesh position={[0, -0.006, 0.018]} castShadow>
-        <boxGeometry args={[0.064, 0.018, 0.11]} />
-        <meshToonMaterial color="#b7834b" />
-      </mesh>
-      <mesh
-        position={[0, 0.009, 0.021]}
-        scale={[0.62, 0.42, 1.08]}
-        castShadow
-      >
-        <dodecahedronGeometry args={[0.05, 0]} />
-        <meshToonMaterial color="#171d22" />
-      </mesh>
-      <mesh
-        position={[0, 0.03, -0.008]}
-        scale={[0.56, 0.76, 0.62]}
-        castShadow
-      >
-        <dodecahedronGeometry args={[0.05, 0]} />
-        <meshToonMaterial color="#20272e" />
-      </mesh>
-      <mesh position={[outside, 0.009, 0.018]} rotation={[0.62, 0, 0]}>
-        <boxGeometry args={[0.006, 0.01, 0.048]} />
-        <meshToonMaterial color="#f1f2ee" />
-      </mesh>
-      <mesh position={[outside, 0.012, 0.043]} rotation={[-0.52, 0, 0]}>
-        <boxGeometry args={[0.006, 0.009, 0.027]} />
-        <meshToonMaterial color="#f1f2ee" />
-      </mesh>
-      {[0.002, 0.016, 0.03].map((z) => (
-        <mesh key={z} position={[0, 0.035, z]} castShadow>
-          <boxGeometry args={[0.047, 0.005, 0.006]} />
-          <meshToonMaterial color="#e9ece8" />
-        </mesh>
-      ))}
-      <mesh position={[outside, -0.005, -0.012]}>
-        <boxGeometry args={[0.006, 0.011, 0.036]} />
-        <meshToonMaterial color="#aeb8bc" />
-      </mesh>
+    <group
+      position={[0, -0.07, 0.025]}
+      rotation={[0, side < 0 ? -0.025 : 0.025, 0]}
+    >
+      <BlenderAsset name="traveler_shoe" />
     </group>
   );
 }
@@ -3401,8 +3027,8 @@ function Traveler({
   const seatedLegsRef = useRef<Group>(null);
   const leftLegRef = useRef<Group>(null);
   const rightLegRef = useRef<Group>(null);
-  const leftArmRef = useRef<Mesh>(null);
-  const rightArmRef = useRef<Mesh>(null);
+  const leftArmRef = useRef<Group>(null);
+  const rightArmRef = useRef<Group>(null);
   const phaseRef = useRef(0);
   const nextFootstepPhaseRef = useRef(Math.PI * 0.55);
   const footstepIndexRef = useRef(0);
@@ -3808,190 +3434,70 @@ function Traveler({
       <group ref={modelRef}>
         <group
           ref={leftLegRef}
-          position={[-0.035, 0.055, 0]}
+          position={[-0.035, 0.06, 0]}
         >
-          <mesh renderOrder={TRAVELER_RENDER_ORDER} castShadow>
-            <boxGeometry args={[0.045, 0.12, 0.05]} />
-            <meshToonMaterial color="#26383e" />
-          </mesh>
+          <BlenderAsset name="traveler_leg" />
           <BasketballShoe side={-1} />
         </group>
         <group
           ref={rightLegRef}
-          position={[0.035, 0.055, 0]}
+          position={[0.035, 0.06, 0]}
         >
-          <mesh renderOrder={TRAVELER_RENDER_ORDER} castShadow>
-            <boxGeometry args={[0.045, 0.12, 0.05]} />
-            <meshToonMaterial color="#26383e" />
-          </mesh>
+          <BlenderAsset name="traveler_leg" />
           <BasketballShoe side={1} />
         </group>
         <group ref={seatedLegsRef} visible={false}>
-          {[-0.035, 0.035].map((x) => (
-            <group key={x}>
-              <mesh
-                position={[x, 0.105, 0.075]}
-                renderOrder={TRAVELER_RENDER_ORDER + 1}
-                castShadow
-              >
-                <boxGeometry args={[0.045, 0.052, 0.13]} />
-                <meshToonMaterial color="#26383e" />
-              </mesh>
+          {([-0.035, 0.035] as const).map((x) => (
+            <group
+              key={x}
+              position={[x, 0.065, 0.075]}
+              rotation={[-0.72, 0, 0]}
+              scale={[0.94, 0.72, 0.94]}
+            >
+              <BlenderAsset name="traveler_leg" />
               <group
-                position={[x, 0.065, 0.15]}
-                rotation={[0.5, 0, 0]}
+                position={[0, -0.052, 0.035]}
+                rotation={[0.72, 0, 0]}
               >
-                <mesh
-                  renderOrder={TRAVELER_RENDER_ORDER + 1}
-                  castShadow
-                >
-                  <boxGeometry args={[0.045, 0.09, 0.052]} />
-                  <meshToonMaterial color="#202f34" />
-                </mesh>
-                <BasketballShoe side={x < 0 ? -1 : 1} />
+                <BlenderAsset
+                  name="traveler_shoe"
+                  rotation={[0, x < 0 ? -0.035 : 0.035, 0]}
+                  scale={0.9}
+                />
               </group>
             </group>
           ))}
         </group>
-        <mesh
-          position={[0, 0.17, 0]}
-          renderOrder={TRAVELER_RENDER_ORDER}
-          castShadow
-        >
-          <capsuleGeometry args={[0.065, 0.13, 4, 8]} />
-          <meshToonMaterial color="#d34b42" />
-        </mesh>
-        <group position={[0, 0, 0.062]}>
-          {[-0.042, 0.042].map((x) => (
-            <mesh
-              key={x}
-              position={[x, 0.22, 0]}
-              rotation={[0, 0, x * 2.4]}
-              renderOrder={TRAVELER_RENDER_ORDER + 1}
-              castShadow
-            >
-              <boxGeometry args={[0.014, 0.105, 0.012]} />
-              <meshToonMaterial color="#c79132" />
-            </mesh>
-          ))}
-          <mesh
-            position={[0, 0.19, 0.008]}
-            renderOrder={TRAVELER_RENDER_ORDER + 2}
-            castShadow
-          >
-            <boxGeometry args={[0.045, 0.018, 0.016]} />
-            <meshToonMaterial color="#f0ce6a" />
-          </mesh>
-        </group>
-        <mesh
+        <BlenderAsset name="traveler_torso" />
+        <group
           ref={leftArmRef}
           position={[-0.09, 0.19, 0]}
-          renderOrder={TRAVELER_RENDER_ORDER}
-          castShadow
         >
-          <boxGeometry args={[0.035, 0.16, 0.04]} />
-          <meshToonMaterial color="#e9c5a4" />
-        </mesh>
-        <mesh
+          <BlenderAsset name="traveler_arm" />
+        </group>
+        <group
           ref={rightArmRef}
           position={[0.09, 0.19, 0]}
-          renderOrder={TRAVELER_RENDER_ORDER}
-          castShadow
         >
-          <boxGeometry args={[0.035, 0.16, 0.04]} />
-          <meshToonMaterial color="#e9c5a4" />
-        </mesh>
-        <mesh
+          <BlenderAsset name="traveler_arm" />
+        </group>
+        <BlenderAsset
+          name="traveler_head"
           position={[0, 0.32, 0]}
-          renderOrder={TRAVELER_RENDER_ORDER}
-          castShadow
-        >
-          <icosahedronGeometry args={[0.078, 1]} />
-          <meshToonMaterial color="#e9c5a4" />
-        </mesh>
-        <mesh
-          position={[0, 0.365, -0.012]}
-          scale={[1.04, 0.5, 1.02]}
-          renderOrder={TRAVELER_RENDER_ORDER + 1}
-          castShadow
-        >
-          <icosahedronGeometry args={[0.078, 1]} />
-          <meshToonMaterial color="#151719" />
-        </mesh>
-        <mesh
-          position={[0, 0.2, -0.065]}
-          renderOrder={TRAVELER_RENDER_ORDER}
-          castShadow
-        >
-          <boxGeometry args={[0.105, 0.13, 0.055]} />
-          <meshToonMaterial color="#d7a83f" />
-        </mesh>
-        <mesh
-          position={[0, 0.26, -0.095]}
-          rotation={[Math.PI / 2, 0, 0]}
-          renderOrder={TRAVELER_RENDER_ORDER + 1}
-        >
-          <torusGeometry args={[0.052, 0.008, 6, 16, Math.PI]} />
-          <meshToonMaterial color="#f0ce6a" />
-        </mesh>
+        />
+        <BlenderAsset
+          name="traveler_backpack"
+          position={[0, 0.2, -0.073]}
+          rotation={[0, Math.PI, 0]}
+        />
       </group>
-      <group ref={boatRef} visible={false} position={[0, -0.025, 0.015]}>
-        <mesh
-          position={[0, 0.015, 0]}
-          scale={[0.78, 0.34, 1.8]}
-          castShadow
-          renderOrder={TRAVELER_RENDER_ORDER - 1}
-        >
-          <sphereGeometry args={[0.18, 14, 8]} />
-          <meshToonMaterial color="#b8643f" />
-        </mesh>
-        <mesh
-          position={[0, 0.055, -0.015]}
-          scale={[0.7, 0.18, 1.3]}
-          renderOrder={TRAVELER_RENDER_ORDER}
-        >
-          <sphereGeometry args={[0.15, 12, 7]} />
-          <meshToonMaterial color="#2f3433" />
-        </mesh>
-        <mesh
-          position={[0, 0.08, -0.02]}
-          rotation={[Math.PI / 2, 0, 0]}
-          scale={[1.08, 2.25, 1]}
-          castShadow
-          renderOrder={TRAVELER_RENDER_ORDER + 1}
-        >
-          <torusGeometry args={[0.13, 0.012, 7, 24]} />
-          <meshToonMaterial color="#e4914f" />
-        </mesh>
-        <mesh
-          position={[0, 0.065, -0.045]}
-          scale={[0.13, 0.025, 0.13]}
-          castShadow
-        >
-          <boxGeometry args={[1, 1, 1]} />
-          <meshToonMaterial color="#d1b07a" />
-        </mesh>
-        <mesh
-          position={[0, 0.055, 0.3]}
-          rotation={[Math.PI / 2, 0, 0]}
-          castShadow
-        >
-          <coneGeometry args={[0.105, 0.2, 8]} />
-          <meshToonMaterial color="#d47a47" />
-        </mesh>
-        <group ref={paddleRef} position={[0.13, 0.13, 0.02]}>
-          <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
-            <cylinderGeometry args={[0.008, 0.008, 0.44, 6]} />
-            <meshToonMaterial color="#d6b275" />
-          </mesh>
-          <mesh position={[0, 0, -0.23]} scale={[0.035, 0.012, 0.075]}>
-            <boxGeometry args={[1, 1, 1]} />
-            <meshToonMaterial color="#c68d58" />
-          </mesh>
-          <mesh position={[0, 0, 0.23]} scale={[0.035, 0.012, 0.075]}>
-            <boxGeometry args={[1, 1, 1]} />
-            <meshToonMaterial color="#c68d58" />
-          </mesh>
+      <group ref={boatRef} visible={false} position={[0, -0.02, 0.005]}>
+        <BlenderAsset name="kayak" />
+        <group ref={paddleRef} position={[0, 0.15, 0.03]}>
+          <BlenderAsset
+            name="paddle"
+            rotation={[0, 0, Math.PI / 2]}
+          />
         </group>
       </group>
     </group>
