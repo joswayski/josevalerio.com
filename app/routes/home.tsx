@@ -1,7 +1,6 @@
 import type { Route } from "./+types/home";
 import { CopyEmail } from "../components/CopyEmail";
 import { ExternalLink } from "../components/ExternalLink";
-import { PlacesGlobe } from "../components/PlacesGlobe";
 import { PoastPreview } from "../components/PoastPreview";
 import { ProjectPreview } from "../components/ProjectPreview";
 import { postPreviews } from "../data/postPreviews";
@@ -71,18 +70,6 @@ export default function Home() {
               <PoastPreview key={post.link} {...post} />
             ))}
           </div>
-        </section>
-
-        <section
-          className="index-section"
-          id="places"
-          aria-labelledby="places-title"
-        >
-          <div className="section-heading section-heading--places">
-            <h2 id="places-title">Places I&apos;ve Been</h2>
-          </div>
-
-          <PlacesGlobe />
         </section>
 
         {/*
