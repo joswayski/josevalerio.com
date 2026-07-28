@@ -11,13 +11,10 @@
   "dependencies": {
     "@react-router/node": "^7.7.1",
     "@react-router/serve": "^7.7.1",
-    "@react-three/fiber": "^9.6.1",
-    "astronomy-engine": "^2.1.19",
     "isbot": "^5.1.27",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "react-router": "^7.7.1",
-    "three": "^0.185.1"
+    "react-router": "^7.7.1"
   },
   "devDependencies": {
     "@fontsource/space-mono": "^5.3.0",
@@ -26,7 +23,6 @@
     "@types/node": "^20",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
-    "@types/three": "^0.185.1",
     "tailwindcss": "^4.1.4",
     "typescript": "^5.8.3",
     "vite": "^6.3.3",
