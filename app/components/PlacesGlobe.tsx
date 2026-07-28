@@ -70,10 +70,10 @@ function getCelestialState(now: Date): CelestialState {
   const localHour =
     now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
   const skyPhase: SkyPhase =
-    localHour >= 7 && localHour < 17.5
+    localHour >= 6.5 && localHour < 20
       ? "day"
-      : (localHour >= 5.25 && localHour < 7) ||
-          (localHour >= 17.5 && localHour < 20)
+      : (localHour >= 5 && localHour < 6.5) ||
+          (localHour >= 20 && localHour < 21.5)
         ? "twilight"
         : "night";
   // Approximate the current subsolar point from UTC so the planetoid can use a

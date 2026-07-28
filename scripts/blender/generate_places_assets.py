@@ -52,9 +52,9 @@ def material(
 
 
 MATERIALS = {
-    "orange": material("Kayak orange", (0.88, 0.29, 0.08, 1), roughness=0.38),
+    "orange": material("Kayak orange", (0.92, 0.31, 0.075, 1), roughness=0.56),
     "orange_light": material(
-        "Kayak highlight", (1.0, 0.55, 0.16, 1), roughness=0.35
+        "Kayak highlight", (1.0, 0.58, 0.18, 1), roughness=0.48
     ),
     "orange_dark": material("Kayak shadow", (0.45, 0.11, 0.035, 1)),
     "charcoal": material("Charcoal", (0.025, 0.035, 0.04, 1), roughness=0.62),
@@ -66,11 +66,22 @@ MATERIALS = {
     "shirt_light": material("Jacket highlight", (0.96, 0.25, 0.13, 1)),
     "denim": material("Deep denim", (0.035, 0.11, 0.16, 1), roughness=0.76),
     "cream": material("Warm cream", (0.9, 0.84, 0.7, 1), roughness=0.74),
-    "white": material("Cloud white", (0.91, 0.95, 0.96, 1), roughness=0.95),
-    "cloud_shadow": material(
-        "Cloud blue shadow", (0.52, 0.64, 0.68, 1), roughness=0.98
+    "white": material("Warm white", (0.91, 0.95, 0.96, 1), roughness=0.95),
+    "cloud_white": material(
+        "Cloud white",
+        (0.93, 0.97, 0.98, 1),
+        roughness=0.95,
+        emission=(0.34, 0.39, 0.4, 1),
+        emission_strength=0.22,
     ),
-    "storm": material("Storm cloud", (0.27, 0.36, 0.4, 1), roughness=0.98),
+    "cloud_shadow": material(
+        "Cloud blue shadow",
+        (0.66, 0.74, 0.77, 1),
+        roughness=0.98,
+        emission=(0.16, 0.2, 0.21, 1),
+        emission_strength=0.12,
+    ),
+    "storm": material("Storm cloud", (0.36, 0.43, 0.46, 1), roughness=0.98),
     "leaf": material("Leaf green", (0.12, 0.43, 0.2, 1), roughness=0.86),
     "leaf_light": material(
         "Leaf sun", (0.31, 0.65, 0.28, 1), roughness=0.84
@@ -381,24 +392,76 @@ def join_asset(root: bpy.types.Object) -> None:
     joined.select_set(False)
 
 
+def add_metaball_cloud(
+    root: bpy.types.Object,
+    name: str,
+    puffs: list[tuple[float, float, float, float]],
+    upper_material: bpy.types.Material,
+    lower_material: bpy.types.Material,
+    *,
+    depth_scale: float,
+    shadow_height: float,
+) -> bpy.types.Object:
+    field = bpy.data.metaballs.new(f"{name} field")
+    field.resolution = 0.055
+    field.render_resolution = 0.045
+    field.threshold = 0.62
+    obj = bpy.data.objects.new(name, field)
+    bpy.context.scene.collection.objects.link(obj)
+    obj.parent = root
+
+    for x, y, z, radius in puffs:
+        element = field.elements.new()
+        element.co = (x, y, z)
+        element.radius = radius
+        element.stiffness = 2.3
+
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.convert(target="MESH")
+    cloud = bpy.context.object
+    cloud.name = safe_name(name)
+    cloud.scale = (1, depth_scale, 1)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    cloud.data.materials.append(lower_material)
+    cloud.data.materials.append(upper_material)
+
+    for polygon in cloud.data.polygons:
+        polygon.use_smooth = True
+        polygon.material_index = 0 if polygon.center.z < shadow_height else 1
+
+    decimate = cloud.modifiers.new("Cloud silhouette cleanup", "DECIMATE")
+    decimate.decimate_type = "DISSOLVE"
+    decimate.angle_limit = math.radians(2.5)
+    bpy.context.view_layer.objects.active = cloud
+    bpy.ops.object.modifier_apply(modifier=decimate.name)
+    cloud.parent = root
+    cloud.select_set(False)
+    return cloud
+
+
 def build_kayak() -> None:
     root = create_root("kayak")
-    stations = [
-        (-0.43, 0.018, 0.035),
-        (-0.34, 0.075, 0.055),
-        (-0.19, 0.125, 0.072),
-        (0.0, 0.145, 0.078),
-        (0.19, 0.125, 0.072),
-        (0.34, 0.075, 0.055),
-        (0.43, 0.018, 0.035),
-    ]
+    stations = []
+    station_count = 25
+
+    for station_index in range(station_count):
+        progress = station_index / (station_count - 1)
+        taper = math.sin(progress * math.pi)
+        y = -0.46 + progress * 0.92
+        half_width = 0.008 + 0.14 * taper**0.58
+        half_height = 0.014 + 0.065 * taper**0.5
+        stations.append((y, half_width, half_height))
+
     vertices: list[tuple[float, float, float]] = []
-    cross_segments = 14
+    cross_segments = 32
     for y, half_width, half_height in stations:
         for segment in range(cross_segments):
             angle = segment / cross_segments * math.tau
             x = math.cos(angle) * half_width
-            z = math.sin(angle) * half_height - 0.005
+            tip_lift = 0.018 * (1 - half_width / 0.148)
+            z = math.sin(angle) * half_height - 0.004 + tip_lift
             vertices.append((x, y, z))
     faces: list[tuple[int, ...]] = []
     for station in range(len(stations) - 1):
@@ -700,72 +763,61 @@ def build_traveler() -> None:
         MATERIALS["orange_dark"],
         bevel_width=0.009,
     )
-    add_curve(
-        backpack,
-        "Backpack handle",
-        [(-0.028, 0, 0.075), (0, 0, 0.095), (0.028, 0, 0.075)],
-        0.006,
-        MATERIALS["cream"],
-    )
     join_asset(backpack)
 
 
 def build_clouds() -> None:
     definitions = {
         "cloud_cumulus": [
-            (-0.42, 0.0, 0.0, 0.34),
-            (-0.15, -0.04, 0.06, 0.42),
-            (0.18, 0.0, 0.04, 0.36),
-            (0.42, 0.02, -0.02, 0.27),
-            (-0.22, 0.02, 0.31, 0.31),
-            (0.06, 0.01, 0.38, 0.4),
-            (0.31, 0.03, 0.27, 0.29),
+            (-0.66, 0.0, 0.02, 0.29),
+            (-0.43, -0.04, 0.03, 0.36),
+            (-0.15, 0.03, 0.05, 0.4),
+            (0.16, -0.02, 0.04, 0.38),
+            (0.44, 0.03, 0.03, 0.34),
+            (0.68, -0.01, 0.01, 0.26),
+            (-0.38, 0.0, 0.28, 0.31),
+            (-0.08, 0.02, 0.36, 0.4),
+            (0.25, -0.02, 0.31, 0.35),
+            (0.02, 0.0, 0.62, 0.27),
         ],
         "cloud_stratus": [
-            (-0.62, 0.0, 0.02, 0.28),
-            (-0.34, 0.0, 0.04, 0.34),
-            (0.0, 0.0, 0.02, 0.38),
-            (0.35, 0.0, 0.05, 0.34),
-            (0.63, 0.0, 0.0, 0.26),
-            (-0.17, 0.0, 0.23, 0.29),
-            (0.2, 0.0, 0.21, 0.26),
+            (-0.86, 0.0, 0.02, 0.24),
+            (-0.63, -0.03, 0.04, 0.29),
+            (-0.36, 0.02, 0.03, 0.32),
+            (-0.08, -0.02, 0.04, 0.34),
+            (0.22, 0.02, 0.03, 0.33),
+            (0.5, -0.02, 0.04, 0.3),
+            (0.76, 0.02, 0.02, 0.25),
+            (-0.31, 0.0, 0.23, 0.27),
+            (0.06, 0.0, 0.25, 0.31),
+            (0.4, 0.0, 0.22, 0.25),
         ],
         "cloud_storm": [
-            (-0.46, 0.0, 0.0, 0.34),
-            (-0.17, 0.0, 0.02, 0.44),
-            (0.18, 0.0, 0.02, 0.42),
-            (0.46, 0.0, -0.02, 0.31),
-            (-0.23, 0.0, 0.34, 0.34),
-            (0.08, 0.0, 0.48, 0.43),
-            (0.34, 0.0, 0.31, 0.31),
-            (0.02, 0.0, 0.82, 0.29),
+            (-0.72, 0.0, 0.02, 0.3),
+            (-0.44, -0.03, 0.02, 0.39),
+            (-0.13, 0.03, 0.03, 0.44),
+            (0.2, -0.03, 0.03, 0.42),
+            (0.5, 0.03, 0.02, 0.36),
+            (0.75, 0.0, 0.01, 0.28),
+            (-0.43, 0.0, 0.31, 0.34),
+            (-0.08, 0.0, 0.39, 0.43),
+            (0.29, 0.0, 0.35, 0.38),
+            (-0.02, 0.0, 0.67, 0.32),
+            (0.31, 0.0, 0.6, 0.28),
         ],
     }
     for asset_name, puffs in definitions.items():
         root = create_root(asset_name)
         storm = asset_name == "cloud_storm"
-        for index, (x, y, z, radius) in enumerate(puffs):
-            base_mat = (
-                MATERIALS["storm"]
-                if storm and z < 0.2
-                else MATERIALS["cloud_shadow"]
-                if index < 4
-                else MATERIALS["white"]
-            )
-            add_uv_sphere(
-                root,
-                f"Cloud lobe {index}",
-                (x, y, z),
-                (
-                    radius * (1.25 if asset_name == "cloud_stratus" else 1),
-                    radius * 0.72,
-                    radius,
-                ),
-                base_mat,
-                segments=24,
-                rings=16,
-            )
-        join_asset(root)
+        add_metaball_cloud(
+            root,
+            f"{asset_name} sculpt",
+            puffs,
+            MATERIALS["cloud_shadow"] if storm else MATERIALS["cloud_white"],
+            MATERIALS["storm"] if storm else MATERIALS["cloud_white"],
+            depth_scale=0.52 if asset_name == "cloud_stratus" else 0.68,
+            shadow_height=0.18 if asset_name == "cloud_stratus" else 0.22,
+        )
 
 
 def build_tree_asset(

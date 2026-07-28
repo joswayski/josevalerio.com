@@ -30,7 +30,7 @@ import {
   Float32BufferAttribute,
   MathUtils,
   Object3D,
-  PCFShadowMap,
+  PCFSoftShadowMap,
   Quaternion,
   SRGBColorSpace,
   Vector3,
@@ -239,36 +239,20 @@ const CLOUD_INTERACTION_RADIUS = 1.35;
 
 function createSessionCloudDefinitions(): CloudDefinition[] {
   const random = createSeededRandom(92_021);
-  const cloudCount = 4 + Math.floor(random() * 2);
+  const cloudCount = 2;
 
   return Array.from({ length: cloudCount }, (_, index) => {
-    const roll = random();
     const kind: CloudDefinition["kind"] =
-      index === 0
-        ? "cumulus"
-        : index === 1
-          ? "storm"
-          : roll < 0.2
-            ? "stratus"
-            : roll < 0.36
-              ? "storm"
-              : "cumulus";
+      index === 0 ? "cumulus" : "stratus";
     const width =
       kind === "stratus"
-        ? 0.95 + random() * 0.35
-        : kind === "storm"
-          ? 0.78 + random() * 0.3
-          : 0.56 + random() * 0.25;
-    const puffCount =
-      kind === "stratus"
-        ? 7
-        : kind === "storm"
-          ? 8
-          : 7;
+        ? 0.72 + random() * 0.2
+        : 0.52 + random() * 0.14;
+    const puffCount = 7;
     const altitude =
       kind === "cumulus"
-        ? 0.72 + random() * 0.16
-        : 0.6 + random() * 0.14;
+        ? 1.24 + random() * 0.16
+        : 1.12 + random() * 0.14;
 
     return {
       id: `session-cloud-${index}`,
@@ -281,7 +265,7 @@ function createSessionCloudDefinitions(): CloudDefinition[] {
       width,
       puffCount,
       altitude,
-      rain: kind === "storm" && random() < 0.3,
+      rain: false,
     };
   });
 }
@@ -782,7 +766,7 @@ function CloudCluster({
   const rotationRef = useRef(new Quaternion());
   const twistRef = useRef(new Quaternion());
   const assetName = `cloud_${definition.kind}` as PlacesAssetName;
-  const assetScale = definition.width * 1.08;
+  const assetScale = definition.width * 0.9;
 
   useFrame(({ clock }, delta) => {
     const group = groupRef.current;
@@ -3450,19 +3434,19 @@ function Traveler({
           {([-0.035, 0.035] as const).map((x) => (
             <group
               key={x}
-              position={[x, 0.065, 0.075]}
-              rotation={[-0.72, 0, 0]}
-              scale={[0.94, 0.72, 0.94]}
+              position={[x, 0.105, 0.065]}
+              rotation={[-0.66, 0, 0]}
+              scale={[0.9, 0.62, 0.9]}
             >
               <BlenderAsset name="traveler_leg" />
               <group
-                position={[0, -0.052, 0.035]}
-                rotation={[0.72, 0, 0]}
+                position={[0, -0.035, 0.052]}
+                rotation={[0.66, 0, 0]}
               >
                 <BlenderAsset
                   name="traveler_shoe"
                   rotation={[0, x < 0 ? -0.035 : 0.035, 0]}
-                  scale={0.9}
+                  scale={0.84}
                 />
               </group>
             </group>
@@ -4260,13 +4244,13 @@ function CameraFillLight({ skyPhase }: { skyPhase: SkyPhase }) {
   return (
     <directionalLight
       ref={lightRef}
-      intensity={skyPhase === "night" ? 0.42 : 0.68}
+      intensity={skyPhase === "night" ? 0.24 : 0.4}
       color={
         skyPhase === "night"
           ? "#9bbde3"
           : skyPhase === "twilight"
-            ? "#ffd1ac"
-            : "#d9edf0"
+            ? "#f2bd9c"
+            : "#c6dce5"
       }
     />
   );
@@ -4302,15 +4286,15 @@ export function PlacesScene(props: PlacesSceneProps) {
         antialias: true,
         powerPreference: "high-performance",
       }}
-      shadows="percentage"
+      shadows="soft"
       onCreated={({ gl }) => {
         gl.setClearColor(new Color("#000000"), 0);
         gl.outputColorSpace = SRGBColorSpace;
         gl.toneMapping = ACESFilmicToneMapping;
         gl.toneMappingExposure =
-          props.skyPhase === "night" ? 0.92 : 1.08;
+          props.skyPhase === "night" ? 0.96 : 1.18;
         gl.shadowMap.enabled = true;
-        gl.shadowMap.type = PCFShadowMap;
+        gl.shadowMap.type = PCFSoftShadowMap;
         gl.domElement.style.cursor = props.exploreMode ? "none" : "grab";
         gl.domElement.style.touchAction = "none";
       }}
@@ -4319,17 +4303,17 @@ export function PlacesScene(props: PlacesSceneProps) {
         skyPhase={props.skyPhase}
         reduceMotion={props.reduceMotion}
       />
-      <ambientLight intensity={props.skyPhase === "night" ? 0.2 : 0.28} />
+      <ambientLight intensity={props.skyPhase === "night" ? 0.12 : 0.07} />
       <hemisphereLight
         args={[
-          props.skyPhase === "night" ? "#7895be" : "#fff3dc",
-          props.skyPhase === "night" ? "#07101f" : "#1c3b48",
-          props.skyPhase === "night" ? 0.62 : 0.86,
+          props.skyPhase === "night" ? "#7895be" : "#f7e7ce",
+          props.skyPhase === "night" ? "#07101f" : "#17333b",
+          props.skyPhase === "night" ? 0.42 : 0.6,
         ]}
       />
       <directionalLight
         position={sunlightPosition}
-        intensity={props.skyPhase === "night" ? 1.1 : 3.35}
+        intensity={props.skyPhase === "night" ? 0.78 : 2.65}
         color={
           props.skyPhase === "night"
             ? "#7999c2"
@@ -4338,12 +4322,12 @@ export function PlacesScene(props: PlacesSceneProps) {
               : "#fff0d2"
         }
         castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        shadow-camera-left={-10 * WORLD_SCALE}
-        shadow-camera-right={10 * WORLD_SCALE}
-        shadow-camera-top={10 * WORLD_SCALE}
-        shadow-camera-bottom={-10 * WORLD_SCALE}
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-camera-left={-8 * WORLD_SCALE}
+        shadow-camera-right={8 * WORLD_SCALE}
+        shadow-camera-top={8 * WORLD_SCALE}
+        shadow-camera-bottom={-8 * WORLD_SCALE}
         shadow-camera-near={0.5}
         shadow-camera-far={80}
         shadow-bias={-0.00008}
@@ -4352,7 +4336,7 @@ export function PlacesScene(props: PlacesSceneProps) {
       <CameraFillLight skyPhase={props.skyPhase} />
       <directionalLight
         position={[-5, -2, 3]}
-        intensity={props.skyPhase === "night" ? 0.36 : 0.22}
+        intensity={props.skyPhase === "night" ? 0.22 : 0.16}
         color={props.skyPhase === "night" ? "#6f8ec4" : "#91c4c1"}
       />
       <PlanetExperience {...props} />
