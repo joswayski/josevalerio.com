@@ -8,6 +8,10 @@ import {
 export default [
   index("routes/home.tsx"),
   layout("layouts/blog-layout.tsx", [
+    route(
+      "/four-types-of-software-companies",
+      "routes/four-types-of-software-companies.tsx",
+    ),
     route("/just-do-the-thing", "routes/just-do-the-thing.tsx"),
     route("/rust-json-logging", "routes/rust-json-logging.tsx"),
     route("/no-fun-allowed", "routes/no-fun-allowed.tsx"),

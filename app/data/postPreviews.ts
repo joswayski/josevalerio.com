@@ -27,8 +27,18 @@ export const NoFunAllowed: PoastPreviewProps = {
   link: "/no-fun-allowed",
 };
 
+export const FourTypesOfSoftwareCompanies: PoastPreviewProps = {
+  title: "The four types of software companies",
+  previewText:
+    "Code is free now. What happens when anybody can build your product?",
+  date: "July 26, 2026",
+  dateTime: "2026-07-26",
+  link: "/four-types-of-software-companies",
+};
+
 
 export const postPreviews: PoastPreviewProps[] = [
+  FourTypesOfSoftwareCompanies,
   NoFunAllowed,
   RustJsonLogging,
   JustDoTheThing,

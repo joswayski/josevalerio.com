@@ -1056,6 +1056,12 @@ button {
   background: var(--surface-soft);
 }
 
+.article-body img.article-image--narrow {
+  width: min(100%, 22rem);
+  margin-right: auto;
+  margin-left: auto;
+}
+
 .article-body sup {
   margin-left: 0.15rem;
   font-family: var(--code);
