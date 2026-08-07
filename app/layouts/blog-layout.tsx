@@ -1,12 +1,14 @@
 import { Link, Outlet, useLocation } from "react-router";
 import { CopyEmail } from "../components/CopyEmail";
 import {
+  FourTypesOfSoftwareCompanies,
   JustDoTheThing,
   NoFunAllowed,
   RustJsonLogging,
 } from "../data/postPreviews";
 
 const routeToPostMap = {
+  "/four-types-of-software-companies": FourTypesOfSoftwareCompanies,
   "/just-do-the-thing": JustDoTheThing,
   "/rust-json-logging": RustJsonLogging,
   "/no-fun-allowed": NoFunAllowed,
