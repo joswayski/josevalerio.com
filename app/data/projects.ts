@@ -20,10 +20,4 @@ export const projects: ProjectPreviewProps[] = [
     href: "https://crates.io/crates/sjl",
     destination: "crates.io",
   },
-  {
-    title: "snv",
-    description: "A simple .env loader for Rust.",
-    href: "https://crates.io/crates/snv",
-    destination: "crates.io",
-  },
 ];
