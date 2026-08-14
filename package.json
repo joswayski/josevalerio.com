@@ -4,21 +4,19 @@
   "type": "module",
   "scripts": {
     "build": "react-router build",
+    "deploy": "npm run build && wrangler deploy",
     "dev": "react-router dev",
-    "start": "react-router-serve ./build/server/index.js",
+    "preview": "npm run build && wrangler dev",
     "typecheck": "react-router typegen && tsc"
   },
   "dependencies": {
-    "@react-router/node": "^7.7.1",
-    "@react-router/serve": "^7.7.1",
-    "isbot": "^5.1.27",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "react-router": "^7.7.1"
+    "react-router": "7.18.2"
   },
   "devDependencies": {
     "@fontsource/space-mono": "^5.3.0",
-    "@react-router/dev": "^7.7.1",
+    "@react-router/dev": "7.18.2",
     "@tailwindcss/vite": "^4.1.4",
     "@types/node": "^20",
     "@types/react": "^19.1.2",
@@ -26,6 +24,7 @@
     "tailwindcss": "^4.1.4",
     "typescript": "^5.8.3",
     "vite": "^6.3.3",
-    "vite-tsconfig-paths": "^5.1.4"
+    "vite-tsconfig-paths": "^5.1.4",
+    "wrangler": "^4.123.0"
   }
 }
