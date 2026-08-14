@@ -1,24 +1,28 @@
+import { createFileRoute } from "@tanstack/react-router";
 import { RustJsonLogging } from "../data/postPreviews";
 import { CodeSnippet } from "../components/CodeSnippet";
 import { ExternalLink } from "../components/ExternalLink";
 import { BlogShell } from "~/components/BlogShell";
 import { getSocialMeta } from "../data/siteMeta";
 
-export function meta() {
-  return [
-    { title: RustJsonLogging.title },
-    { name: "description", content: RustJsonLogging.previewText },
-    { property: "og:title", content: RustJsonLogging.title },
-    { property: "og:description", content: RustJsonLogging.previewText },
-    { name: "twitter:title", content: RustJsonLogging.title },
-    { name: "twitter:description", content: RustJsonLogging.previewText },
-    ...getSocialMeta(),
-  ];
-}
+export const Route = createFileRoute("/rust-json-logging")({
+  head: () => ({
+    meta: [
+      { title: RustJsonLogging.title },
+      { name: "description", content: RustJsonLogging.previewText },
+      { property: "og:title", content: RustJsonLogging.title },
+      { property: "og:description", content: RustJsonLogging.previewText },
+      { name: "twitter:title", content: RustJsonLogging.title },
+      { name: "twitter:description", content: RustJsonLogging.previewText },
+      ...getSocialMeta(),
+    ],
+  }),
+  component: RustJSONLoggingPage,
+});
 
-export default function RustJSONLoggingPage() {
+function RustJSONLoggingPage() {
   return (
-    <BlogShell>
+    <BlogShell post={RustJsonLogging}>
       <aside className="article-callout">
         <p>
           <strong>TLDR:</strong> I ended up making my own crate because the

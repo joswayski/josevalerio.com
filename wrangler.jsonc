@@ -3,7 +3,7 @@
   "name": "josevalerio-com",
   "compatibility_date": "2026-08-14",
   "assets": {
-    "directory": "./build/client",
+    "directory": "./dist/client",
     "html_handling": "drop-trailing-slash",
     "not_found_handling": "404-page"
   }

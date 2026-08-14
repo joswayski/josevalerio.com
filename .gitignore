@@ -1,7 +1,5 @@
 .DS_Store
 /node_modules/
 
-# React Router
-/.react-router/
 /.wrangler/
-/build/
+/dist/

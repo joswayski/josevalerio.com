@@ -1,23 +1,26 @@
+import { createFileRoute } from "@tanstack/react-router";
 import { JustDoTheThing } from "../data/postPreviews";
-import type { Route } from "../+types/root";
 import { BlogShell } from "~/components/BlogShell";
 import { getSocialMeta } from "../data/siteMeta";
 
-export function meta({}: Route.MetaArgs) {
-  return [
-    { title: JustDoTheThing.title },
-    { name: "description", content: JustDoTheThing.previewText },
-    { property: "og:title", content: JustDoTheThing.title },
-    { property: "og:description", content: JustDoTheThing.previewText },
-    { name: "twitter:title", content: JustDoTheThing.title },
-    { name: "twitter:description", content: JustDoTheThing.previewText },
-    ...getSocialMeta(),
-  ];
-}
+export const Route = createFileRoute("/just-do-the-thing")({
+  head: () => ({
+    meta: [
+      { title: JustDoTheThing.title },
+      { name: "description", content: JustDoTheThing.previewText },
+      { property: "og:title", content: JustDoTheThing.title },
+      { property: "og:description", content: JustDoTheThing.previewText },
+      { name: "twitter:title", content: JustDoTheThing.title },
+      { name: "twitter:description", content: JustDoTheThing.previewText },
+      ...getSocialMeta(),
+    ],
+  }),
+  component: JustDoTheThingPage,
+});
 
-export default function JustDoTheThingPage() {
+function JustDoTheThingPage() {
   return (
-    <BlogShell>
+    <BlogShell post={JustDoTheThing}>
       <p className="">
         Sometimes you'll be working on a task and encounter some other part of
         the codebase that needs fixing, tech debt if you will. Other times, when

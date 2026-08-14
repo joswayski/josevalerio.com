@@ -16,14 +16,16 @@ npm run typecheck
 npm run build
 ```
 
-React Router pre-renders every route into `build/client`. The production output
-contains no server bundle and does not require Node.js at runtime.
+TanStack Start pre-renders every public route into `dist/client`, including a
+static `404.html` fallback. The build also creates `dist/server` temporarily so
+TanStack can render the HTML files at build time. Cloudflare does not upload or
+run that directory, so the deployed site has no Node.js runtime dependency.
 
 ## Cloudflare
 
 The site uses Cloudflare Workers Static Assets with no Worker script. The
-configuration in `wrangler.jsonc` serves the pre-rendered files directly and
-preserves the site's trailing-slash-free URLs.
+configuration in `wrangler.jsonc` uploads only `dist/client`, serves the
+pre-rendered files directly, and preserves the site's trailing-slash-free URLs.
 
 Preview the Cloudflare deployment locally:
 
@@ -39,4 +41,4 @@ npm run deploy
 
 For Cloudflare Workers Builds, use `npm run build` as the build command and
 `npx wrangler deploy` as the deploy command. The static asset directory is
-`build/client`.
+`dist/client`.
