@@ -1,10 +1,12 @@
+import { createFileRoute } from "@tanstack/react-router";
 import { NoFunAllowed } from "../data/postPreviews";
 import { BlogShell } from "~/components/BlogShell";
 import { ExternalLink } from "~/components/ExternalLink";
 import { getSocialMeta } from "../data/siteMeta";
 
-export function meta() {
-    return [
+export const Route = createFileRoute("/no-fun-allowed")({
+  head: () => ({
+    meta: [
         { title: NoFunAllowed.title },
         { name: "description", content: NoFunAllowed.previewText },
         { property: "og:title", content: NoFunAllowed.title },
@@ -12,14 +14,16 @@ export function meta() {
         { name: "twitter:title", content: NoFunAllowed.title },
         { name: "twitter:description", content: NoFunAllowed.previewText },
         ...getSocialMeta(),
-    ];
-}
+    ],
+  }),
+  component: NoFunAllowedPost,
+});
 
-export default function NoFunAllowedPost() {
+function NoFunAllowedPost() {
 
 
     return (
-        <BlogShell>
+        <BlogShell post={NoFunAllowed}>
             <p className="">
                 Video games aren't fun anymore.. At least Battlefield 6 isn't. I turned 27 this year so maybe I'm just a boomer or an Unc at this point (Hi Delia!) so feel free to dismiss everything you read from here on out.
             </p>

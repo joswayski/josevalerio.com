@@ -1,4 +1,4 @@
-import type { Route } from "./+types/home";
+import { createFileRoute } from "@tanstack/react-router";
 import { CopyEmail } from "../components/CopyEmail";
 import { ExternalLink } from "../components/ExternalLink";
 import { PoastPreview } from "../components/PoastPreview";
@@ -10,25 +10,28 @@ import { getSocialMeta } from "../data/siteMeta";
 const GITHUB_URL = "https://github.com/joswayski";
 const X_URL = "https://x.com/josevalerio";
 
-export function meta({}: Route.MetaArgs) {
-  return [
-    { title: "Jose Valerio" },
-    { name: "description", content: "Jose Valerio's personal website" },
-    { property: "og:title", content: "Jose Valerio" },
-    {
-      property: "og:description",
-      content: "Jose Valerio's personal website",
-    },
-    { name: "twitter:title", content: "Jose Valerio" },
-    {
-      name: "twitter:description",
-      content: "Jose Valerio's personal website",
-    },
-    ...getSocialMeta(),
-  ];
-}
+export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Jose Valerio" },
+      { name: "description", content: "Jose Valerio's personal website" },
+      { property: "og:title", content: "Jose Valerio" },
+      {
+        property: "og:description",
+        content: "Jose Valerio's personal website",
+      },
+      { name: "twitter:title", content: "Jose Valerio" },
+      {
+        name: "twitter:description",
+        content: "Jose Valerio's personal website",
+      },
+      ...getSocialMeta(),
+    ],
+  }),
+  component: Home,
+});
 
-export default function Home() {
+function Home() {
   return (
     <main className="page-shell">
       <div className="site-panel">
@@ -151,4 +154,3 @@ function GitHubIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
