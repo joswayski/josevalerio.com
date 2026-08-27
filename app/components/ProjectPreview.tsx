@@ -1,3 +1,5 @@
+import { PreviewRow } from "./PreviewRow";
+
 export type ProjectPreviewProps = {
   title: string;
   description: string;
@@ -12,23 +14,13 @@ export function ProjectPreview({
   destination,
 }: ProjectPreviewProps) {
   return (
-    <a
+    <PreviewRow
+      variant="project"
       href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="project-row"
-    >
-      <div className="project-copy">
-        <h3>{title}</h3>
-        <p>{description}</p>
-      </div>
-
-      <div className="project-meta">
-        <span>{destination}</span>
-        <span className="project-arrow" aria-hidden="true">
-          ↗
-        </span>
-      </div>
-    </a>
+      title={title}
+      description={description}
+      meta={<span>{destination}</span>}
+      arrow="↗"
+    />
   );
 }

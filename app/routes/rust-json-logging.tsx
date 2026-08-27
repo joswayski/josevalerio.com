@@ -3,19 +3,11 @@ import { RustJsonLogging } from "../data/postPreviews";
 import { CodeSnippet } from "../components/CodeSnippet";
 import { ExternalLink } from "../components/ExternalLink";
 import { BlogShell } from "~/components/BlogShell";
-import { getSocialMeta } from "../data/siteMeta";
+import { getPostMeta } from "../data/siteMeta";
 
 export const Route = createFileRoute("/rust-json-logging")({
   head: () => ({
-    meta: [
-      { title: RustJsonLogging.title },
-      { name: "description", content: RustJsonLogging.previewText },
-      { property: "og:title", content: RustJsonLogging.title },
-      { property: "og:description", content: RustJsonLogging.previewText },
-      { name: "twitter:title", content: RustJsonLogging.title },
-      { name: "twitter:description", content: RustJsonLogging.previewText },
-      ...getSocialMeta(),
-    ],
+    meta: getPostMeta(RustJsonLogging),
   }),
   component: RustJSONLoggingPage,
 });
@@ -28,23 +20,13 @@ function RustJSONLoggingPage() {
           <strong>TLDR:</strong> I ended up making my own crate because the
           previous solution (tracing + valuable) still has issues with enums and
           it's not flexible enough for my usecase. Check out{" "}
-          <a
-            target="_blank"
-            rel="noopener noreferrer"
-            href="https://github.com/joswayski/sjl"
-            className="text-link"
-          >
+          <ExternalLink href="https://github.com/joswayski/sjl">
             sjl - Simple JSON Logger on GitHub
-          </a>{" "}
+          </ExternalLink>{" "}
           or on{" "}
-          <a
-            target="_blank"
-            rel="noopener noreferrer"
-            href="https://crates.io/crates/sjl"
-            className="text-link"
-          >
+          <ExternalLink href="https://crates.io/crates/sjl">
             Crates.io
-          </a>
+          </ExternalLink>
           !
         </p>
       </aside>

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { PoastPreviewProps } from "./PoastPreview";
 import { CopyEmail } from "./CopyEmail";
+import { ExternalAnchor } from "./ExternalLink";
 
 export function BlogShell({
   children,
@@ -36,14 +37,12 @@ export function BlogShell({
             <div>
               <span className="section-number">Questions or feedback?</span>
               <CopyEmail />
-              <a
+              <ExternalAnchor
                 href={githubEditUrl}
-                target="_blank"
-                rel="noopener noreferrer"
                 className="suggest-changes-link"
               >
                 Suggest changes on GitHub<span aria-hidden="true">↗</span>
-              </a>
+              </ExternalAnchor>
             </div>
             <Link to="/" preload="intent">
               More writing<span aria-hidden="true">→</span>
