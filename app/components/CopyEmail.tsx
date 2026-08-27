@@ -3,13 +3,34 @@ import { MailIcon } from "./icons";
 
 const email = "contact@josevalerio.com";
 
+type CopyStatus = "idle" | "copied" | "failed";
+
 type CopyEmailProps = {
   /** Captures-style inline chip used in the home hero. */
   compact?: boolean;
 };
 
+/** Legacy path for browsers without the async clipboard API. */
+function copyWithExecCommand(value: string) {
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+
+  try {
+    textarea.select();
+    if (!document.execCommand("copy")) {
+      throw new Error('document.execCommand("copy") returned false');
+    }
+  } finally {
+    textarea.remove();
+  }
+}
+
 export function CopyEmail({ compact = false }: CopyEmailProps) {
-  const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState<CopyStatus>("idle");
   const resetTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -18,46 +39,58 @@ export function CopyEmail({ compact = false }: CopyEmailProps) {
     };
   }, []);
 
+  function scheduleReset() {
+    if (resetTimer.current !== null) window.clearTimeout(resetTimer.current);
+    resetTimer.current = window.setTimeout(() => setStatus("idle"), 1_800);
+  }
+
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText(email);
-    } catch {
-      // Fallback for older browsers or denied clipboard permission.
       try {
-        const textarea = document.createElement("textarea");
-        textarea.value = email;
-        textarea.setAttribute("readonly", "");
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-      } catch {
-        window.location.href = `mailto:${email}`;
-        return;
+        await navigator.clipboard.writeText(email);
+      } catch (clipboardError) {
+        console.warn(
+          "Clipboard API copy failed, trying execCommand fallback",
+          clipboardError,
+        );
+        copyWithExecCommand(email);
       }
+    } catch (error) {
+      console.error(`Unable to copy ${email} to the clipboard`, error);
+      setStatus("failed");
+      scheduleReset();
+      return;
     }
 
-    setCopied(true);
-    if (resetTimer.current !== null) window.clearTimeout(resetTimer.current);
-    resetTimer.current = window.setTimeout(() => setCopied(false), 1_800);
+    setStatus("copied");
+    scheduleReset();
   }
+
+  const label =
+    status === "copied"
+      ? `Copied ${email}`
+      : status === "failed"
+        ? `Could not copy ${email}, select it manually`
+        : `Copy email ${email}`;
 
   if (compact) {
     return (
       <button
         type="button"
-        onClick={handleCopy}
+        onClick={() => void handleCopy()}
         className="email-chip"
-        aria-label={copied ? `Copied ${email}` : `Copy email ${email}`}
+        aria-label={label}
       >
         <span className="email-chip-address">
           <MailIcon className="social-icon" />
           <span className="email-chip-text">{email}</span>
         </span>
         <span className="email-chip-status" role="status">
-          {copied ? "copied!" : "click to copy"}
+          {status === "copied"
+            ? "copied!"
+            : status === "failed"
+              ? "copy failed - select manually"
+              : "click to copy"}
         </span>
       </button>
     );
@@ -66,13 +99,17 @@ export function CopyEmail({ compact = false }: CopyEmailProps) {
   return (
     <button
       type="button"
-      onClick={handleCopy}
+      onClick={() => void handleCopy()}
       className="email-button"
-      aria-label={`Copy ${email}`}
+      aria-label={label}
     >
       <span>{email}</span>
       <span className="email-button-status" aria-live="polite">
-        {copied ? "Copied" : "Copy"}
+        {status === "copied"
+          ? "Copied"
+          : status === "failed"
+            ? "Copy failed"
+            : "Copy"}
       </span>
     </button>
   );

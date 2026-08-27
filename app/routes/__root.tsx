@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import {
   createRootRoute,
   HeadContent,
@@ -82,6 +82,10 @@ function RootHtml({
 }
 
 function ErrorPage({ error }: { error: Error }) {
+  useEffect(() => {
+    console.error("Unhandled route error", error);
+  }, [error]);
+
   return (
     <ErrorScreen
       title="Oops!"
