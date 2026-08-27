@@ -50,11 +50,10 @@ function Home() {
               href={X_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-chip"
+              className="inline-chip inline-chip--icon"
               aria-label="Jose Valerio on X"
             >
               <XIcon className="social-icon" />
-              X
             </a>
             ,{" "}
             <a
