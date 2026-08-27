@@ -871,7 +871,13 @@ button {
 }
 
 .look-switcher-label {
+  padding-right: 0.55rem;
+  border-right: 1px solid var(--line);
   color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .look-switcher-option {
@@ -888,6 +894,7 @@ button {
 
 .look-switcher-option[aria-pressed="true"] {
   color: var(--ink);
+  box-shadow: inset 0 -1px 0 currentColor;
 }
 
 [data-look="paper"] .hero-name::before {
@@ -903,6 +910,18 @@ button {
   font-style: italic;
   font-size: 1.12rem;
   line-height: 1.55;
+}
+
+[data-look="paper"] .email-chip,
+[data-look="index"] .email-chip {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+[data-look="paper"] .email-chip-status,
+[data-look="index"] .email-chip-status {
+  font-size: 0.68rem;
 }
 
 [data-look="paper"] .inline-chip,
