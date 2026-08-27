@@ -9,6 +9,16 @@ npm install
 npm run dev
 ```
 
+## Tests
+
+```sh
+npm test
+npm run test:coverage
+```
+
+Vitest runs the unit tests in `tests/` against jsdom. `tests/renderWithRouter.tsx`
+wraps components that render `Link` in a memory-history router.
+
 ## Static build
 
 ```sh
