@@ -18,7 +18,7 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { name: "theme-color", content: "#f2f3f5" },
+      { name: "theme-color", content: "#121314" },
       { title: "Jose Valerio" },
       { name: "description", content: "Jose Valerio's personal website" },
       ...getSocialMeta(),
