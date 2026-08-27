@@ -10,15 +10,17 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import appCss from "../app.css?url";
+import { LookSwitcher } from "../components/LookSwitcher";
 import { NotFoundPage } from "../components/NotFoundPage";
 import { getSocialMeta } from "../data/siteMeta";
+import { LOOK_BOOTSTRAP_SCRIPT } from "../looks";
 
 export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { name: "theme-color", content: "#f2f3f5" },
+      { name: "theme-color", content: "#f4f0e7" },
       { title: "Jose Valerio" },
       { name: "description", content: "Jose Valerio's personal website" },
       ...getSocialMeta(),
@@ -65,12 +67,14 @@ function RootHtml({
   includeScripts: boolean;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" data-look="paper" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: LOOK_BOOTSTRAP_SCRIPT }} />
         <HeadContent />
       </head>
       <body>
         {children}
+        {includeScripts && <LookSwitcher />}
         {includeScripts && <Scripts />}
       </body>
     </html>
