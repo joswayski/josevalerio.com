@@ -4,14 +4,18 @@ import type { ReactNode } from "react";
 import {
   createRootRoute,
   HeadContent,
-  Link,
   Outlet,
   Scripts,
   useRouterState,
 } from "@tanstack/react-router";
 import appCss from "../app.css?url";
+import { ErrorScreen } from "../components/ErrorScreen";
 import { NotFoundPage } from "../components/NotFoundPage";
-import { getSocialMeta } from "../data/siteMeta";
+import {
+  getSocialMeta,
+  SITE_DESCRIPTION,
+  SITE_TITLE,
+} from "../data/siteMeta";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -19,8 +23,8 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "theme-color", content: "#121314" },
-      { title: "Jose Valerio" },
-      { name: "description", content: "Jose Valerio's personal website" },
+      { title: SITE_TITLE },
+      { name: "description", content: SITE_DESCRIPTION },
       ...getSocialMeta(),
     ],
     links: [
@@ -79,19 +83,17 @@ function RootHtml({
 
 function ErrorPage({ error }: { error: Error }) {
   return (
-    <main className="error-page">
-      <h1>Oops!</h1>
-      <p>
-        {import.meta.env.DEV
-          ? error.message
-          : "An unexpected error occurred."}
-      </p>
-      <Link to="/">Return home →</Link>
+    <ErrorScreen
+      title="Oops!"
+      message={
+        import.meta.env.DEV ? error.message : "An unexpected error occurred."
+      }
+    >
       {import.meta.env.DEV && error.stack && (
         <pre>
           <code>{error.stack}</code>
         </pre>
       )}
-    </main>
+    </ErrorScreen>
   );
 }

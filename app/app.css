@@ -139,8 +139,7 @@ button {
 .back-link,
 .section-number,
 .section-heading,
-.post-meta,
-.project-meta,
+.preview-meta,
 .email-button,
 .article-kicker,
 .suggest-changes-link {
@@ -343,82 +342,40 @@ button {
 }
 
 .section-number,
-.post-meta,
-.project-meta {
+.preview-meta {
   color: var(--muted);
 }
 
-.post-list,
-.project-list {
+.preview-list {
   border-bottom: 1px solid var(--line);
 }
 
-.project-row {
+.preview-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 1.5rem;
-  align-items: start;
-  padding: 1.15rem 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.project-row:last-child {
-  border-bottom: 0;
-}
-
-.project-copy {
-  min-width: 0;
-}
-
-.project-copy h3 {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  line-height: 1.3;
-  transition: color 120ms ease;
-}
-
-.project-row:hover .project-copy h3 {
-  color: var(--accent);
-}
-
-.project-copy p {
-  max-width: 34rem;
-  margin: 0.45rem 0 0;
-  overflow-wrap: anywhere;
-  color: var(--muted);
-  font-size: 0.82rem;
-  line-height: 1.5;
-}
-
-.project-meta {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.65rem;
-  padding-top: 0.17rem;
-  text-align: right;
-}
-
-.post-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(8rem, 9.5rem);
   gap: 1rem;
   align-items: start;
   padding: 1.15rem 0;
   border-bottom: 1px solid var(--line);
 }
 
-.post-row:last-child {
+.preview-row--post {
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 9.5rem);
+}
+
+.preview-row--project {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.5rem;
+}
+
+.preview-row:last-child {
   border-bottom: 0;
 }
 
-.post-copy {
+.preview-copy {
   min-width: 0;
 }
 
-.post-copy h3 {
+.preview-copy h3 {
   margin: 0;
   font-size: 1.05rem;
   font-weight: 650;
@@ -427,11 +384,11 @@ button {
   transition: color 120ms ease;
 }
 
-.post-row:hover .post-copy h3 {
+.preview-row:hover .preview-copy h3 {
   color: var(--accent);
 }
 
-.post-copy p {
+.preview-copy p {
   max-width: 34rem;
   margin: 0.45rem 0 0;
   overflow-wrap: anywhere;
@@ -440,7 +397,7 @@ button {
   line-height: 1.5;
 }
 
-.post-meta {
+.preview-meta {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -449,8 +406,7 @@ button {
   text-align: right;
 }
 
-.post-arrow,
-.project-arrow {
+.preview-arrow {
   color: var(--accent);
   font-family: var(--code);
   font-size: 1rem;
@@ -458,8 +414,7 @@ button {
   transition: transform 120ms ease;
 }
 
-.post-row:hover .post-arrow,
-.project-row:hover .project-arrow {
+.preview-row:hover .preview-arrow {
   transform: translateX(0.2rem);
 }
 
@@ -696,13 +651,11 @@ button {
     padding: 0 0 1.25rem;
   }
 
-  .post-row,
-  .project-row {
+  .preview-row {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .post-meta,
-  .project-meta {
+  .preview-meta {
     justify-content: flex-start;
     padding-top: 0;
     text-align: left;

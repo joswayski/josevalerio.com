@@ -1,19 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { JustDoTheThing } from "../data/postPreviews";
 import { BlogShell } from "~/components/BlogShell";
-import { getSocialMeta } from "../data/siteMeta";
+import { getPostMeta } from "../data/siteMeta";
 
 export const Route = createFileRoute("/just-do-the-thing")({
   head: () => ({
-    meta: [
-      { title: JustDoTheThing.title },
-      { name: "description", content: JustDoTheThing.previewText },
-      { property: "og:title", content: JustDoTheThing.title },
-      { property: "og:description", content: JustDoTheThing.previewText },
-      { name: "twitter:title", content: JustDoTheThing.title },
-      { name: "twitter:description", content: JustDoTheThing.previewText },
-      ...getSocialMeta(),
-    ],
+    meta: getPostMeta(JustDoTheThing),
   }),
   component: JustDoTheThingPage,
 });

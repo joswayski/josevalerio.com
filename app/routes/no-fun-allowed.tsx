@@ -2,19 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { NoFunAllowed } from "../data/postPreviews";
 import { BlogShell } from "~/components/BlogShell";
 import { ExternalLink } from "~/components/ExternalLink";
-import { getSocialMeta } from "../data/siteMeta";
+import { getPostMeta } from "../data/siteMeta";
 
 export const Route = createFileRoute("/no-fun-allowed")({
   head: () => ({
-    meta: [
-        { title: NoFunAllowed.title },
-        { name: "description", content: NoFunAllowed.previewText },
-        { property: "og:title", content: NoFunAllowed.title },
-        { property: "og:description", content: NoFunAllowed.previewText },
-        { name: "twitter:title", content: NoFunAllowed.title },
-        { name: "twitter:description", content: NoFunAllowed.previewText },
-        ...getSocialMeta(),
-    ],
+    meta: getPostMeta(NoFunAllowed),
   }),
   component: NoFunAllowedPost,
 });
