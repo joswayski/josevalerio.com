@@ -22,4 +22,13 @@ describe("projects", () => {
       expect(project.title.trim()).not.toBe("");
     }
   });
+
+  it("uses the intended Caper and Captures descriptions", () => {
+    expect(projects.find((project) => project.title === "Caper")?.description).toBe(
+      "A (wip!) place for your people to chat about anything.",
+    );
+    expect(
+      projects.find((project) => project.title === "Captures")?.description,
+    ).toBe("A cross-platform screen capture utility.");
+  });
 });

@@ -3,13 +3,13 @@ import type { ProjectPreviewProps } from "../components/ProjectPreview";
 export const projects: ProjectPreviewProps[] = [
   {
     title: "Caper",
-    description: "A place for your people to chat about anything.",
+    description: "A (wip!) place for your people to chat about anything.",
     href: "https://caper.chat",
     destination: "caper.chat",
   },
   {
     title: "Captures",
-    description: "WIP cross-platform screen capture utility.",
+    description: "A cross-platform screen capture utility.",
     href: "https://captur.es",
     destination: "captur.es",
   },
