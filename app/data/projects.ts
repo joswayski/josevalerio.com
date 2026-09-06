@@ -2,8 +2,14 @@ import type { ProjectPreviewProps } from "../components/ProjectPreview";
 
 export const projects: ProjectPreviewProps[] = [
   {
+    title: "Caper",
+    description: "A (wip!) place for chatting with your people.",
+    href: "https://caper.chat",
+    destination: "caper.chat",
+  },
+  {
     title: "Captures",
-    description: "WIP cross-platform screen capture utility.",
+    description: "A place for your people to chat with anyone about anything.",
     href: "https://captur.es",
     destination: "captur.es",
   },
