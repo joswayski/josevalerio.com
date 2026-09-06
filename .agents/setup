@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+step() {
+  local description="$1"
+  shift
+
+  echo "==> ${description}"
+  local started_at=$SECONDS
+  "$@"
+  echo "<== ${description} completed in $((SECONDS - started_at))s"
+}
+
+if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+  echo "Node.js and npm are required to set up this repository." >&2
+  exit 1
+fi
+
+echo "Using Node.js $(node --version) and npm $(npm --version)"
+step "Installing locked npm dependencies" npm ci
