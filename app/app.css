@@ -1,74 +1,56 @@
 @import "tailwindcss";
 
 @font-face {
-  font-family: "IBM Plex Mono";
+  font-family: "Space Mono";
   font-style: normal;
   font-display: swap;
   font-weight: 400;
-  src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2")
+  src: url("@fontsource/space-mono/files/space-mono-latin-400-normal.woff2")
     format("woff2");
 }
 
 @font-face {
-  font-family: "IBM Plex Mono";
+  font-family: "Space Mono";
   font-style: italic;
   font-display: swap;
   font-weight: 400;
-  src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-italic.woff2")
+  src: url("@fontsource/space-mono/files/space-mono-latin-400-italic.woff2")
     format("woff2");
 }
 
 @font-face {
-  font-family: "IBM Plex Mono";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 500;
-  src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2")
-    format("woff2");
-}
-
-@font-face {
-  font-family: "IBM Plex Mono";
+  font-family: "Space Mono";
   font-style: normal;
   font-display: swap;
   font-weight: 700;
-  src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-700-normal.woff2")
+  src: url("@fontsource/space-mono/files/space-mono-latin-700-normal.woff2")
     format("woff2");
 }
 
 @font-face {
-  font-family: "IBM Plex Sans";
+  font-family: "Space Mono";
+  font-style: italic;
+  font-display: swap;
+  font-weight: 700;
+  src: url("@fontsource/space-mono/files/space-mono-latin-700-italic.woff2")
+    format("woff2");
+}
+
+@font-face {
+  font-family: "Space Grotesk";
   font-style: normal;
   font-display: swap;
   font-weight: 400;
-  src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2")
+  src: url("@fontsource/space-grotesk/files/space-grotesk-latin-400-normal.woff2")
     format("woff2");
 }
 
 @font-face {
-  font-family: "IBM Plex Sans";
-  font-style: italic;
-  font-display: swap;
-  font-weight: 400;
-  src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-italic.woff2")
-    format("woff2");
-}
-
-@font-face {
-  font-family: "IBM Plex Sans";
+  font-family: "Space Grotesk";
   font-style: normal;
   font-display: swap;
   font-weight: 600;
-  src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-600-normal.woff2")
-    format("woff2");
-}
-
-@font-face {
-  font-family: "IBM Plex Sans";
-  font-style: italic;
-  font-display: swap;
-  font-weight: 600;
-  src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-600-italic.woff2")
+  src: url("@fontsource/space-grotesk/files/space-grotesk-latin-600-normal.woff2")
     format("woff2");
 }
 
@@ -85,9 +67,9 @@
   --accent: #e25b55;
   --accent-hover: #f07a74;
   --accent-soft: color-mix(in oklch, var(--accent) 14%, var(--canvas));
-  --mono: "IBM Plex Mono", "SFMono-Regular", "Cascadia Code", "Roboto Mono",
+  --mono: "Space Mono", "SFMono-Regular", "Cascadia Code", "Roboto Mono",
     Consolas, "Liberation Mono", monospace;
-  --prose: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --prose: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
   --warning-border: #6a5424;
   --warning-accent: #e0b34a;
   --warning-bg: #2a2418;
@@ -388,6 +370,8 @@ button {
   font-family: var(--prose);
   font-size: 1.125rem;
   line-height: 1.7;
+  /* Space Grotesk ships no italics, so let the browser slant it for <em>. */
+  font-synthesis: style;
 }
 
 .article-body > * {
