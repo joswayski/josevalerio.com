@@ -6,6 +6,7 @@ import { Route as JustDoTheThingRoute } from "../../app/routes/just-do-the-thing
 import { Route as NoFunAllowedRoute } from "../../app/routes/no-fun-allowed";
 import { Route as RustJsonLoggingRoute } from "../../app/routes/rust-json-logging";
 import {
+  formatPostDate,
   JustDoTheThing,
   NoFunAllowed,
   RustJsonLogging,
@@ -36,7 +37,7 @@ describe("home page", () => {
     }
   });
 
-  it("shows the hero with social links and the email chip", async () => {
+  it("shows the header with social links and the email chip", async () => {
     await renderRoute(IndexRoute);
 
     expect(
@@ -53,14 +54,13 @@ describe("home page", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the projects and writing sections", async () => {
+  it("renders the projects section before the writing section", async () => {
     await renderRoute(IndexRoute);
 
-    for (const name of ["Projects", "Writing"]) {
-      expect(
-        screen.getByRole("heading", { level: 2, name }),
-      ).toBeInTheDocument();
-    }
+    const headings = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((heading) => heading.textContent);
+    expect(headings).toEqual(["Projects", "Writing"]);
   });
 });
 
@@ -75,12 +75,12 @@ describe("post pages", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: post.title }),
     ).toBeInTheDocument();
-    expect(screen.getByText(post.date)).toHaveAttribute(
+    expect(screen.getByText(formatPostDate(post.dateTime))).toHaveAttribute(
       "dateTime",
       post.dateTime,
     );
     expect(
-      screen.getByRole("link", { name: /Suggest changes on GitHub/ }),
+      screen.getByRole("link", { name: /Suggest an edit/ }),
     ).toHaveAttribute(
       "href",
       `https://github.com/joswayski/josevalerio.com/edit/main/app/routes${post.link}.tsx`,

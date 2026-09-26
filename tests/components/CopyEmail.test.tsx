@@ -11,18 +11,6 @@ function setClipboard(writeText: (text: string) => Promise<void>) {
   });
 }
 
-const realLocation = window.location;
-
-function stubWindowLocation() {
-  const stub = { href: "" };
-  Object.defineProperty(window, "location", {
-    configurable: true,
-    writable: true,
-    value: stub,
-  });
-  return stub;
-}
-
 function click(element: HTMLElement) {
   return act(async () => {
     element.click();
@@ -37,11 +25,6 @@ describe("CopyEmail", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      writable: true,
-      value: realLocation,
-    });
   });
 
   it("copies the email through the clipboard api and resets the label after the timeout", async () => {
@@ -51,17 +34,19 @@ describe("CopyEmail", () => {
     setClipboard(writeText);
     render(<CopyEmail />);
 
-    const button = screen.getByRole("button", { name: `Copy ${EMAIL}` });
-    expect(button).toHaveTextContent("Copy");
+    const button = screen.getByRole("button", { name: `Copy email ${EMAIL}` });
+    expect(button).toHaveTextContent("Email");
 
     await click(button);
     expect(writeText).toHaveBeenCalledWith(EMAIL);
-    expect(button).toHaveTextContent("Copied");
+    expect(
+      screen.getByRole("button", { name: `Copied ${EMAIL}` }),
+    ).toHaveTextContent("Copied");
 
     await act(async () => {
       vi.advanceTimersByTime(1_800);
     });
-    expect(button).toHaveTextContent("Copy");
+    expect(screen.getByRole("button")).toHaveTextContent("Email");
   });
 
   it("falls back to a hidden textarea and execCommand when the clipboard api rejects", async () => {
@@ -80,7 +65,7 @@ describe("CopyEmail", () => {
     expect(screen.getByRole("button")).toHaveTextContent("Copied");
   });
 
-  it("falls back to a mailto navigation when copying is impossible", async () => {
+  it("shows the address as selectable text when copying is impossible", async () => {
     setClipboard(() => Promise.reject(new Error("denied")));
     Object.defineProperty(document, "execCommand", {
       configurable: true,
@@ -88,28 +73,17 @@ describe("CopyEmail", () => {
         throw new Error("unsupported");
       },
     });
-    // jsdom cannot navigate, so observe the assignment on a stand-in location.
-    const stubLocation = stubWindowLocation();
+    vi.spyOn(console, "error").mockImplementation(() => {});
     render(<CopyEmail />);
 
     await click(screen.getByRole("button"));
 
-    expect(stubLocation.href).toBe(`mailto:${EMAIL}`);
-    expect(screen.getByRole("button")).toHaveTextContent("Copy");
-  });
-
-  it("renders the compact chip with copy state in its accessible name", async () => {
-    setClipboard(() => Promise.resolve());
-    render(<CopyEmail compact />);
-
-    const chip = screen.getByRole("button", { name: `Copy email ${EMAIL}` });
-    expect(chip).toHaveTextContent("click to copy");
-
-    await click(chip);
-
     expect(
-      screen.getByRole("button", { name: `Copied ${EMAIL}` }),
-    ).toHaveTextContent("copied!");
+      screen.getByRole("button", {
+        name: `Could not copy ${EMAIL}, select it manually`,
+      }),
+    ).toHaveTextContent("Copy failed");
+    expect(screen.getByText(EMAIL)).toHaveClass("email-fallback");
   });
 
   it("clears the pending reset timer on unmount", async () => {

@@ -1,7 +1,10 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { PoastPreview } from "../../app/components/PoastPreview";
-import { RustJsonLogging } from "../../app/data/postPreviews";
+import {
+  formatPostDate,
+  RustJsonLogging,
+} from "../../app/data/postPreviews";
 import { renderWithRouter } from "../renderWithRouter";
 
 describe("PoastPreview", () => {
@@ -13,7 +16,7 @@ describe("PoastPreview", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(RustJsonLogging.previewText)).toBeInTheDocument();
 
-    const time = screen.getByText(RustJsonLogging.date);
+    const time = screen.getByText(formatPostDate(RustJsonLogging.dateTime));
     expect(time.tagName).toBe("TIME");
     expect(time).toHaveAttribute("dateTime", RustJsonLogging.dateTime);
   });

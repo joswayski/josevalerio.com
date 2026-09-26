@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatPostDate,
   JustDoTheThing,
   NoFunAllowed,
   RustJsonLogging,
@@ -21,19 +22,23 @@ describe("postPreviews", () => {
     expect(timestamps).toEqual([...timestamps].sort((a, b) => b - a));
   });
 
-  it("keeps every post's dateTime a valid ISO date matching its display date", () => {
+  it("keeps every post's dateTime a valid ISO date", () => {
     for (const post of postPreviews) {
       expect(post.dateTime).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       const parsed = new Date(`${post.dateTime}T00:00:00Z`);
       expect(Number.isNaN(parsed.getTime())).toBe(false);
-      expect(
-        parsed.toLocaleDateString("en-US", {
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-          timeZone: "UTC",
-        }),
-      ).toBe(post.date);
+    }
+  });
+
+  it("formats post dates as short month and year", () => {
+    expect(formatPostDate("2025-03-23")).toBe("Mar 2025");
+    expect(formatPostDate("2025-12-01")).toBe("Dec 2025");
+  });
+
+  it("gives every post a positive whole-minute reading time", () => {
+    for (const post of postPreviews) {
+      expect(Number.isInteger(post.readingMinutes)).toBe(true);
+      expect(post.readingMinutes).toBeGreaterThan(0);
     }
   });
 
