@@ -1,4 +1,4 @@
-import { PreviewRow } from "./PreviewRow";
+import { ExternalAnchor } from "./ExternalLink";
 
 export type ProjectPreviewProps = {
   title: string;
@@ -14,13 +14,17 @@ export function ProjectPreview({
   destination,
 }: ProjectPreviewProps) {
   return (
-    <PreviewRow
-      variant="project"
-      href={href}
-      title={title}
-      description={description}
-      meta={<span>{destination}</span>}
-      arrow="↗"
-    />
+    <ExternalAnchor href={href} className="project-card">
+      <div className="project-card-top">
+        <h3>{title}</h3>
+        <span className="project-destination">
+          {destination}{" "}
+          <span className="project-arrow" aria-hidden="true">
+            ↗
+          </span>
+        </span>
+      </div>
+      <p>{description}</p>
+    </ExternalAnchor>
   );
 }

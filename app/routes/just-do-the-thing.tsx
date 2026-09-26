@@ -25,7 +25,7 @@ function JustDoTheThingPage() {
           your current task.
         </span>
       </p>
-      <p className="pt-8">
+      <p>
         "
         <span className="italic ">
           But I have another more important thing to do!

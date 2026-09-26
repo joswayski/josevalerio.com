@@ -25,7 +25,7 @@ describe("projects", () => {
 
   it("uses the intended Caper and Captures descriptions", () => {
     expect(projects.find((project) => project.title === "Caper")?.description).toBe(
-      "A (wip!) place for your people to chat about anything.",
+      "A place for your people to chat about anything.",
     );
     expect(
       projects.find((project) => project.title === "Captures")?.description,

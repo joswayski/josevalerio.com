@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { PoastPreviewProps } from "./PoastPreview";
-import { CopyEmail } from "./CopyEmail";
 import { ExternalAnchor } from "./ExternalLink";
+import { SiteLinks } from "./SiteLinks";
+import { formatPostDate } from "../data/postPreviews";
 
 export function BlogShell({
   children,
@@ -11,42 +12,38 @@ export function BlogShell({
   children: ReactNode;
   post: PoastPreviewProps;
 }) {
-  const { title, date, dateTime, link } = post;
+  const { title, previewText, dateTime, readingMinutes, link } = post;
   const githubEditUrl = `https://github.com/joswayski/josevalerio.com/edit/main/app/routes${link}.tsx`;
 
   return (
     <div className="page-shell">
-      <div className="site-panel article-site">
-        <header className="site-header article-nav">
+      <div className="site-panel">
+        <header className="site-header">
           <Link to="/" className="back-link" preload="intent">
-            <span aria-hidden="true">←</span> All writing
+            <span aria-hidden="true">←</span> Back
           </Link>
+          <SiteLinks />
         </header>
 
-        <main className="article-page">
+        <main className="site-panel">
           <header className="article-header">
-            <div className="article-kicker">
-              <time dateTime={dateTime}>{date}</time>
-            </div>
+            <span className="article-meta">
+              <time dateTime={dateTime}>{formatPostDate(dateTime)}</time> ·{" "}
+              {readingMinutes} min read
+            </span>
             <h1>{title}</h1>
+            <p className="article-summary">{previewText}</p>
           </header>
 
           <article className="article-body">{children}</article>
 
           <footer className="article-footer">
-            <div>
-              <span className="section-number">Questions or feedback?</span>
-              <CopyEmail />
-              <ExternalAnchor
-                href={githubEditUrl}
-                className="suggest-changes-link"
-              >
-                Suggest changes on GitHub<span aria-hidden="true">↗</span>
-              </ExternalAnchor>
-            </div>
-            <Link to="/" preload="intent">
-              More writing<span aria-hidden="true">→</span>
-            </Link>
+            <ExternalAnchor
+              href={githubEditUrl}
+              className="suggest-changes-link"
+            >
+              Suggest an edit <span aria-hidden="true">↗</span>
+            </ExternalAnchor>
           </footer>
         </main>
       </div>

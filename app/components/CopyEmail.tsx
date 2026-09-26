@@ -1,14 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { MailIcon } from "./icons";
 
 const email = "contact@josevalerio.com";
 
 type CopyStatus = "idle" | "copied" | "failed";
-
-type CopyEmailProps = {
-  /** Captures-style inline chip used in the home hero. */
-  compact?: boolean;
-};
 
 /** Legacy path for browsers without the async clipboard API. */
 function copyWithExecCommand(value: string) {
@@ -29,7 +23,8 @@ function copyWithExecCommand(value: string) {
   }
 }
 
-export function CopyEmail({ compact = false }: CopyEmailProps) {
+/** Header chip that copies the email address; shows it as text if copying fails. */
+export function CopyEmail() {
   const [status, setStatus] = useState<CopyStatus>("idle");
   const resetTimer = useRef<number | null>(null);
 
@@ -39,9 +34,9 @@ export function CopyEmail({ compact = false }: CopyEmailProps) {
     };
   }, []);
 
-  function scheduleReset() {
+  function scheduleReset(delay: number) {
     if (resetTimer.current !== null) window.clearTimeout(resetTimer.current);
-    resetTimer.current = window.setTimeout(() => setStatus("idle"), 1_800);
+    resetTimer.current = window.setTimeout(() => setStatus("idle"), delay);
   }
 
   async function handleCopy() {
@@ -58,12 +53,12 @@ export function CopyEmail({ compact = false }: CopyEmailProps) {
     } catch (error) {
       console.error(`Unable to copy ${email} to the clipboard`, error);
       setStatus("failed");
-      scheduleReset();
+      scheduleReset(8_000);
       return;
     }
 
     setStatus("copied");
-    scheduleReset();
+    scheduleReset(1_800);
   }
 
   const label =
@@ -73,44 +68,27 @@ export function CopyEmail({ compact = false }: CopyEmailProps) {
         ? `Could not copy ${email}, select it manually`
         : `Copy email ${email}`;
 
-  if (compact) {
-    return (
+  return (
+    <>
       <button
         type="button"
         onClick={() => void handleCopy()}
-        className="email-chip"
+        className="chip"
         aria-label={label}
+        title={email}
       >
-        <span className="email-chip-address">
-          <MailIcon className="social-icon" />
-          <span className="email-chip-text">{email}</span>
+        <span role="status">
+          {status === "copied" ? (
+            <span className="chip-status">Copied</span>
+          ) : status === "failed" ? (
+            <span className="chip-status">Copy failed</span>
+          ) : (
+            "Email"
+          )}
         </span>
-        <span className="email-chip-status" role="status">
-          {status === "copied"
-            ? "copied!"
-            : status === "failed"
-              ? "copy failed - select manually"
-              : "click to copy"}
-        </span>
+        <span aria-hidden="true">⧉</span>
       </button>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => void handleCopy()}
-      className="email-button"
-      aria-label={label}
-    >
-      <span>{email}</span>
-      <span className="email-button-status" aria-live="polite">
-        {status === "copied"
-          ? "Copied"
-          : status === "failed"
-            ? "Copy failed"
-            : "Copy"}
-      </span>
-    </button>
+      {status === "failed" && <span className="email-fallback">{email}</span>}
+    </>
   );
 }
