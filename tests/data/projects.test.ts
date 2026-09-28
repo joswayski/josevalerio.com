@@ -31,4 +31,13 @@ describe("projects", () => {
       projects.find((project) => project.title === "Captures")?.description,
     ).toBe("A cross-platform screen capture utility.");
   });
+
+  it("includes dbm with its GitHub repository", () => {
+    expect(projects.find((project) => project.title === "dbm")).toEqual({
+      title: "dbm",
+      description: "A database manager.",
+      href: "https://github.com/joswayski/dbm",
+      destination: "github.com",
+    });
+  });
 });
