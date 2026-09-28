@@ -14,6 +14,12 @@ export const projects: ProjectPreviewProps[] = [
     destination: "captur.es",
   },
   {
+    title: "dbm",
+    description: "A database manager.",
+    href: "https://github.com/joswayski/dbm",
+    destination: "github.com",
+  },
+  {
     title: "Credit Card Horoscope",
     description: "What does your credit card say about you?",
     href: "https://creditcardhoroscope.com",
