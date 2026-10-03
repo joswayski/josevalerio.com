@@ -35,7 +35,8 @@ describe("projects", () => {
   it("includes dbm with its GitHub repository", () => {
     expect(projects.find((project) => project.title === "dbm")).toEqual({
       title: "dbm",
-      description: "A database manager.",
+      description:
+        "A fast, local-first database manager for PostgreSQL, MySQL, and Redis.",
       href: "https://github.com/joswayski/dbm",
       destination: "github.com",
     });
