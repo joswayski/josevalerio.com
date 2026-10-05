@@ -36,7 +36,7 @@ describe("projects", () => {
     expect(projects.find((project) => project.title === "Anybase")).toEqual({
       title: "Anybase",
       description:
-        "A fast, local-first database manager for PostgreSQL, MySQL, and Redis.",
+        "A fast database client for PostgreSQL, MySQL, and Redis.",
       href: "https://anyba.se",
       destination: "anyba.se",
     });
