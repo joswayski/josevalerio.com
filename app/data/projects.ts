@@ -14,11 +14,11 @@ export const projects: ProjectPreviewProps[] = [
     destination: "captur.es",
   },
   {
-    title: "dbm",
+    title: "Anybase",
     description:
       "A fast, local-first database manager for PostgreSQL, MySQL, and Redis.",
-    href: "https://github.com/joswayski/dbm",
-    destination: "github.com",
+    href: "https://anyba.se",
+    destination: "anyba.se",
   },
   {
     title: "Credit Card Horoscope",
