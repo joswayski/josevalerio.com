@@ -32,13 +32,13 @@ describe("projects", () => {
     ).toBe("A cross-platform screen capture utility.");
   });
 
-  it("includes dbm with its GitHub repository", () => {
-    expect(projects.find((project) => project.title === "dbm")).toEqual({
-      title: "dbm",
+  it("links Anybase to its website", () => {
+    expect(projects.find((project) => project.title === "Anybase")).toEqual({
+      title: "Anybase",
       description:
         "A fast, local-first database manager for PostgreSQL, MySQL, and Redis.",
-      href: "https://github.com/joswayski/dbm",
-      destination: "github.com",
+      href: "https://anyba.se",
+      destination: "anyba.se",
     });
   });
 });
