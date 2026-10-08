@@ -15,8 +15,7 @@ export function getSocialMeta() {
     { property: "og:image:height", content: "910" },
     {
       property: "og:image:alt",
-      content:
-        "Jose Valerio beside a blood-orange red color field in a minimal typographic card",
+      content: "Jose Valerio beside a blood-orange red color field in a minimal typographic card",
     },
     { name: "twitter:card", content: "summary_large_image" },
     {
@@ -26,13 +25,7 @@ export function getSocialMeta() {
   ];
 }
 
-export function getPageMeta({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
+export function getPageMeta({ title, description }: { title: string; description: string }) {
   return [
     { title },
     { name: "description", content: description },

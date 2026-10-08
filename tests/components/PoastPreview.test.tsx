@@ -1,10 +1,7 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { PoastPreview } from "../../app/components/PoastPreview";
-import {
-  formatPostDate,
-  RustJsonLogging,
-} from "../../app/data/postPreviews";
+import { formatPostDate, RustJsonLogging } from "../../app/data/postPreviews";
 import { renderWithRouter } from "../renderWithRouter";
 
 describe("PoastPreview", () => {
@@ -24,9 +21,6 @@ describe("PoastPreview", () => {
   it("links to the post route", async () => {
     await renderWithRouter(<PoastPreview {...RustJsonLogging} />);
 
-    expect(screen.getByRole("link")).toHaveAttribute(
-      "href",
-      RustJsonLogging.link,
-    );
+    expect(screen.getByRole("link")).toHaveAttribute("href", RustJsonLogging.link);
   });
 });

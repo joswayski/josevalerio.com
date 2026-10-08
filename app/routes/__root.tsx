@@ -11,11 +11,7 @@ import {
 import appCss from "../app.css?url";
 import { ErrorScreen } from "../components/ErrorScreen";
 import { NotFoundPage } from "../components/NotFoundPage";
-import {
-  getSocialMeta,
-  SITE_DESCRIPTION,
-  SITE_TITLE,
-} from "../data/siteMeta";
+import { getSocialMeta, SITE_DESCRIPTION, SITE_TITLE } from "../data/siteMeta";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -61,13 +57,7 @@ function RootDocument() {
   );
 }
 
-function RootHtml({
-  children,
-  includeScripts,
-}: {
-  children: ReactNode;
-  includeScripts: boolean;
-}) {
+function RootHtml({ children, includeScripts }: { children: ReactNode; includeScripts: boolean }) {
   return (
     <html lang="en">
       <head>
@@ -89,9 +79,7 @@ function ErrorPage({ error }: { error: Error }) {
   return (
     <ErrorScreen
       title="Oops!"
-      message={
-        import.meta.env.DEV ? error.message : "An unexpected error occurred."
-      }
+      message={import.meta.env.DEV ? error.message : "An unexpected error occurred."}
     >
       {import.meta.env.DEV && error.stack && (
         <pre>

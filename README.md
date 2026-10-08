@@ -4,15 +4,27 @@ Mostly a blog.
 
 ## Development
 
+Use Node 24 (the CI version), or another version supported by `package.json`.
+The site uses Vite 8 (Rolldown/Oxc), Vitest 5, TypeScript 7's native compiler,
+and the Rust-based Oxlint/Oxfmt tools. Node/npm remain the development tools;
+deployment remains static.
+
 ```sh
-npm install
+npm ci
 npm run dev
+npm run check       # Lint, formatting, typecheck, tests, and static build
+npm run lint        # Correctness rules; warnings fail
+npm run fmt         # Format first-party source and configuration
 ```
+
+Generated routes, public assets, and npm's lockfile are not reformatted. GitHub
+Actions runs `npm run check` on pull requests and main; it does not deploy.
 
 ## Tests
 
 ```sh
 npm test
+npm run test:watch
 npm run test:coverage
 ```
 

@@ -44,10 +44,7 @@ export function CopyEmail() {
       try {
         await navigator.clipboard.writeText(email);
       } catch (clipboardError) {
-        console.warn(
-          "Clipboard API copy failed, trying execCommand fallback",
-          clipboardError,
-        );
+        console.warn("Clipboard API copy failed, trying execCommand fallback", clipboardError);
         copyWithExecCommand(email);
       }
     } catch (error) {

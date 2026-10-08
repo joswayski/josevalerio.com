@@ -32,10 +32,7 @@ describe("root route head", () => {
 
   it("links the stylesheet, icons and the web manifest", () => {
     expect(rel("stylesheet")).toHaveLength(1);
-    expect(rel("icon").map((link) => link.href)).toEqual([
-      "/favicon.ico",
-      "/favicon.svg",
-    ]);
+    expect(rel("icon").map((link) => link.href)).toEqual(["/favicon.ico", "/favicon.svg"]);
     expect(rel("apple-touch-icon")[0]?.sizes).toBe("180x180");
     expect(rel("manifest")[0]?.href).toBe("/site.webmanifest");
   });
@@ -57,10 +54,7 @@ describe("root route components", () => {
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Oops!");
     expect(screen.getByText("boom")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Return home/ })).toHaveAttribute(
-      "href",
-      "/",
-    );
+    expect(screen.getByRole("link", { name: /Return home/ })).toHaveAttribute("href", "/");
     expect(document.querySelector("pre code")?.textContent).toBe(error.stack);
   });
 });

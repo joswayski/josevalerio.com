@@ -3,9 +3,7 @@ import { projects } from "../../app/data/projects";
 
 describe("projects", () => {
   it("uses unique titles", () => {
-    expect(new Set(projects.map((project) => project.title)).size).toBe(
-      projects.length,
-    );
+    expect(new Set(projects.map((project) => project.title)).size).toBe(projects.length);
   });
 
   it("points every project at an https url whose host contains the destination", () => {
@@ -27,16 +25,15 @@ describe("projects", () => {
     expect(projects.find((project) => project.title === "Caper")?.description).toBe(
       "A place for your people to chat about anything.",
     );
-    expect(
-      projects.find((project) => project.title === "Captures")?.description,
-    ).toBe("A cross-platform screen capture utility.");
+    expect(projects.find((project) => project.title === "Captures")?.description).toBe(
+      "A cross-platform screen capture utility.",
+    );
   });
 
   it("links Anybase to its website", () => {
     expect(projects.find((project) => project.title === "Anybase")).toEqual({
       title: "Anybase",
-      description:
-        "A fast database client for PostgreSQL, MySQL, and Redis.",
+      description: "A fast database client for PostgreSQL, MySQL, and Redis.",
       href: "https://anyba.se",
       destination: "anyba.se",
     });

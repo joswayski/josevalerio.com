@@ -4,11 +4,7 @@ import { ProjectPreview } from "../components/ProjectPreview";
 import { SiteLinks } from "../components/SiteLinks";
 import { postPreviews } from "../data/postPreviews";
 import { projects } from "../data/projects";
-import {
-  getPageMeta,
-  SITE_DESCRIPTION,
-  SITE_TITLE,
-} from "../data/siteMeta";
+import { getPageMeta, SITE_DESCRIPTION, SITE_TITLE } from "../data/siteMeta";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -35,11 +31,7 @@ function Home() {
           </p>
         </header>
 
-        <section
-          className="index-section"
-          id="projects"
-          aria-labelledby="projects-title"
-        >
+        <section className="index-section" id="projects" aria-labelledby="projects-title">
           <h2 id="projects-title">Projects</h2>
           <div className="project-grid">
             {projects.map((project) => (
@@ -48,11 +40,7 @@ function Home() {
           </div>
         </section>
 
-        <section
-          className="index-section"
-          id="writing"
-          aria-labelledby="writing-title"
-        >
+        <section className="index-section" id="writing" aria-labelledby="writing-title">
           <h2 id="writing-title">Writing</h2>
           <div className="post-list">
             {postPreviews.map((post) => (

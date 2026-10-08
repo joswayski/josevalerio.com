@@ -42,9 +42,6 @@ describe("CodeSnippet", () => {
   it("appends the caller's class", () => {
     render(<CodeSnippet className="extra">sjl</CodeSnippet>);
 
-    expect(screen.getByText("sjl")).toHaveAttribute(
-      "class",
-      "inline-code extra",
-    );
+    expect(screen.getByText("sjl")).toHaveAttribute("class", "inline-code extra");
   });
 });

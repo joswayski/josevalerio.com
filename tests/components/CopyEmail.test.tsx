@@ -28,9 +28,7 @@ describe("CopyEmail", () => {
   });
 
   it("copies the email through the clipboard api and resets the label after the timeout", async () => {
-    const writeText = vi.fn<(text: string) => Promise<void>>(() =>
-      Promise.resolve(),
-    );
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
     setClipboard(writeText);
     render(<CopyEmail />);
 
@@ -39,9 +37,7 @@ describe("CopyEmail", () => {
 
     await click(button);
     expect(writeText).toHaveBeenCalledWith(EMAIL);
-    expect(
-      screen.getByRole("button", { name: `Copied ${EMAIL}` }),
-    ).toHaveTextContent("Copied");
+    expect(screen.getByRole("button", { name: `Copied ${EMAIL}` })).toHaveTextContent("Copied");
 
     await act(async () => {
       vi.advanceTimersByTime(1_800);

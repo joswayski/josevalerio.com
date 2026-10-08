@@ -26,11 +26,7 @@ export const NoFunAllowed: PoastPreviewProps = {
   link: "/no-fun-allowed",
 };
 
-export const postPreviews: PoastPreviewProps[] = [
-  NoFunAllowed,
-  RustJsonLogging,
-  JustDoTheThing,
-];
+export const postPreviews: PoastPreviewProps[] = [NoFunAllowed, RustJsonLogging, JustDoTheThing];
 
 /** Formats an ISO post date (YYYY-MM-DD) as "Mon YYYY", e.g. "Mar 2025". */
 export function formatPostDate(dateTime: string) {

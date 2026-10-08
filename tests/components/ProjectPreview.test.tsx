@@ -13,9 +13,7 @@ describe("ProjectPreview", () => {
   it("renders the project copy and destination", () => {
     render(<ProjectPreview {...project} />);
 
-    expect(
-      screen.getByRole("heading", { level: 3, name: project.title }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: project.title })).toBeInTheDocument();
     expect(screen.getByText(project.description)).toBeInTheDocument();
     expect(screen.getByText(project.destination)).toBeInTheDocument();
   });

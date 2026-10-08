@@ -10,15 +10,11 @@ import {
 describe("postPreviews", () => {
   it("lists every post exactly once", () => {
     expect(postPreviews).toEqual([NoFunAllowed, RustJsonLogging, JustDoTheThing]);
-    expect(new Set(postPreviews.map((post) => post.link)).size).toBe(
-      postPreviews.length,
-    );
+    expect(new Set(postPreviews.map((post) => post.link)).size).toBe(postPreviews.length);
   });
 
   it("orders posts newest first", () => {
-    const timestamps = postPreviews.map((post) =>
-      new Date(post.dateTime).getTime(),
-    );
+    const timestamps = postPreviews.map((post) => new Date(post.dateTime).getTime());
     expect(timestamps).toEqual([...timestamps].sort((a, b) => b - a));
   });
 

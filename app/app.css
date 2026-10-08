@@ -5,8 +5,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 400;
-  src: url("@fontsource/space-mono/files/space-mono-latin-400-normal.woff2")
-    format("woff2");
+  src: url("@fontsource/space-mono/files/space-mono-latin-400-normal.woff2") format("woff2");
 }
 
 @font-face {
@@ -14,8 +13,7 @@
   font-style: italic;
   font-display: swap;
   font-weight: 400;
-  src: url("@fontsource/space-mono/files/space-mono-latin-400-italic.woff2")
-    format("woff2");
+  src: url("@fontsource/space-mono/files/space-mono-latin-400-italic.woff2") format("woff2");
 }
 
 @font-face {
@@ -23,8 +21,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 700;
-  src: url("@fontsource/space-mono/files/space-mono-latin-700-normal.woff2")
-    format("woff2");
+  src: url("@fontsource/space-mono/files/space-mono-latin-700-normal.woff2") format("woff2");
 }
 
 @font-face {
@@ -32,8 +29,7 @@
   font-style: italic;
   font-display: swap;
   font-weight: 700;
-  src: url("@fontsource/space-mono/files/space-mono-latin-700-italic.woff2")
-    format("woff2");
+  src: url("@fontsource/space-mono/files/space-mono-latin-700-italic.woff2") format("woff2");
 }
 
 @font-face {
@@ -41,8 +37,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 400;
-  src: url("@fontsource/space-grotesk/files/space-grotesk-latin-400-normal.woff2")
-    format("woff2");
+  src: url("@fontsource/space-grotesk/files/space-grotesk-latin-400-normal.woff2") format("woff2");
 }
 
 @font-face {
@@ -50,8 +45,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 600;
-  src: url("@fontsource/space-grotesk/files/space-grotesk-latin-600-normal.woff2")
-    format("woff2");
+  src: url("@fontsource/space-grotesk/files/space-grotesk-latin-600-normal.woff2") format("woff2");
 }
 
 :root {
@@ -67,8 +61,9 @@
   --accent: #e25b55;
   --accent-hover: #f07a74;
   --accent-soft: color-mix(in oklch, var(--accent) 14%, var(--canvas));
-  --mono: "Space Mono", "SFMono-Regular", "Cascadia Code", "Roboto Mono",
-    Consolas, "Liberation Mono", monospace;
+  --mono:
+    "Space Mono", "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas, "Liberation Mono",
+    monospace;
   --prose: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
   --warning-border: #6a5424;
   --warning-accent: #e0b34a;
