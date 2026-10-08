@@ -5,13 +5,7 @@ import { ExternalAnchor } from "./ExternalLink";
 import { SiteLinks } from "./SiteLinks";
 import { formatPostDate } from "../data/postPreviews";
 
-export function BlogShell({
-  children,
-  post,
-}: {
-  children: ReactNode;
-  post: PoastPreviewProps;
-}) {
+export function BlogShell({ children, post }: { children: ReactNode; post: PoastPreviewProps }) {
   const { title, previewText, dateTime, readingMinutes, link } = post;
   const githubEditUrl = `https://github.com/joswayski/josevalerio.com/edit/main/app/routes${link}.tsx`;
 
@@ -28,8 +22,8 @@ export function BlogShell({
         <main className="site-panel">
           <header className="article-header">
             <span className="article-meta">
-              <time dateTime={dateTime}>{formatPostDate(dateTime)}</time> ·{" "}
-              {readingMinutes} min read
+              <time dateTime={dateTime}>{formatPostDate(dateTime)}</time> · {readingMinutes} min
+              read
             </span>
             <h1>{title}</h1>
             <p className="article-summary">{previewText}</p>
@@ -38,10 +32,7 @@ export function BlogShell({
           <article className="article-body">{children}</article>
 
           <footer className="article-footer">
-            <ExternalAnchor
-              href={githubEditUrl}
-              className="suggest-changes-link"
-            >
+            <ExternalAnchor href={githubEditUrl} className="suggest-changes-link">
               Suggest an edit <span aria-hidden="true">↗</span>
             </ExternalAnchor>
           </footer>

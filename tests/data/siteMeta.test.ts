@@ -12,9 +12,7 @@ describe("getSocialMeta", () => {
   it("declares the open graph image with matching twitter fallbacks", () => {
     const meta = getSocialMeta();
     const byProperty = new Map(
-      meta
-        .filter((tag) => "property" in tag)
-        .map((tag) => [tag.property, tag.content]),
+      meta.filter((tag) => "property" in tag).map((tag) => [tag.property, tag.content]),
     );
     const byName = new Map(
       meta.filter((tag) => "name" in tag).map((tag) => [tag.name, tag.content]),

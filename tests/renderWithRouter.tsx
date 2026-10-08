@@ -8,11 +8,7 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 
-const POST_PATHS = [
-  "/just-do-the-thing",
-  "/rust-json-logging",
-  "/no-fun-allowed",
-] as const;
+const POST_PATHS = ["/just-do-the-thing", "/rust-json-logging", "/no-fun-allowed"] as const;
 
 /**
  * Renders a component inside a minimal router so `Link` resolves the same

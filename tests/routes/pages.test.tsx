@@ -25,9 +25,7 @@ describe("home page", () => {
   it("links every project and every post", async () => {
     await renderRoute(IndexRoute);
 
-    const hrefs = screen
-      .getAllByRole("link")
-      .map((link) => link.getAttribute("href"));
+    const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
 
     for (const project of projects) {
       expect(hrefs).toContain(project.href);
@@ -40,18 +38,16 @@ describe("home page", () => {
   it("shows the header with social links and the email chip", async () => {
     await renderRoute(IndexRoute);
 
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Jose Valerio" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Jose Valerio on X" }),
-    ).toHaveAttribute("href", "https://x.com/josevalerio");
-    expect(
-      screen.getByRole("link", { name: "Jose Valerio on GitHub" }),
-    ).toHaveAttribute("href", "https://github.com/joswayski");
-    expect(
-      screen.getByRole("button", { name: /contact@josevalerio\.com/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Jose Valerio" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Jose Valerio on X" })).toHaveAttribute(
+      "href",
+      "https://x.com/josevalerio",
+    );
+    expect(screen.getByRole("link", { name: "Jose Valerio on GitHub" })).toHaveAttribute(
+      "href",
+      "https://github.com/joswayski",
+    );
+    expect(screen.getByRole("button", { name: /contact@josevalerio\.com/ })).toBeInTheDocument();
   });
 
   it("renders the projects section before the writing section", async () => {
@@ -72,21 +68,15 @@ describe("post pages", () => {
   ])("renders the post shell and body copy", async (route, post) => {
     await renderRoute(route);
 
-    expect(
-      screen.getByRole("heading", { level: 1, name: post.title }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: post.title })).toBeInTheDocument();
     expect(screen.getByText(formatPostDate(post.dateTime))).toHaveAttribute(
       "dateTime",
       post.dateTime,
     );
-    expect(
-      screen.getByRole("link", { name: /Suggest an edit/ }),
-    ).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Suggest an edit/ })).toHaveAttribute(
       "href",
       `https://github.com/joswayski/josevalerio.com/edit/main/app/routes${post.link}.tsx`,
     );
-    expect(document.querySelectorAll(".article-body p").length).toBeGreaterThan(
-      0,
-    );
+    expect(document.querySelectorAll(".article-body p").length).toBeGreaterThan(0);
   });
 });

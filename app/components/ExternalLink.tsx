@@ -31,11 +31,7 @@ type ExternalLinkProps = {
   className?: string;
 };
 
-export function ExternalLink({
-  href,
-  children,
-  className = "",
-}: ExternalLinkProps) {
+export function ExternalLink({ href, children, className = "" }: ExternalLinkProps) {
   return (
     <ExternalAnchor href={href} className={`text-link ${className}`}>
       {children}

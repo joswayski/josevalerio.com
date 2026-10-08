@@ -1,10 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { formatPostDate } from "../data/postPreviews";
 
-export type PostPath =
-  | "/just-do-the-thing"
-  | "/rust-json-logging"
-  | "/no-fun-allowed";
+export type PostPath = "/just-do-the-thing" | "/rust-json-logging" | "/no-fun-allowed";
 
 export type PoastPreviewProps = {
   title: string;
@@ -14,12 +11,7 @@ export type PoastPreviewProps = {
   link: PostPath;
 };
 
-export function PoastPreview({
-  title,
-  previewText,
-  dateTime,
-  link,
-}: PoastPreviewProps) {
+export function PoastPreview({ title, previewText, dateTime, link }: PoastPreviewProps) {
   return (
     <Link to={link} preload="intent" className="post-row">
       <div className="post-row-top">

@@ -15,8 +15,7 @@ export const projects: ProjectPreviewProps[] = [
   },
   {
     title: "Anybase",
-    description:
-      "A fast database client for PostgreSQL, MySQL, and Redis.",
+    description: "A fast database client for PostgreSQL, MySQL, and Redis.",
     href: "https://anyba.se",
     destination: "anyba.se",
   },
@@ -28,8 +27,7 @@ export const projects: ProjectPreviewProps[] = [
   },
   {
     title: "sjl",
-    description:
-      "A simple JSON logger for Rust, built to avoid tracing's nested JSON limitations.",
+    description: "A simple JSON logger for Rust, built to avoid tracing's nested JSON limitations.",
     href: "https://crates.io/crates/sjl",
     destination: "crates.io",
   },

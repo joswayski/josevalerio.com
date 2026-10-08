@@ -3,11 +3,7 @@ import { Route as IndexRoute } from "../../app/routes/index";
 import { Route as JustDoTheThingRoute } from "../../app/routes/just-do-the-thing";
 import { Route as NoFunAllowedRoute } from "../../app/routes/no-fun-allowed";
 import { Route as RustJsonLoggingRoute } from "../../app/routes/rust-json-logging";
-import {
-  JustDoTheThing,
-  NoFunAllowed,
-  RustJsonLogging,
-} from "../../app/data/postPreviews";
+import { JustDoTheThing, NoFunAllowed, RustJsonLogging } from "../../app/data/postPreviews";
 import { getSocialMeta } from "../../app/data/siteMeta";
 import { routeHead, tagContent } from "../routeHead";
 
@@ -16,9 +12,7 @@ describe("route head meta", () => {
     const { meta } = routeHead(IndexRoute);
 
     expect(meta[0]?.title).toBe("Jose Valerio");
-    expect(tagContent(meta, "description")).toBe(
-      "Jose Valerio's personal website",
-    );
+    expect(tagContent(meta, "description")).toBe("Jose Valerio's personal website");
     expect(tagContent(meta, "og:title")).toBe("Jose Valerio");
     expect(tagContent(meta, "twitter:title")).toBe("Jose Valerio");
   });

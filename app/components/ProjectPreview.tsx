@@ -7,12 +7,7 @@ export type ProjectPreviewProps = {
   destination: string;
 };
 
-export function ProjectPreview({
-  title,
-  description,
-  href,
-  destination,
-}: ProjectPreviewProps) {
+export function ProjectPreview({ title, description, href, destination }: ProjectPreviewProps) {
   return (
     <ExternalAnchor href={href} className="project-card">
       <div className="project-card-top">
