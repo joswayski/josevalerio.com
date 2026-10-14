@@ -19,6 +19,7 @@ npm run fmt         # Format first-party source and configuration
 
 Generated routes, public assets, and npm's lockfile are not reformatted. GitHub
 Actions runs `npm run check` on pull requests and main; it does not deploy.
+Pushes to `main` deploy through Cloudflare Workers Builds (see below).
 
 ## Tests
 
@@ -61,6 +62,7 @@ Deploy after authenticating Wrangler:
 npm run deploy
 ```
 
-For Cloudflare Workers Builds, use `npm run build` as the build command and
+Cloudflare Workers Builds (`josevalerio-com`) is connected to this repository
+and deploys every push to `main`, using `npm run build` as the build command and
 `npx wrangler deploy` as the deploy command. The static asset directory is
 `dist/client`.
