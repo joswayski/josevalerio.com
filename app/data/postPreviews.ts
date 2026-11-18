@@ -1,4 +1,12 @@
-import type { PoastPreviewProps } from "../components/PoastPreview";
+export type PostPath = "/just-do-the-thing" | "/rust-json-logging" | "/no-fun-allowed";
+
+export type PoastPreviewProps = {
+  title: string;
+  previewText: string;
+  dateTime: string;
+  readingMinutes: number;
+  link: PostPath;
+};
 
 export const JustDoTheThing: PoastPreviewProps = {
   title: "Just do the thing",

@@ -28,7 +28,7 @@ describe("BlogShell", () => {
     expect(screen.getByText("Body copy")).toBeInTheDocument();
   });
 
-  it("links back to the index from the header", async () => {
+  it("links back to the index", async () => {
     await renderWithRouter(
       <BlogShell post={JustDoTheThing}>
         <p>Body copy</p>
@@ -51,7 +51,7 @@ describe("BlogShell", () => {
     );
   });
 
-  it("shows the social links and email chip in the header", async () => {
+  it("shows the social links and email chip", async () => {
     await renderWithRouter(
       <BlogShell post={JustDoTheThing}>
         <p>Body copy</p>

@@ -20,7 +20,7 @@ describe("root route head", () => {
       name: "viewport",
       content: "width=device-width, initial-scale=1",
     });
-    expect(meta).toContainEqual({ name: "theme-color", content: "#101214" });
+    expect(meta).toContainEqual({ name: "theme-color", content: "#0b3f86" });
     expect(meta).toContainEqual({ title: "Jose Valerio" });
   });
 

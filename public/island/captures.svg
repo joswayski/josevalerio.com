@@ -1,0 +1,117 @@
+<svg viewBox="56 9 1188 1168" xmlns="http://www.w3.org/2000/svg" width="1188" height="1168">
+  <title>Snowy photo shack with a giant camera</title>
+  <desc>A colorful wooden island photo shack with a purple rooftop camera, a shiny blue lens, and two framed snapshots beside its red door.</desc>
+  <defs>
+    <clipPath id="mountain-photo-clip">
+      <path d="M421 861 542 836 566 967 445 992Z" />
+    </clipPath>
+    <clipPath id="penguin-photo-clip">
+      <path d="m986 837 120 24-25 128-119-24Z" />
+    </clipPath>
+  </defs>
+  <g transform="translate(70 49) scale(.9)" stroke="#102553" stroke-width="14" stroke-linejoin="round" stroke-linecap="round">
+    <g id="wooden-shack">
+      <path d="m102 674 234 66 53 354-51 68-237-100Z" fill="#b95926" />
+      <path d="m148 699 190 50 1 345-190-73Z" fill="#d57a34" stroke="none" />
+      <path d="m339 735 431-267 392 257-12 326-812 91Z" fill="#cc662b" />
+      <path d="m339 735 431-267 392 257-12 54-383-247-426 263Z" fill="#ad481e" stroke="none" />
+      <path d="m405 782 361-219 278 169-639 61Z" fill="#dd7b36" stroke="none" />
+      <path d="M150 707v326M338 751l8 359M401 722l5 382M1123 724l-29 343" fill="none" stroke="#79351f" stroke-width="10" />
+      <path d="m149 778 190 47m-189 54 192 55m-191 44 191 62M408 720l637-21M408 792l703-20M408 873l697-22M409 962l689-27M409 1048l683-29M580 616l361-5" fill="none" stroke="#80391f" stroke-width="9" />
+      <path d="M101 1011c-16 0-22 12-22 33l-1 25c0 13 5 19 20 25l239 103 43-78-41-21Z" fill="#ac4930" />
+      <path d="m100 1018 238 92-4 50-234-92Z" fill="#bd5736" stroke="none" />
+      <path d="M338 1103c-23-3-29 7-29 31l-1 34c0 21 10 29 34 27l808-65c23-2 30-9 30-26l-2-34c-1-19-7-24-27-20-58 15-160 20-267 28l-481 32c-27 2-47 0-65-7Z" fill="#aa4932" />
+      <path d="m348 1117 795-57 15 17-810 67Z" fill="#b85336" stroke="none" />
+    </g>
+
+    <g id="side-window">
+      <path d="M156 947V835c0-65 25-90 61-90 47 0 92 48 92 115v130Z" fill="#ffc52e" stroke-width="11" />
+      <path d="M186 953V840c0-35 12-55 33-55 29 0 61 35 61 78v114Z" fill="#4bc8f3" stroke-width="10" />
+      <path d="M218 788v174m-30-103 89 29" fill="none" stroke-width="10" />
+      <path d="M151 941c-14-3-20 5-20 18v13c0 12 4 17 18 21l157 39c17 4 25-2 25-16v-17c0-11-5-17-18-20Z" fill="#ffc329" stroke-width="10" />
+      <path d="m145 949 169 40-3 14-166-42Z" fill="#ffdc58" stroke="none" />
+    </g>
+
+    <g id="front-door">
+      <path d="m577 1097 8-295c2-94 87-164 185-164 100 0 180 64 175 151l-9 294Z" fill="#ffca2c" stroke-width="12" />
+      <path d="m627 1077 4-271c1-65 66-116 140-116s134 47 131 111l-5 263Z" fill="#ed3745" stroke-width="13" />
+      <path d="m634 1073 5-269c1-52 44-96 95-106-40 23-63 61-64 107l-5 266Z" fill="#d52a40" stroke="none" />
+      <path d="M674 901V838c0-52 40-97 91-97 47 0 85 38 85 91v58c0 9-2 13-11 14l-154 9c-8 0-11-3-11-12Z" fill="#53cbf4" stroke-width="12" />
+      <path d="M765 746v159m-87-69 169-8" fill="none" stroke-width="13" />
+      <ellipse cx="854" cy="957" rx="30" ry="31" fill="#ffca2e" stroke-width="10" />
+      <path d="M839 942c3-10 22-11 29 1 7 15-9 24-21 18-8-4-11-11-8-19Z" fill="#ffdf58" stroke="none" />
+    </g>
+
+    <g id="hanging-mountain-snapshot">
+      <path d="m441 821 51-74 48 63" fill="none" stroke-width="13" />
+      <circle cx="492" cy="746" r="25" fill="#ffca2d" stroke-width="9" />
+      <ellipse cx="490" cy="740" rx="15" ry="12" fill="#ffdf58" stroke="none" />
+      <path d="m392 837 159-34c12-3 19 2 21 14l26 170c2 11-2 17-14 20l-155 35c-13 3-20-2-22-14l-26-169c-2-12 1-19 11-22Z" fill="#fff0cf" stroke-width="10" />
+      <path d="m421 861 121-25 24 131-121 25Z" fill="#12b6ed" stroke-width="7" />
+      <g clip-path="url(#mountain-photo-clip)" stroke="none">
+        <path d="m423 957 28-41c10-14 17-9 27-1l20-31c11-17 22-14 35-4l44 36 10 65-146 24Z" fill="#f3f6e9" />
+        <path d="m430 967 26-27c9-10 15 8 25 4 10-3 20-31 28-28 8 2 15 19 22 11l8-15 39 18 11 54-149 24Z" fill="#8264c7" />
+      </g>
+      <path d="m421 861 121-25 24 131-121 25Z" fill="none" stroke-width="6" />
+    </g>
+
+    <g id="hanging-penguin-snapshot">
+      <path d="m990 809 46-62 48 75" fill="none" stroke-width="12" />
+      <circle cx="1036" cy="747" r="24" fill="#ffca2d" stroke-width="9" />
+      <ellipse cx="1033" cy="741" rx="14" ry="11" fill="#ffdf58" stroke="none" />
+      <path d="m985 805 144 28c12 2 16 9 14 21l-31 162c-2 10-9 15-20 13l-145-28c-11-2-16-9-13-21l32-159c2-12 8-18 19-16Z" fill="#fff0cf" stroke-width="10" />
+      <path d="m986 837 120 24-25 128-119-24Z" fill="#17b8ef" stroke-width="7" />
+      <g clip-path="url(#penguin-photo-clip)" stroke="none">
+        <path d="M968 981c8-21 16-43 30-54 1-42 27-67 50-59 32 10 48 43 33 113l-5 27Z" fill="#2855ad" />
+        <path d="M986 987c7-21 27-43 44-48 21 3 28 27 30 57Z" fill="#f3f4e7" />
+        <ellipse cx="1031" cy="909" rx="14" ry="21" fill="#f3f4e7" transform="rotate(10 1031 909)" />
+        <ellipse cx="1050" cy="912" rx="13" ry="20" fill="#f3f4e7" transform="rotate(10 1050 912)" />
+        <ellipse cx="1032" cy="908" rx="4" ry="8" fill="#142c59" />
+        <ellipse cx="1049" cy="913" rx="4" ry="8" fill="#142c59" />
+        <path d="M1013 918c12-9 35-4 45 9 8 14-10 22-31 14-19-6-25-15-14-23Z" fill="#ffbd13" />
+      </g>
+      <path d="m986 837 120 24-25 128-119-24Z" fill="none" stroke-width="6" />
+    </g>
+
+    <g id="roof">
+      <path d="M61 624c-8 24-17 65-10 88 4 12 13 15 31 9l84-20c26-8 41 0 67 12l73 35c15 7 25 6 38-2l425-258 400 266c14 9 23 4 35-10l34-47-78-174-381-151-554 128Z" fill="#ee4938" />
+      <path d="m330 710 440-266 432 278-24 26-409-263-425 261c-16 10-27 8-43 0l-109-48 35-10Z" fill="#c73436" stroke="none" />
+      <path d="M351 287c-62 12-92 65-119 122L118 511c-40 37-78 74-77 113 0 31 19 50 45 49 32-1 62-31 107-41 8 48 31 87 69 94 67 14 109-40 133-101 61 16 113-30 154-91 41 15 76 8 109-17l109-62 132 39c32 33 66 52 102 44 13 47 53 105 110 94 31 76 77 108 116 76 34-29 22-70-4-102-26-33-68-65-106-84-13-34-28-57-46-73-7-55-39-99-85-118L513 259Z" fill="#c2eafa" />
+      <path d="M345 383c-30 8-48 37-66 80 33-23 57-31 84-30Z" fill="#88bdf0" stroke="none" />
+      <path d="M42 605c7 25 26 36 49 34 36-3 75-35 102-26 7 32 40 55 78 53 39-2 74-21 98-50 42 12 85-16 119-56 37-44 64-64 99-55l71 25c-35 13-68 15-109 4-41 61-93 107-154 91-24 61-66 115-133 101-38-7-61-46-69-94-45 10-75 40-107 41-27 1-47-20-44-48Z" fill="#8dbef2" stroke="none" />
+      <path d="M904 452c34 32 65 51 93 50 32 59 68 98 121 98 41 46 66 78 96 61 14-7 20-22 21-37 15 31 14 59-8 78-39 32-85 0-116-76-57 11-97-47-110-94-36 8-70-11-102-44Z" fill="#8dbef2" stroke="none" />
+      <path d="M351 287c-62 12-92 65-119 122L118 511c-40 37-78 74-77 113 0 31 19 50 45 49 32-1 62-31 107-41 8 48 31 87 69 94 67 14 109-40 133-101 61 16 113-30 154-91 41 15 76 8 109-17l109-62 132 39c32 33 66 52 102 44 13 47 53 105 110 94 31 76 77 108 116 76 34-29 22-70-4-102-26-33-68-65-106-84-13-34-28-57-46-73-7-55-39-99-85-118L513 259Z" fill="none" />
+    </g>
+
+    <g id="giant-camera">
+      <path d="M364 435c-9-57-20-128-17-166 2-48 25-75 76-94l129-30c10-42 21-80 48-99 25-19 108-29 148-32 53-5 75 25 94 91 51-9 83-10 110 7 26 16 36 42 41 83l23 202c-33-9-59 1-83 16L615 398c-61-30-111-4-159 58-32-22-58-27-92-21Z" fill="#9457ce" />
+      <path d="M347 252c24 16 56 16 89 6l540-88 17 25 23 202c-33-9-59 1-83 16L615 398c-61-30-111-4-159 58-32-22-58-27-92-21-10-63-19-132-17-183Z" fill="#70409f" stroke="none" />
+      <path d="M436 258c-16 54-5 130 20 198-33-22-58-27-92-21-10-61-20-130-17-183 23 15 53 17 89 6Z" fill="#603a93" stroke="none" />
+      <path d="M552 145c8-34 17-65 31-86 25 4 45 14 56 33l-12 72-66 7Z" fill="#7540a6" stroke="none" />
+      <path d="M364 435c-9-57-20-128-17-166 2-48 25-75 76-94l129-30c10-42 21-80 48-99 25-19 108-29 148-32 53-5 75 25 94 91 51-9 83-10 110 7 26 16 36 42 41 83l23 202c-33-9-59 1-83 16L615 398c-61-30-111-4-159 58-32-22-58-27-92-21Z" fill="none" stroke-width="16" />
+      <path d="M634 135c-3-31 5-62 28-69l88-12c25-3 36 18 41 61Z" fill="#9ee4f8" stroke-width="13" />
+      <path d="M425 191c-3-15-7-35-6-45 1-28 39-43 75-43 29 0 50 10 54 32l8 33c-9 18-89 44-125 29Z" fill="#ffbe17" stroke-width="15" />
+      <ellipse cx="486" cy="133" rx="57" ry="20" fill="#ffda48" stroke="none" transform="rotate(-10 486 133)" />
+      <path d="M422 190c23 17 107-1 143-22" fill="none" stroke-width="15" />
+      <g id="camera-lens" transform="rotate(16 777 345)">
+        <ellipse cx="777" cy="345" rx="183" ry="198" fill="#969fce" stroke-width="16" />
+        <path d="M672 185c-42 38-65 94-65 151 0 102 66 186 150 194-66-36-104-101-104-181 0-64 23-121 57-159Z" fill="#8693c3" stroke="none" />
+        <ellipse cx="777" cy="345" rx="183" ry="198" fill="none" stroke-width="15" />
+        <ellipse cx="786" cy="340" rx="127" ry="139" fill="#00adf1" stroke-width="15" />
+        <path d="M849 226c39 43 48 104 23 158-27 60-86 92-139 77 57 5 108-41 126-93 16-49 13-102-10-142Z" fill="#009de5" stroke="none" />
+        <ellipse cx="786" cy="340" rx="127" ry="139" fill="none" stroke-width="14" />
+        <ellipse cx="737" cy="290" rx="36" ry="72" fill="#a5edfa" stroke="none" transform="rotate(30 737 290)" />
+        <ellipse cx="855" cy="367" rx="22" ry="35" fill="#a5edfa" stroke="none" transform="rotate(25 855 367)" />
+      </g>
+    </g>
+
+    <g id="doorstep">
+      <path d="M586 1081c3-13 19-21 45-23l256-16c30-2 49 6 52 24l2 35-350 26Z" fill="#ffca33" stroke-width="12" />
+      <path d="M591 1083c14 14 32 18 56 16l252-17c16-1 29-4 37-10l3 29-348 26Z" fill="#d98c16" stroke="none" />
+      <path d="M586 1081c3-13 19-21 45-23l256-16c30-2 49 6 52 24l2 35-350 26Z" fill="none" stroke-width="12" />
+      <path d="M585 1106c-19 4-30 14-30 30l-1 23c0 19 18 28 47 27l350-17c22-1 29-7 28-22l-1-17c-2-18-15-27-38-31l-1 3-291 20c-26 2-49-1-63-16Z" fill="#ffcb35" stroke-width="12" />
+      <path d="M559 1134c14 17 34 23 60 22l324-17c15-1 26-5 33-11l3 19c1 15-6 21-28 22l-350 17c-29 1-47-8-47-27Z" fill="#d58a13" stroke="none" />
+      <path d="M585 1106c-19 4-30 14-30 30l-1 23c0 19 18 28 47 27l350-17c22-1 29-7 28-22l-1-17c-2-18-15-27-38-31" fill="none" stroke-width="12" />
+    </g>
+  </g>
+</svg>

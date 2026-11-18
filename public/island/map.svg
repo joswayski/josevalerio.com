@@ -1,0 +1,156 @@
+<svg viewBox="0 0 1536 1024" width="1536" height="1024" xmlns="http://www.w3.org/2000/svg">
+  <title>Snowy island game map</title>
+  <desc>A wide open snowy island with edge-clustered pines, small northern mountains, a rocky shore, and a wooden dock in a bright blue ocean.</desc>
+  <rect width="1536" height="1024" fill="#08a8ec" />
+  <g id="ocean-waves" fill="none" stroke="#e9f8ff" stroke-width="7" stroke-linecap="round">
+    <path d="M28 98 Q54 111 81 86 Q110 107 140 89" />
+    <path d="M441 71 Q469 83 495 59 Q518 78 540 66" />
+    <path d="M1374 95 Q1401 106 1426 83 Q1456 103 1483 84 Q1498 96 1514 94" />
+    <path d="M30 956 Q55 968 78 945 Q108 967 144 948" />
+    <path d="M335 984 Q365 996 389 973 Q423 995 459 978" />
+    <path d="M989 983 Q1020 995 1048 975 Q1080 994 1112 981" />
+    <path d="M1334 959 Q1364 972 1395 948 Q1430 971 1468 952" />
+    <path d="M72 381 Q87 390 104 379 M1434 736 Q1454 748 1474 736" />
+  </g>
+
+  <g id="northern-mountains" stroke="#102444" stroke-width="8" stroke-linejoin="round">
+    <path d="M281 184 L359 96 Q385 71 406 96 L481 161 L552 205Z" fill="#8fbaff" />
+    <path d="M323 133 Q350 132 375 122 Q397 147 421 132 L406 96 Q385 71 359 96Z" fill="#edf6ff" stroke="none" />
+    <path d="M329 132 Q351 132 375 122 Q400 149 421 132" fill="none" stroke="#588dd3" stroke-width="5" />
+    <path d="M455 173 L570 75 Q601 48 627 69 L673 105 L740 42 Q780 -7 820 26 L911 109 Q944 70 975 99 L1056 156 L1054 209Z" fill="#8fbaff" />
+    <path d="M524 115 L570 75 Q601 48 627 69 L673 105 Q656 105 652 119 Q637 131 620 112 Q600 152 583 131 L576 115 Q548 137 532 138 Q519 137 524 115Z" fill="#edf6ff" stroke="none" />
+    <path d="M699 79 L740 42 Q780 -7 820 26 L861 67 Q870 85 849 82 L825 74 Q822 111 787 78 Q754 121 743 74 Q696 96 699 79Z" fill="#edf6ff" stroke="none" />
+    <path d="M524 119 Q520 153 576 115 Q589 160 620 112 Q650 141 654 108 M699 79 Q695 96 743 74 Q754 121 787 78 Q821 111 825 74 Q862 90 863 72" fill="none" stroke="#588dd3" stroke-width="5" />
+    <path d="M909 109 Q944 70 975 99 L1010 121 L973 163Z" fill="#edf6ff" />
+    <path d="M972 146 L1049 74 Q1078 48 1105 71 L1200 148 L1231 206 L1006 205Z" fill="#8fbaff" />
+    <path d="M1009 111 L1049 74 Q1078 48 1105 71 L1153 113 Q1139 121 1134 115 Q1135 152 1097 114 Q1069 156 1053 114 Q1002 140 1009 111Z" fill="#edf6ff" stroke="none" />
+    <path d="M1009 116 Q1007 139 1053 114 Q1069 156 1097 114 Q1135 152 1134 115" fill="none" stroke="#588dd3" stroke-width="5" />
+  </g>
+
+  <path id="rock-shore" d="M77 270 C52 281 45 307 31 329 Q16 356 57 363 L45 409 Q-7 474 21 495 L31 530 Q-7 577 16 603 Q24 613 40 619 L59 659 L31 714 Q7 756 33 777 L64 797 L50 838 Q36 871 93 887 Q76 915 144 920 Q177 925 216 914 Q243 960 332 948 Q414 944 460 926 Q503 932 544 919 Q558 943 597 937 L644 928 L840 929 Q870 948 905 930 Q950 936 990 926 Q1022 955 1093 949 Q1162 946 1216 920 Q1263 910 1302 920 Q1376 934 1425 891 Q1498 881 1483 841 L1466 792 Q1490 761 1474 720 L1457 669 Q1502 655 1499 628 Q1536 619 1522 586 L1508 557 L1492 453 L1460 369 Q1488 349 1480 328 L1459 284 Q1431 244 1371 228 L1240 206 L253 205Z" fill="#8c92a5" stroke="#102444" stroke-width="8" stroke-linejoin="round" />
+  <g id="rock-facets" fill="none" stroke="#535f79" stroke-width="6" stroke-linecap="round">
+    <path d="M56 318 L88 331 M51 431 L29 475 L50 496 M42 566 L69 588 L59 624 M39 734 L65 759 L51 786 M110 837 L93 887 M240 875 L216 914 M451 876 L460 926 M564 874 L544 919 M885 876 L905 930 M1019 878 L990 926 M1197 873 L1216 920 M1390 842 L1425 891 M1420 712 L1473 749 M1482 582 L1499 628 M1425 324 L1460 369" />
+  </g>
+
+  <path id="snow-island" d="M108 224 Q152 200 235 192 Q295 189 352 177 Q424 150 494 170 Q547 184 573 174 Q621 155 648 151 Q683 145 721 159 Q750 172 779 162 Q873 126 922 131 Q1005 128 1039 181 Q1101 154 1153 180 Q1226 183 1274 204 Q1327 220 1382 238 Q1436 247 1455 273 Q1476 302 1441 320 Q1406 329 1427 348 Q1452 368 1462 396 Q1482 411 1479 440 Q1478 468 1497 492 Q1525 528 1524 555 Q1525 600 1487 595 Q1459 586 1439 606 Q1420 624 1436 638 Q1468 669 1455 697 Q1446 717 1427 722 Q1415 735 1441 755 Q1487 777 1481 808 Q1478 842 1440 847 Q1411 848 1395 850 Q1374 852 1365 867 Q1353 883 1324 876 Q1282 860 1265 877 Q1234 898 1193 883 Q1159 867 1143 885 Q1114 909 1076 908 Q1033 909 996 887 Q972 873 950 880 L906 895 Q872 906 848 885 L652 870 Q630 863 613 882 Q585 906 557 878 Q542 863 516 872 Q472 882 436 900 Q395 920 369 893 Q354 878 333 887 Q270 910 247 887 Q231 868 225 864 Q210 854 186 865 Q139 884 117 860 Q109 851 109 836 Q83 841 62 823 Q39 802 59 778 Q75 758 99 752 Q114 744 94 735 Q76 730 56 731 Q16 728 30 690 Q38 667 61 642 Q82 620 87 606 Q94 593 69 592 Q31 591 36 566 Q4 563 17 533 Q26 513 42 496 Q56 481 45 460 Q22 427 39 390 Q50 364 79 337 L105 313 Q120 299 95 303 Q61 315 56 292 Q51 272 72 248 Q86 231 108 224Z" fill="#e5f4ff" stroke="#102444" stroke-width="8" stroke-linejoin="round" />
+
+  <g id="faint-snow-paths" fill="none" stroke="#b8e3fb" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M333 201 Q414 226 393 254 Q380 276 317 281 Q251 286 219 300 Q173 324 96 336" stroke-width="17" />
+    <path d="M234 300 Q282 312 303 351 Q321 399 383 413 Q414 421 453 425 Q483 428 497 440" stroke-width="16" />
+    <path d="M1040 190 Q953 213 971 254 Q1010 319 940 341 Q909 352 861 362 Q743 385 653 420 Q583 449 510 437 Q483 434 454 464 Q421 490 405 530 Q391 565 371 579 Q348 592 292 595 Q146 603 48 692" stroke-width="18" />
+    <path d="M974 333 Q1021 333 1087 349 Q1153 367 1220 364 Q1302 364 1384 324 Q1428 304 1445 306" stroke-width="17" />
+    <path d="M1255 368 Q1296 373 1304 416 Q1310 463 1350 471" stroke-width="17" />
+    <path d="M315 788 Q367 789 394 814 Q422 847 448 847 Q483 848 523 840 Q561 835 590 850" stroke-width="17" />
+    <path d="M866 861 Q923 830 970 844 Q1057 876 1096 849 Q1121 831 1137 814 Q1163 793 1211 795" stroke-width="16" />
+  </g>
+
+  <g id="northwest-tall-pine" transform="translate(270 43)" stroke="#102444" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-18 143 L-23 180 Q0 189 30 180 L24 142Z" fill="#b77732" />
+    <path d="M-47 93 Q-58 112 -77 129 Q-94 146 -75 154 Q-47 164 -22 155 Q3 171 27 155 Q59 163 77 151 Q88 142 72 128 L45 94Z" fill="#399f38" />
+    <path d="M-39 53 Q-49 72 -64 87 Q-76 101 -63 110 Q-42 118 -21 109 Q-3 132 17 111 Q43 124 59 111 Q75 104 62 89 L37 57Z" fill="#f5faff" />
+    <path d="M-41 58 Q-23 87 -4 83 Q15 97 36 76 L39 57Z" fill="#399f38" stroke="none" />
+    <path d="M-23 13 Q-3 -10 16 13 Q23 25 39 40 Q58 60 35 63 Q20 63 15 56 Q3 74 -15 58 Q-35 70 -46 62 Q-58 53 -39 35 Q-29 25 -23 13Z" fill="#f5faff" />
+  </g>
+  <g id="northwest-small-pine" transform="translate(158 128) scale(.79)" stroke="#102444" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-18 143 L-23 180 Q0 189 30 180 L24 142Z" fill="#b77732" />
+    <path d="M-47 93 Q-58 112 -77 129 Q-94 146 -75 154 Q-47 164 -22 155 Q3 171 27 155 Q59 163 77 151 Q88 142 72 128 L45 94Z" fill="#399f38" />
+    <path d="M-39 53 Q-49 72 -64 87 Q-76 101 -63 110 Q-42 118 -21 109 Q-3 132 17 111 Q43 124 59 111 Q75 104 62 89 L37 57Z" fill="#f5faff" />
+    <path d="M-41 58 Q-23 87 -4 83 Q15 97 36 76 L39 57Z" fill="#399f38" stroke="none" />
+    <path d="M-23 13 Q-3 -10 16 13 Q23 25 39 40 Q58 60 35 63 Q20 63 15 56 Q3 74 -15 58 Q-35 70 -46 62 Q-58 53 -39 35 Q-29 25 -23 13Z" fill="#f5faff" />
+  </g>
+  <g id="northeast-small-pine" transform="translate(1187 109) scale(.70)" stroke="#102444" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-18 143 L-23 180 Q0 189 30 180 L24 142Z" fill="#b77732" />
+    <path d="M-47 93 Q-58 112 -77 129 Q-94 146 -75 154 Q-47 164 -22 155 Q3 171 27 155 Q59 163 77 151 Q88 142 72 128 L45 94Z" fill="#399f38" />
+    <path d="M-39 53 Q-49 72 -64 87 Q-76 101 -63 110 Q-42 118 -21 109 Q-3 132 17 111 Q43 124 59 111 Q75 104 62 89 L37 57Z" fill="#f5faff" />
+    <path d="M-41 58 Q-23 87 -4 83 Q15 97 36 76 L39 57Z" fill="#399f38" stroke="none" />
+    <path d="M-23 13 Q-3 -10 16 13 Q23 25 39 40 Q58 60 35 63 Q20 63 15 56 Q3 74 -15 58 Q-35 70 -46 62 Q-58 53 -39 35 Q-29 25 -23 13Z" fill="#f5faff" />
+  </g>
+  <g id="northeast-tall-pine" transform="translate(1278 77) scale(.94)" stroke="#102444" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-18 143 L-23 180 Q0 189 30 180 L24 142Z" fill="#b77732" />
+    <path d="M-47 93 Q-58 112 -77 129 Q-94 146 -75 154 Q-47 164 -22 155 Q3 171 27 155 Q59 163 77 151 Q88 142 72 128 L45 94Z" fill="#399f38" />
+    <path d="M-39 53 Q-49 72 -64 87 Q-76 101 -63 110 Q-42 118 -21 109 Q-3 132 17 111 Q43 124 59 111 Q75 104 62 89 L37 57Z" fill="#f5faff" />
+    <path d="M-41 58 Q-23 87 -4 83 Q15 97 36 76 L39 57Z" fill="#399f38" stroke="none" />
+    <path d="M-23 13 Q-3 -10 16 13 Q23 25 39 40 Q58 60 35 63 Q20 63 15 56 Q3 74 -15 58 Q-35 70 -46 62 Q-58 53 -39 35 Q-29 25 -23 13Z" fill="#f5faff" />
+  </g>
+  <g id="northeast-outer-pine" transform="translate(1366 137) scale(.79)" stroke="#102444" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-18 143 L-23 180 Q0 189 30 180 L24 142Z" fill="#b77732" />
+    <path d="M-47 93 Q-58 112 -77 129 Q-94 146 -75 154 Q-47 164 -22 155 Q3 171 27 155 Q59 163 77 151 Q88 142 72 128 L45 94Z" fill="#399f38" />
+    <path d="M-39 53 Q-49 72 -64 87 Q-76 101 -63 110 Q-42 118 -21 109 Q-3 132 17 111 Q43 124 59 111 Q75 104 62 89 L37 57Z" fill="#f5faff" />
+    <path d="M-41 58 Q-23 87 -4 83 Q15 97 36 76 L39 57Z" fill="#399f38" stroke="none" />
+    <path d="M-23 13 Q-3 -10 16 13 Q23 25 39 40 Q58 60 35 63 Q20 63 15 56 Q3 74 -15 58 Q-35 70 -46 62 Q-58 53 -39 35 Q-29 25 -23 13Z" fill="#f5faff" />
+  </g>
+
+  <g id="west-pine" transform="translate(86 377) scale(.85)" stroke="#102444" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-18 143 L-23 180 Q0 189 30 180 L24 142Z" fill="#b77732" />
+    <path d="M-47 93 Q-58 112 -69 129 Q-88 150 -66 158 Q-43 164 -22 155 Q3 171 27 155 Q59 163 77 151 Q88 142 72 128 L45 94Z" fill="#399f38" />
+    <path d="M-39 53 Q-49 72 -54 87 Q-70 105 -57 111 Q-42 118 -21 109 Q-3 132 17 111 Q43 124 59 111 Q75 104 62 89 L37 57Z" fill="#f5faff" />
+    <path d="M-41 58 Q-23 87 -4 83 Q15 97 36 76 L39 57Z" fill="#399f38" stroke="none" />
+    <path d="M-23 13 Q-3 -10 16 13 Q23 25 39 40 Q58 60 35 63 Q20 63 15 56 Q3 74 -15 58 Q-35 70 -46 62 Q-58 53 -39 35 Q-29 25 -23 13Z" fill="#f5faff" />
+  </g>
+  <g id="west-inner-pine" transform="translate(157 445) scale(.74)" stroke="#102444" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-18 143 L-23 180 Q0 189 30 180 L24 142Z" fill="#b77732" />
+    <path d="M-47 93 Q-58 112 -77 129 Q-94 146 -75 154 Q-47 164 -22 155 Q3 171 27 155 Q59 163 77 151 Q88 142 72 128 L45 94Z" fill="#399f38" />
+    <path d="M-39 53 Q-49 72 -64 87 Q-76 101 -63 110 Q-42 118 -21 109 Q-3 132 17 111 Q43 124 59 111 Q75 104 62 89 L37 57Z" fill="#f5faff" />
+    <path d="M-41 58 Q-23 87 -4 83 Q15 97 36 76 L39 57Z" fill="#399f38" stroke="none" />
+    <path d="M-23 13 Q-3 -10 16 13 Q23 25 39 40 Q58 60 35 63 Q20 63 15 56 Q3 74 -15 58 Q-35 70 -46 62 Q-58 53 -39 35 Q-29 25 -23 13Z" fill="#f5faff" />
+  </g>
+  <g id="east-tall-pine" transform="translate(1452 361) scale(.98)" stroke="#102444" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-18 143 L-23 180 Q0 189 30 180 L24 142Z" fill="#b77732" />
+    <path d="M-47 93 Q-58 112 -77 129 Q-94 146 -75 154 Q-47 164 -22 155 Q3 171 27 155 Q59 163 67 151 Q82 142 68 128 L45 94Z" fill="#399f38" />
+    <path d="M-39 53 Q-49 72 -64 87 Q-76 101 -63 110 Q-42 118 -21 109 Q-3 132 17 111 Q43 124 59 111 Q75 104 62 89 L37 57Z" fill="#f5faff" />
+    <path d="M-41 58 Q-23 87 -4 83 Q15 97 36 76 L39 57Z" fill="#399f38" stroke="none" />
+    <path d="M-23 13 Q-3 -10 16 13 Q23 25 39 40 Q58 60 35 63 Q20 63 15 56 Q3 74 -15 58 Q-35 70 -46 62 Q-58 53 -39 35 Q-29 25 -23 13Z" fill="#f5faff" />
+  </g>
+  <g id="east-inner-pine" transform="translate(1360 461) scale(.69)" stroke="#102444" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-18 143 L-23 180 Q0 189 30 180 L24 142Z" fill="#b77732" />
+    <path d="M-47 93 Q-58 112 -77 129 Q-94 146 -75 154 Q-47 164 -22 155 Q3 171 27 155 Q59 163 77 151 Q88 142 72 128 L45 94Z" fill="#399f38" />
+    <path d="M-39 53 Q-49 72 -64 87 Q-76 101 -63 110 Q-42 118 -21 109 Q-3 132 17 111 Q43 124 59 111 Q75 104 62 89 L37 57Z" fill="#f5faff" />
+    <path d="M-41 58 Q-23 87 -4 83 Q15 97 36 76 L39 57Z" fill="#399f38" stroke="none" />
+    <path d="M-23 13 Q-3 -10 16 13 Q23 25 39 40 Q58 60 35 63 Q20 63 15 56 Q3 74 -15 58 Q-35 70 -46 62 Q-58 53 -39 35 Q-29 25 -23 13Z" fill="#f5faff" />
+  </g>
+
+  <g id="southwest-small-pine" transform="translate(281 699) scale(.72)" stroke="#102444" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-18 143 L-23 180 Q0 189 30 180 L24 142Z" fill="#b77732" />
+    <path d="M-47 93 Q-58 112 -77 129 Q-94 146 -75 154 Q-47 164 -22 155 Q3 171 27 155 Q59 163 77 151 Q88 142 72 128 L45 94Z" fill="#399f38" />
+    <path d="M-39 53 Q-49 72 -64 87 Q-76 101 -63 110 Q-42 118 -21 109 Q-3 132 17 111 Q43 124 59 111 Q75 104 62 89 L37 57Z" fill="#f5faff" />
+    <path d="M-41 58 Q-23 87 -4 83 Q15 97 36 76 L39 57Z" fill="#399f38" stroke="none" />
+    <path d="M-23 13 Q-3 -10 16 13 Q23 25 39 40 Q58 60 35 63 Q20 63 15 56 Q3 74 -15 58 Q-35 70 -46 62 Q-58 53 -39 35 Q-29 25 -23 13Z" fill="#f5faff" />
+  </g>
+  <g id="southwest-tall-pine" transform="translate(165 629) scale(1.06)" stroke="#102444" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-18 143 L-20 180 Q3 190 31 180 L24 142Z" fill="#b77732" />
+    <path d="M-47 93 Q-58 112 -71 129 Q-87 148 -66 155 Q-45 162 -26 153 Q0 172 27 155 Q59 163 77 151 Q88 142 72 128 L45 94Z" fill="#399f38" />
+    <path d="M-39 53 Q-49 72 -59 84 Q-77 101 -62 110 Q-42 118 -21 109 Q-3 132 17 111 Q43 124 59 111 Q81 104 65 88 L37 57Z" fill="#f5faff" />
+    <path d="M-41 58 Q-23 87 -4 83 Q15 97 36 76 L39 57Z" fill="#399f38" stroke="none" />
+    <path d="M-23 13 Q-3 -10 16 13 Q23 25 39 40 Q58 60 35 63 Q20 63 15 56 Q3 74 -15 58 Q-35 70 -46 62 Q-58 53 -39 35 Q-29 25 -23 13Z" fill="#f5faff" />
+  </g>
+  <g id="southeast-small-pine" transform="translate(1264 697) scale(.75)" stroke="#102444" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-18 143 L-23 180 Q0 189 30 180 L24 142Z" fill="#b77732" />
+    <path d="M-47 93 Q-58 112 -77 129 Q-94 146 -75 154 Q-47 164 -22 155 Q3 171 27 155 Q59 163 77 151 Q88 142 72 128 L45 94Z" fill="#399f38" />
+    <path d="M-39 53 Q-49 72 -64 87 Q-76 101 -63 110 Q-42 118 -21 109 Q-3 132 17 111 Q43 124 59 111 Q75 104 62 89 L37 57Z" fill="#f5faff" />
+    <path d="M-41 58 Q-23 87 -4 83 Q15 97 36 76 L39 57Z" fill="#399f38" stroke="none" />
+    <path d="M-23 13 Q-3 -10 16 13 Q23 25 39 40 Q58 60 35 63 Q20 63 15 56 Q3 74 -15 58 Q-35 70 -46 62 Q-58 53 -39 35 Q-29 25 -23 13Z" fill="#f5faff" />
+  </g>
+  <g id="southeast-tall-pine" transform="translate(1364 647) scale(.98)" stroke="#102444" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-18 143 L-23 180 Q0 189 30 180 L24 142Z" fill="#b77732" />
+    <path d="M-47 93 Q-58 112 -77 129 Q-94 146 -75 154 Q-47 164 -22 155 Q3 171 27 155 Q59 163 77 151 Q88 142 72 128 L45 94Z" fill="#399f38" />
+    <path d="M-39 53 Q-49 72 -64 87 Q-76 101 -63 110 Q-42 118 -21 109 Q-3 132 17 111 Q43 124 59 111 Q75 104 62 89 L37 57Z" fill="#f5faff" />
+    <path d="M-41 58 Q-23 87 -4 83 Q15 97 36 76 L39 57Z" fill="#399f38" stroke="none" />
+    <path d="M-23 13 Q-3 -10 16 13 Q23 25 39 40 Q58 60 35 63 Q20 63 15 56 Q3 74 -15 58 Q-35 70 -46 62 Q-58 53 -39 35 Q-29 25 -23 13Z" fill="#f5faff" />
+  </g>
+
+  <g id="wooden-dock" stroke="#102444" stroke-width="7" stroke-linejoin="round">
+    <path d="M663 864 L809 864 L845 961 L629 961Z" fill="#e69036" />
+    <path d="M629 961 L845 961 L845 984 L629 984Z" fill="#a9652f" />
+    <path d="M645 866 L666 866 L643 954 L620 954Z" fill="#bd742f" />
+    <path d="M805 865 L830 878 L856 954 L833 954Z" fill="#bd742f" />
+    <path d="M659 892 L817 892 M649 925 L829 925" fill="none" stroke="#774723" stroke-width="5" />
+    <path d="M607 941 L610 1001 Q610 1015 633 1015 Q655 1013 655 1000 L658 942Z" fill="#ae7135" />
+    <path d="M813 941 L815 1001 Q815 1015 838 1015 Q860 1013 860 1000 L863 942Z" fill="#ae7135" />
+    <ellipse cx="632" cy="939" rx="29" ry="16" fill="#eff9ff" />
+    <ellipse cx="838" cy="939" rx="29" ry="16" fill="#eff9ff" />
+  </g>
+  <g id="dock-snowbanks" fill="#e5f4ff" stroke="#102444" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M591 851 Q622 824 649 840 Q672 851 666 867 Q662 883 640 879 Q623 880 615 872" />
+    <path d="M795 858 Q797 839 820 841 Q846 841 864 863 M795 858 Q789 876 811 878 Q832 874 845 882" />
+  </g>
+</svg>

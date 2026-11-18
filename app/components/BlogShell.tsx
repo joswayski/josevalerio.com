@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import type { PoastPreviewProps } from "./PoastPreview";
+import type { PoastPreviewProps } from "../data/postPreviews";
 import { ExternalAnchor } from "./ExternalLink";
+import { PortalShell } from "./PortalShell";
 import { SiteLinks } from "./SiteLinks";
 import { formatPostDate } from "../data/postPreviews";
 
@@ -10,34 +11,32 @@ export function BlogShell({ children, post }: { children: ReactNode; post: Poast
   const githubEditUrl = `https://github.com/joswayski/josevalerio.com/edit/main/app/routes${link}.tsx`;
 
   return (
-    <div className="page-shell">
-      <div className="site-panel">
-        <header className="site-header">
+    <PortalShell>
+      <main className="portal-box article-box">
+        <div className="article-topbar">
           <Link to="/" className="back-link" preload="intent">
-            <span aria-hidden="true">←</span> Back
+            <span aria-hidden="true">«</span> Back to the island
           </Link>
-          <SiteLinks />
+          <img src="/island/writing.svg" alt="" width={44} height={52} />
+        </div>
+
+        <header className="article-header">
+          <span className="article-meta">
+            <time dateTime={dateTime}>{formatPostDate(dateTime)}</time> · {readingMinutes} min read
+          </span>
+          <h1>{title}</h1>
+          <p className="article-summary">{previewText}</p>
         </header>
 
-        <main className="site-panel">
-          <header className="article-header">
-            <span className="article-meta">
-              <time dateTime={dateTime}>{formatPostDate(dateTime)}</time> · {readingMinutes} min
-              read
-            </span>
-            <h1>{title}</h1>
-            <p className="article-summary">{previewText}</p>
-          </header>
+        <article className="article-body">{children}</article>
 
-          <article className="article-body">{children}</article>
-
-          <footer className="article-footer">
-            <ExternalAnchor href={githubEditUrl} className="suggest-changes-link">
-              Suggest an edit <span aria-hidden="true">↗</span>
-            </ExternalAnchor>
-          </footer>
-        </main>
-      </div>
-    </div>
+        <footer className="article-footer">
+          <SiteLinks />
+          <ExternalAnchor href={githubEditUrl} className="suggest-changes-link">
+            Suggest an edit <span aria-hidden="true">↗</span>
+          </ExternalAnchor>
+        </footer>
+      </main>
+    </PortalShell>
   );
 }
