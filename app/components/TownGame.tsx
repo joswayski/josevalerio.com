@@ -64,8 +64,8 @@ export function TownGame() {
     play("click");
     playBuilding(building.sound);
     say(`You selected ${building.name} (${building.kind}).`);
-    // Stand just in front of the building, on the open ground below it.
-    walkTo({ x: building.x + building.width * 0.35, y: Math.min(97, building.y + 3) });
+    // Stand beside the building's base, above its name plaque so it stays readable.
+    walkTo({ x: Math.min(97, building.x + building.width * 0.5), y: building.y - 1 });
   }
 
   function step(delta: number) {
