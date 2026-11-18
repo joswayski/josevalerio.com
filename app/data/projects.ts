@@ -1,11 +1,6 @@
-export type Project = {
-  title: string;
-  description: string;
-  href: string;
-  destination: string;
-};
+import type { ProjectPreviewProps } from "../components/ProjectPreview";
 
-export const projects: Project[] = [
+export const projects: ProjectPreviewProps[] = [
   {
     title: "Caper",
     description: "A place for your people to chat about anything.",

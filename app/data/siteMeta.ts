@@ -1,4 +1,4 @@
-import type { PoastPreviewProps } from "./postPreviews";
+import type { PoastPreviewProps } from "../components/PoastPreview";
 
 export const SITE_TITLE = "Jose Valerio";
 export const SITE_DESCRIPTION = "Jose Valerio's personal website";

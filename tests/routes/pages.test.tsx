@@ -35,10 +35,10 @@ describe("home page", () => {
     }
   });
 
-  it("shows the greeting with social links and the email chip", async () => {
+  it("shows the header with social links and the email chip", async () => {
     await renderRoute(IndexRoute);
 
-    expect(screen.getByRole("heading", { level: 1, name: /Jose Valerio/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Jose Valerio" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Jose Valerio on X" })).toHaveAttribute(
       "href",
       "https://x.com/josevalerio",
@@ -50,13 +50,13 @@ describe("home page", () => {
     expect(screen.getByRole("button", { name: /contact@josevalerio\.com/ })).toBeInTheDocument();
   });
 
-  it("renders the projects, writing, and contact sections in order", async () => {
+  it("renders the projects section before the writing section", async () => {
     await renderRoute(IndexRoute);
 
     const headings = screen
       .getAllByRole("heading", { level: 2 })
       .map((heading) => heading.textContent);
-    expect(headings).toEqual(["Projects", "Writing", "Contact"]);
+    expect(headings).toEqual(["Projects", "Writing"]);
   });
 });
 

@@ -1,12 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ExternalAnchor } from "../components/ExternalLink";
-import { GameShell } from "../components/GameShell";
+import { createFileRoute } from "@tanstack/react-router";
+import { PoastPreview } from "../components/PoastPreview";
+import { ProjectPreview } from "../components/ProjectPreview";
 import { SiteLinks } from "../components/SiteLinks";
-import { TownGame } from "../components/TownGame";
-import { formatPostDate, postPreviews } from "../data/postPreviews";
+import { postPreviews } from "../data/postPreviews";
+import { projects } from "../data/projects";
 import { getPageMeta, SITE_DESCRIPTION, SITE_TITLE } from "../data/siteMeta";
-import { townBuildings } from "../data/town";
-import { play } from "../lib/sound";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -16,58 +14,41 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const projectBuildings = townBuildings.flatMap((building) =>
-    building.type === "project" ? [building] : [],
-  );
-
   return (
-    <GameShell isHome>
-      <TownGame />
+    <main className="page-shell">
+      <div className="site-panel">
+        <header>
+          <div className="site-header">
+            <h1 className="site-name">Jose Valerio</h1>
+            <SiteLinks />
+          </div>
+          <p className="home-bio">
+            I fix shipping labels at{" "}
+            <a href="https://stockx.com" target="_blank" rel="noopener noreferrer">
+              StockX
+            </a>
+            . Sometimes I make things.
+          </p>
+        </header>
 
-      <div className="codex">
-        <section className="scroll-panel" id="projects" aria-labelledby="projects-title">
+        <section className="index-section" id="projects" aria-labelledby="projects-title">
           <h2 id="projects-title">Projects</h2>
-          <ul className="codex-projects">
-            {projectBuildings.map(({ id, art, kind, project }) => (
-              <li key={id}>
-                <ExternalAnchor href={project.href} className="codex-project">
-                  <img src={art} alt="" width={96} height={72} loading="lazy" />
-                  <span>
-                    <b>{project.title}</b>
-                    <small>
-                      {kind} · {project.destination}
-                    </small>
-                    {project.description}
-                  </span>
-                </ExternalAnchor>
-              </li>
+          <div className="project-grid">
+            {projects.map((project) => (
+              <ProjectPreview key={project.title} {...project} />
             ))}
-          </ul>
+          </div>
         </section>
 
-        <section className="scroll-panel" id="writing" aria-labelledby="writing-title">
+        <section className="index-section" id="writing" aria-labelledby="writing-title">
           <h2 id="writing-title">Writing</h2>
-          <ul className="codex-posts">
+          <div className="post-list">
             {postPreviews.map((post) => (
-              <li key={post.link}>
-                <Link to={post.link} preload="intent" onPointerEnter={() => play("hover")}>
-                  <b>{post.title}</b>
-                  <small>{post.previewText}</small>
-                  <time dateTime={post.dateTime}>
-                    {formatPostDate(post.dateTime)} · {post.readingMinutes} min read
-                  </time>
-                </Link>
-              </li>
+              <PoastPreview key={post.link} {...post} />
             ))}
-          </ul>
-        </section>
-
-        <section className="scroll-panel" id="contact" aria-labelledby="contact-title">
-          <h2 id="contact-title">Contact</h2>
-          <p>Pigeons are slow. These are faster.</p>
-          <SiteLinks />
+          </div>
         </section>
       </div>
-    </GameShell>
+    </main>
   );
 }
