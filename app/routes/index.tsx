@@ -1,11 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ExternalAnchor } from "../components/ExternalLink";
-import { IslandGame } from "../components/IslandGame";
-import { PortalShell } from "../components/PortalShell";
+import { GameShell } from "../components/GameShell";
 import { SiteLinks } from "../components/SiteLinks";
-import { islandSpots } from "../data/island";
+import { TownGame } from "../components/TownGame";
 import { formatPostDate, postPreviews } from "../data/postPreviews";
 import { getPageMeta, SITE_DESCRIPTION, SITE_TITLE } from "../data/siteMeta";
+import { townBuildings } from "../data/town";
 import { play } from "../lib/sound";
 
 export const Route = createFileRoute("/")({
@@ -16,86 +16,58 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const projectSpots = islandSpots.flatMap((spot) => (spot.kind === "project" ? [spot] : []));
+  const projectBuildings = townBuildings.flatMap((building) =>
+    building.type === "project" ? [building] : [],
+  );
 
   return (
-    <PortalShell>
-      <div className="portal-columns">
-        <main className="portal-main">
-          <div className="portal-welcome">
-            <h1>Hi, I'm Jose Valerio!</h1>
-            <p>
-              I fix shipping labels at{" "}
-              <ExternalAnchor href="https://stockx.com">StockX</ExternalAnchor>. Sometimes I make
-              things. Waddle around the island to see them!
-            </p>
-          </div>
-          <IslandGame />
-        </main>
+    <GameShell isHome>
+      <TownGame />
 
-        <aside className="portal-side portal-left">
-          <section className="portal-box" id="projects" aria-labelledby="projects-title">
-            <h2 id="projects-title">Projects</h2>
-            <ul className="game-list">
-              {projectSpots.map(({ id, art, project }) => (
-                <li key={id} className="game-card">
-                  <img src={art} alt="" width={64} height={56} />
-                  <div>
-                    <h3>{project.title}</h3>
-                    <p>{project.description}</p>
-                    <ExternalAnchor
-                      href={project.href}
-                      className="play-button"
-                      aria-label={`Play ${project.title} at ${project.destination}`}
-                    >
-                      PLAY ▶
-                    </ExternalAnchor>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </aside>
+      <div className="codex">
+        <section className="scroll-panel" id="projects" aria-labelledby="projects-title">
+          <h2 id="projects-title">Projects</h2>
+          <ul className="codex-projects">
+            {projectBuildings.map(({ id, art, kind, project }) => (
+              <li key={id}>
+                <ExternalAnchor href={project.href} className="codex-project">
+                  <img src={art} alt="" width={96} height={72} loading="lazy" />
+                  <span>
+                    <b>{project.title}</b>
+                    <small>
+                      {kind} · {project.destination}
+                    </small>
+                    {project.description}
+                  </span>
+                </ExternalAnchor>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-        <aside className="portal-side portal-right">
-          <section className="portal-box" id="writing" aria-labelledby="writing-title">
-            <h2 id="writing-title">Writing</h2>
-            <ul className="post-list">
-              {postPreviews.map((post, index) => (
-                <li key={post.link}>
-                  <Link to={post.link} preload="intent" onPointerEnter={() => play("tick")}>
-                    {index === 0 && <span className="new-badge">NEW!</span>}
-                    <b>{post.title}</b>
-                    <small>{post.previewText}</small>
-                    <time dateTime={post.dateTime}>{formatPostDate(post.dateTime)}</time>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
+        <section className="scroll-panel" id="writing" aria-labelledby="writing-title">
+          <h2 id="writing-title">Writing</h2>
+          <ul className="codex-posts">
+            {postPreviews.map((post) => (
+              <li key={post.link}>
+                <Link to={post.link} preload="intent" onPointerEnter={() => play("hover")}>
+                  <b>{post.title}</b>
+                  <small>{post.previewText}</small>
+                  <time dateTime={post.dateTime}>
+                    {formatPostDate(post.dateTime)} · {post.readingMinutes} min read
+                  </time>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-          <section className="portal-box" id="contact" aria-labelledby="contact-title">
-            <h2 id="contact-title">Contact</h2>
-            <SiteLinks />
-          </section>
-
-          <div className="web-badges" aria-hidden="true">
-            <span className="web-badge web-badge-sound">
-              BEST VIEWED
-              <br />
-              WITH SOUND ON
-            </span>
-            <span className="web-badge web-badge-rust">
-              I ♥ RUST
-              <br />
-              &lt;/&gt;
-            </span>
-            <span className="web-badge web-badge-construction">
-              <span>UNDER CONSTRUCTION</span>
-            </span>
-          </div>
-        </aside>
+        <section className="scroll-panel" id="contact" aria-labelledby="contact-title">
+          <h2 id="contact-title">Contact</h2>
+          <p>Pigeons are slow. These are faster.</p>
+          <SiteLinks />
+        </section>
       </div>
-    </PortalShell>
+    </GameShell>
   );
 }

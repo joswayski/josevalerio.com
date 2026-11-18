@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { PoastPreviewProps } from "../data/postPreviews";
 import { ExternalAnchor } from "./ExternalLink";
-import { PortalShell } from "./PortalShell";
+import { GameShell } from "./GameShell";
 import { SiteLinks } from "./SiteLinks";
 import { formatPostDate } from "../data/postPreviews";
 
@@ -11,13 +11,13 @@ export function BlogShell({ children, post }: { children: ReactNode; post: Poast
   const githubEditUrl = `https://github.com/joswayski/josevalerio.com/edit/main/app/routes${link}.tsx`;
 
   return (
-    <PortalShell>
-      <main className="portal-box article-box">
+    <GameShell>
+      <main className="scroll-panel article-box">
         <div className="article-topbar">
           <Link to="/" className="back-link" preload="intent">
-            <span aria-hidden="true">«</span> Back to the island
+            <span aria-hidden="true">«</span> Back to the town
           </Link>
-          <img src="/island/writing.svg" alt="" width={44} height={52} />
+          <img src="/town/writing.webp" alt="" width={72} height={54} />
         </div>
 
         <header className="article-header">
@@ -37,6 +37,6 @@ export function BlogShell({ children, post }: { children: ReactNode; post: Poast
           </ExternalAnchor>
         </footer>
       </main>
-    </PortalShell>
+    </GameShell>
   );
 }

@@ -4,6 +4,8 @@
  * after a user gesture, so the first sound plays from a click.
  */
 
+import type { SoundKey } from "../data/town";
+
 type ToneOptions = {
   type?: OscillatorType;
   vol?: number;
@@ -12,6 +14,16 @@ type ToneOptions = {
   delay?: number;
   attack?: number;
   vibrato?: number;
+  /** Low-pass cutoff in Hz, to soften bright waveforms. */
+  filter?: number;
+};
+
+type NoiseOptions = {
+  type?: BiquadFilterType;
+  freq?: number;
+  vol?: number;
+  delay?: number;
+  attack?: number;
 };
 
 let ctx: AudioContext | null = null;
@@ -58,41 +70,93 @@ function tone(freq: number, dur: number, o: ToneOptions = {}) {
     lfo.start(start);
     lfo.stop(start + dur + 0.05);
   }
-  osc.connect(envelope(c, start, o.vol ?? 0.12, o.attack ?? 0.005, dur)).connect(master);
+  let node: AudioNode = osc;
+  if (o.filter) {
+    const filter = c.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = o.filter;
+    node = node.connect(filter);
+  }
+  node.connect(envelope(c, start, o.vol ?? 0.12, o.attack ?? 0.005, dur)).connect(master);
   osc.start(start);
   osc.stop(start + dur + 0.05);
 }
 
-function noise(dur: number, freq: number, vol: number) {
+function noise(dur: number, o: NoiseOptions = {}) {
   const c = audio();
   if (!c || !master || !noiseBuffer || state.muted) return;
-  const start = c.currentTime;
+  const start = c.currentTime + (o.delay ?? 0);
   const src = c.createBufferSource();
   src.buffer = noiseBuffer;
+  src.loop = true;
   const filter = c.createBiquadFilter();
-  filter.type = "highpass";
-  filter.frequency.value = freq;
+  filter.type = o.type ?? "lowpass";
+  filter.frequency.value = o.freq ?? 1200;
   src
     .connect(filter)
-    .connect(envelope(c, start, vol, 0.003, dur))
+    .connect(envelope(c, start, o.vol ?? 0.1, o.attack ?? 0.003, dur))
     .connect(master);
   src.start(start, Math.random() * 0.5);
   src.stop(start + dur + 0.05);
 }
 
-let stepCount = 0;
+/** One selection sound per building type, like the game's building acknowledgements. */
+const BUILDING_SOUNDS: Record<SoundKey, () => void> = {
+  horn: () => {
+    tone(196, 0.9, { type: "sawtooth", vol: 0.1, filter: 900, attack: 0.08, vibrato: 5 });
+    tone(294, 0.7, { type: "sawtooth", vol: 0.07, filter: 900, attack: 0.08, delay: 0.25 });
+  },
+  tavern: () => {
+    tone(2200, 0.25, { type: "triangle", vol: 0.08 });
+    tone(2900, 0.3, { type: "triangle", vol: 0.06, delay: 0.07 });
+    noise(0.4, { type: "bandpass", freq: 900, vol: 0.05, delay: 0.1 });
+  },
+  shutter: () => {
+    noise(0.03, { type: "highpass", freq: 2500, vol: 0.3 });
+    noise(0.05, { type: "highpass", freq: 1800, vol: 0.25, delay: 0.09 });
+  },
+  coins: () =>
+    [0, 0.06, 0.13, 0.19].forEach((delay, k) => tone(1800 + k * 300, 0.12, { vol: 0.04, delay })),
+  chimes: () =>
+    [523, 659, 784, 1047, 1319].forEach((f, k) =>
+      tone(f, 0.5, { type: "sine", vol: 0.06, delay: k * 0.07 }),
+    ),
+  chop: () => {
+    for (const delay of [0, 0.32]) {
+      noise(0.06, { freq: 2200, vol: 0.3, delay });
+      tone(110, 0.18, { type: "sine", to: 55, vol: 0.3, delay });
+    }
+  },
+  bell: () => {
+    tone(523, 1.6, { type: "sine", vol: 0.12 });
+    tone(1046, 1.2, { type: "sine", vol: 0.05 });
+    tone(1568, 0.8, { type: "sine", vol: 0.03 });
+  },
+  coo: () => {
+    tone(420, 0.22, { type: "sine", to: 340, vol: 0.12, vibrato: 18 });
+    tone(380, 0.35, { type: "sine", to: 300, vol: 0.1, vibrato: 18, delay: 0.26 });
+  },
+};
 
 const SOUNDS = {
-  tick: () => tone(1800, 0.025, { vol: 0.025 }),
-  pop: () => tone(500, 0.09, { type: "sine", to: 1200, vol: 0.18 }),
-  close: () => tone(900, 0.1, { type: "sine", to: 300, vol: 0.15 }),
-  step: () => tone(stepCount++ % 2 ? 520 : 440, 0.05, { type: "triangle", vol: 0.08 }),
-  boing: () => tone(220, 0.35, { type: "sine", to: 880, vol: 0.18, vibrato: 12 }),
-  go: () => [523, 659, 784, 1046].forEach((f, k) => tone(f, 0.18, { vol: 0.06, delay: k * 0.07 })),
-  coin: () => {
-    tone(988, 0.08, { vol: 0.06 });
-    tone(1319, 0.3, { vol: 0.06, delay: 0.08 });
+  hover: () => tone(1400, 0.03, { type: "triangle", vol: 0.03 }),
+  click: () => {
+    noise(0.08, { freq: 400, vol: 0.25 });
+    tone(160, 0.12, { type: "sine", to: 70, vol: 0.25 });
   },
+  button: () => tone(660, 0.05, { vol: 0.05 }),
+  step: () => noise(0.05, { freq: 500 + Math.random() * 300, vol: 0.1 }),
+  fanfare: () =>
+    (
+      [
+        [392, 0],
+        [392, 0.18],
+        [523, 0.36],
+        [659, 0.62],
+      ] as const
+    ).forEach(([f, delay]) =>
+      tone(f, delay === 0.62 ? 0.9 : 0.2, { type: "sawtooth", vol: 0.09, filter: 1400, delay }),
+    ),
 };
 
 export type SoundName = keyof typeof SOUNDS;
@@ -101,23 +165,29 @@ export function play(name: SoundName) {
   SOUNDS[name]();
 }
 
-// An original 32-step chiptune loop: melody in eighth notes, bass every half bar.
+export function playBuilding(key: SoundKey) {
+  BUILDING_SOUNDS[key]();
+}
+
+// An original lute-and-drone loop in D Dorian: one plucked note per step,
+// a low drone every bar, and a soft frame-drum hit on the downbeat.
 const MELODY = [
-  72, 0, 76, 79, 77, 0, 76, 74, 72, 0, 74, 76, 74, 0, 67, 0, 72, 0, 76, 79, 81, 0, 79, 77, 76, 74,
-  72, 74, 72, 0, 0, 0,
+  62, 0, 65, 67, 69, 0, 67, 65, 64, 0, 62, 64, 65, 0, 0, 0, 69, 0, 72, 71, 69, 0, 67, 65, 67, 69,
+  65, 64, 62, 0, 0, 0,
 ];
-const BASS = [48, 48, 55, 55, 53, 53, 50, 50];
+const DRONE = [50, 50, 48, 50];
 const midi = (note: number) => 440 * 2 ** ((note - 69) / 12);
 let musicTimer: ReturnType<typeof setInterval> | null = null;
 let musicStep = 0;
 
 function musicTick() {
   const note = MELODY[musicStep % MELODY.length];
-  if (note) tone(midi(note), 0.16, { vol: 0.035 });
-  if (musicStep % 4 === 0) {
-    tone(midi(BASS[(musicStep / 4) % BASS.length]), 0.3, { type: "triangle", vol: 0.08 });
+  if (note) tone(midi(note), 0.5, { type: "triangle", vol: 0.06, filter: 1800 });
+  if (musicStep % 8 === 0) {
+    const drone = midi(DRONE[(musicStep / 8) % DRONE.length]);
+    tone(drone, 2.2, { type: "sawtooth", vol: 0.025, filter: 500, attack: 0.3 });
+    noise(0.25, { freq: 180, vol: 0.12 });
   }
-  if (musicStep % 2 === 1) noise(0.03, 6000, 0.03);
   musicStep++;
 }
 
@@ -151,7 +221,7 @@ export function toggleMusic() {
     musicTimer = null;
   } else {
     audio();
-    musicTimer = setInterval(musicTick, 150);
+    musicTimer = setInterval(musicTick, 260);
   }
   setState({ music: musicTimer !== null });
 }
