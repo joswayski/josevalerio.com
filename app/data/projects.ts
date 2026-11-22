@@ -3,13 +3,14 @@ import type { ProjectPreviewProps } from "../components/ProjectPreview";
 export const projects: ProjectPreviewProps[] = [
   {
     title: "Caper",
-    description: "A place for your people to chat about anything.",
+    description: "Text and voice chat spaces for your people.",
     href: "https://caper.chat",
     destination: "caper.chat",
   },
   {
     title: "Captures",
-    description: "A cross-platform screen capture utility.",
+    description:
+      "Fast, lightweight screenshots, screen recordings, and GIFs with built-in editing.",
     href: "https://captur.es",
     destination: "captur.es",
   },
@@ -21,13 +22,14 @@ export const projects: ProjectPreviewProps[] = [
   },
   {
     title: "Credit Card Horoscope",
-    description: "What does your credit card say about you?",
+    description: "What does your credit card say about you? Find out for $1.",
     href: "https://creditcardhoroscope.com",
     destination: "creditcardhoroscope.com",
   },
   {
     title: "sjl",
-    description: "A simple JSON logger for Rust, built to avoid tracing's nested JSON limitations.",
+    description:
+      "A simple structured JSON logger for Rust, without tracing’s nested-JSON limitations.",
     href: "https://crates.io/crates/sjl",
     destination: "crates.io",
   },

@@ -12,7 +12,9 @@ describe("route head meta", () => {
     const { meta } = routeHead(IndexRoute);
 
     expect(meta[0]?.title).toBe("Jose Valerio");
-    expect(tagContent(meta, "description")).toBe("Jose Valerio's personal website");
+    expect(tagContent(meta, "description")).toBe(
+      "Software engineer building Caper, Captures, and Anybase. Projects and occasional writing.",
+    );
     expect(tagContent(meta, "og:title")).toBe("Jose Valerio");
     expect(tagContent(meta, "twitter:title")).toBe("Jose Valerio");
   });
@@ -24,7 +26,7 @@ describe("route head meta", () => {
   ])("derives %s meta from its post preview", (_name, route, post) => {
     const { meta } = routeHead(route);
 
-    expect(meta[0]?.title).toBe(post.title);
+    expect(meta[0]?.title).toBe(`${post.title} — Jose Valerio`);
     for (const key of ["description", "og:description", "twitter:description"]) {
       expect(tagContent(meta, key)).toBe(post.previewText);
     }
@@ -34,14 +36,14 @@ describe("route head meta", () => {
   });
 
   it.each([
-    ["index", IndexRoute],
-    ["just-do-the-thing", JustDoTheThingRoute],
-    ["rust-json-logging", RustJsonLoggingRoute],
-    ["no-fun-allowed", NoFunAllowedRoute],
-  ])("appends the shared social meta to %s", (_name, route) => {
+    ["index", IndexRoute, "website"],
+    ["just-do-the-thing", JustDoTheThingRoute, "article"],
+    ["rust-json-logging", RustJsonLoggingRoute, "article"],
+    ["no-fun-allowed", NoFunAllowedRoute, "article"],
+  ] as const)("appends the shared social meta to %s", (_name, route, type) => {
     const { meta } = routeHead(route);
 
-    for (const shared of getSocialMeta()) {
+    for (const shared of getSocialMeta(type)) {
       expect(meta).toContainEqual(shared);
     }
   });
