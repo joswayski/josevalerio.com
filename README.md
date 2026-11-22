@@ -1,6 +1,6 @@
 # josevalerio.com
 
-Projects and occasional writing.
+Mostly a blog.
 
 ## Development
 

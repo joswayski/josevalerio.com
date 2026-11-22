@@ -14,7 +14,7 @@ export function BlogShell({ children, post }: { children: ReactNode; post: Poast
       <div className="site-panel">
         <header className="site-header">
           <Link to="/" className="back-link" preload="intent">
-            <span aria-hidden="true">←</span> Jose Valerio
+            <span aria-hidden="true">←</span> Back
           </Link>
           <SiteLinks />
         </header>

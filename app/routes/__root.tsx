@@ -78,7 +78,7 @@ function ErrorPage({ error }: { error: Error }) {
 
   return (
     <ErrorScreen
-      title="Something went wrong"
+      title="Oops!"
       message={import.meta.env.DEV ? error.message : "An unexpected error occurred."}
     >
       {import.meta.env.DEV && error.stack && (
