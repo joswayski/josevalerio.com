@@ -18,15 +18,15 @@ function RustJSONLoggingPage() {
       <aside className="article-callout">
         <p>
           <strong>TLDR:</strong> I ended up making my own crate because the previous solution
-          (tracing + valuable) still has issues with enums and it's not flexible enough for my use
-          case. Check out{" "}
+          (tracing + valuable) still has issues with enums and it's not flexible enough for my
+          usecase. Check out{" "}
           <ExternalLink href="https://github.com/joswayski/sjl">
             sjl - Simple JSON Logger on GitHub
           </ExternalLink>{" "}
-          or on <ExternalLink href="https://crates.io/crates/sjl">crates.io</ExternalLink>!
+          or on <ExternalLink href="https://crates.io/crates/sjl">Crates.io</ExternalLink>!
         </p>
       </aside>
-      <p>
+      <p className="">
         If you look around the Rust ecosystem on how to "do logging", you'll be recommended the{" "}
         <ExternalLink href="https://github.com/tokio-rs/tracing">tracing crate</ExternalLink> pretty
         much everywhere you go
@@ -49,8 +49,8 @@ function RustJSONLoggingPage() {
         don't really have time for that you just want to laaaaaaaawg.
       </p>
       <p>
-        You set up the example given and see that you can <CodeSnippet>.json()</CodeSnippet> on the
-        subscriber.. cool, let's try that.
+        You setup the example given and see that you can <CodeSnippet>.json()</CodeSnippet> on the
+        subscriber.. cool, lets try that.
       </p>
       <img
         loading="lazy"
@@ -187,7 +187,7 @@ function RustJSONLoggingPage() {
         </p>
 
         <p className="mb-4">
-          As I mentioned near the top, I've created my own crate called{" "}
+          As I mentioned near the top, I've created my own crated called{" "}
           <ExternalLink href="https://github.com/joswayski/sjl">sjl</ExternalLink> which does what I
           want out of a logger and properly formats enums and nested JSON. I hope you found this
           helpful!

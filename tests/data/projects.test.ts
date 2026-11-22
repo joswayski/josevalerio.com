@@ -23,10 +23,10 @@ describe("projects", () => {
 
   it("uses the intended Caper and Captures descriptions", () => {
     expect(projects.find((project) => project.title === "Caper")?.description).toBe(
-      "Text and voice chat spaces for your people.",
+      "A place for your people to chat about anything.",
     );
     expect(projects.find((project) => project.title === "Captures")?.description).toBe(
-      "Fast, lightweight screenshots, screen recordings, and GIFs with built-in editing.",
+      "A cross-platform screen capture utility.",
     );
   });
 

@@ -14,7 +14,7 @@ export function ErrorScreen({
     <main className="error-page">
       <h1>{title}</h1>
       <p>{message}</p>
-      <Link to="/">← Return home</Link>
+      <Link to="/">Return home →</Link>
       {children}
     </main>
   );
