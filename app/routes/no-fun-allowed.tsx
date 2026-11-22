@@ -14,7 +14,7 @@ export const Route = createFileRoute("/no-fun-allowed")({
 function NoFunAllowedPost() {
   return (
     <BlogShell post={NoFunAllowed}>
-      <p className="">
+      <p>
         Video games aren't fun anymore.. At least Battlefield 6 isn't. I turned 27 this year so
         maybe I'm just a boomer or an Unc at this point (Hi Delia!) so feel free to dismiss
         everything you read from here on out.
@@ -25,7 +25,7 @@ function NoFunAllowedPost() {
           Battlefield 6
         </ExternalLink>{" "}
         with my brother and I'm especially frustrated at all of the things that are being done to
-        make the game "balanced" which take away at the core of the game.
+        make the game "balanced" which take away from the core of the game.
       </p>
       <p>
         I will admit, I have a soft spot for Bad Company 2. But here's an example of what I'm
@@ -59,7 +59,7 @@ function NoFunAllowedPost() {
         physically step on.. you know what that means... NERFED.
       </p>
       <p>
-        No cirlce strafing. Remember what I said about air vehicles feeling floaty? You can't do{" "}
+        No circle strafing. Remember what I said about air vehicles feeling floaty? You can't do{" "}
         <ExternalLink href="https://www.youtube.com/watch?v=CzD9WqwHMyg&t=79s">this</ExternalLink>{" "}
         anymore because that wouldn't be balanced, even with the 50 rocket launchers against you
         apparently. Don't forget the limited ammo! Make sure you go back to base to refill your
@@ -117,7 +117,7 @@ function NoFunAllowedPost() {
       <p>
         There are so many of these tiny little things that are getting stripped away from this game
         to make it "balanced" that it's not fun anymore. Bad Company 2 was the first game I ever
-        owned on an Xbox 360 and I loved it. I only got it because Gamestop ran out of Black Ops
+        owned on an Xbox 360 and I loved it. I only got it because GameStop ran out of Black Ops
         CDs, so I settled for BC2. The magic of that game is gone. In the next 50 years I'll
         eventually make my own game.. you'll see.
       </p>

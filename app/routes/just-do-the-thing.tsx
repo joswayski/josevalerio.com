@@ -13,7 +13,7 @@ export const Route = createFileRoute("/just-do-the-thing")({
 function JustDoTheThingPage() {
   return (
     <BlogShell post={JustDoTheThing}>
-      <p className="">
+      <p>
         Sometimes you'll be working on a task and encounter some other part of the codebase that
         needs fixing, tech debt if you will. Other times, when digging through logs for your current
         task, you'll discover a strange issue that affects a small percentage of users in a specific
@@ -24,8 +24,8 @@ function JustDoTheThingPage() {
         </span>
       </p>
       <p>
-        "<span className="italic ">But I have another more important thing to do!</span>" I hear you
-        say "<span className="italic">It's out of scope!</span>". I promise you it's not a big deal,
+        "<span className="italic">But I have another more important thing to do!</span>" I hear you
+        say, "<span className="italic">It's out of scope!</span>" I promise you it's not a big deal,
         you can do both. Don't make a Jira ticket and put it in the eternal backlog, just fix it.
         Don't post a Slack message for people to discuss, just DO THE THING that's required and fix
         it. Since your code will (hopefully) be reviewed anyway, in these cases it's better to ask

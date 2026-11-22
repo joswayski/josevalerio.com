@@ -35,7 +35,7 @@ describe("BlogShell", () => {
       </BlogShell>,
     );
 
-    expect(screen.getByRole("link", { name: /Back/ })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: /Jose Valerio$/ })).toHaveAttribute("href", "/");
   });
 
   it.each(postPreviews)("builds the GitHub edit url from the post link ($link)", async (post) => {
