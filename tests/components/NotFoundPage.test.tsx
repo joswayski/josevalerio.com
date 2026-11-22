@@ -8,7 +8,7 @@ describe("NotFoundPage", () => {
     await renderWithRouter(<NotFoundPage />);
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("404");
-    expect(screen.getByText("The requested page could not be found.")).toBeInTheDocument();
+    expect(screen.getByText("This page doesn’t exist.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Return home/ })).toHaveAttribute("href", "/");
   });
 });

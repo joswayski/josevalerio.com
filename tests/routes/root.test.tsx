@@ -52,7 +52,7 @@ describe("root route components", () => {
 
     await renderWithRouter(<ErrorComponent error={error} />);
 
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Oops!");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Something went wrong");
     expect(screen.getByText("boom")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Return home/ })).toHaveAttribute("href", "/");
     expect(document.querySelector("pre code")?.textContent).toBe(error.stack);
