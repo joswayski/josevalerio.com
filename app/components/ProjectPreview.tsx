@@ -1,13 +1,24 @@
-import { ExternalAnchor } from "./ExternalLink";
+import { ExternalAnchor, ExternalIcon } from "./ExternalLink";
 
 export type ProjectPreviewProps = {
   title: string;
   description: string;
   href: string;
   destination: string;
+  latencyMs?: number | null;
+  isPinging?: boolean;
 };
 
-export function ProjectPreview({ title, description, href, destination }: ProjectPreviewProps) {
+export function ProjectPreview({
+  title,
+  description,
+  href,
+  destination,
+  latencyMs,
+  isPinging = false,
+}: ProjectPreviewProps) {
+  const latencyLabel = typeof latencyMs === "number" ? String(latencyMs) : isPinging ? "..." : "--";
+
   return (
     <ExternalAnchor href={href} className="project-card">
       <svg
@@ -29,10 +40,14 @@ export function ProjectPreview({ title, description, href, destination }: Projec
         <p>{description}</p>
       </div>
       <span className="project-destination">
-        {destination}{" "}
-        <span className="project-arrow" aria-hidden="true">
-          ↗
-        </span>
+        <span>{destination}</span>
+        <ExternalIcon className="project-arrow external-icon" />
+      </span>
+      <span
+        className="project-latency"
+        aria-label={typeof latencyMs === "number" ? `${latencyMs} ms latency` : undefined}
+      >
+        {latencyLabel}
       </span>
     </ExternalAnchor>
   );

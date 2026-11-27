@@ -62,6 +62,13 @@ describe("home page", () => {
   it("switches server browser tabs and filters entries", async () => {
     await renderRoute(IndexRoute);
 
+    expect(screen.queryByText(/5 projects, 3 posts/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resize window" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Latency" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Jose Valerio on X" }).querySelector("svg.x-logo"),
+    ).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("tab", { name: /^Writing/ }));
     expect(screen.queryByRole("heading", { level: 2, name: "Projects" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Writing" })).toBeInTheDocument();

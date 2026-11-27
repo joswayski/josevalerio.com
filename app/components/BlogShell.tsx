@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { PoastPreviewProps } from "./PoastPreview";
-import { ExternalAnchor } from "./ExternalLink";
+import { ExternalAnchor, ExternalIcon } from "./ExternalLink";
 import { SiteLinks } from "./SiteLinks";
 import { VguiWindow } from "./VguiWindow";
 import { formatPostDate } from "../data/postPreviews";
@@ -39,7 +39,7 @@ export function BlogShell({ children, post }: { children: ReactNode; post: Poast
 
             <footer className="article-footer">
               <ExternalAnchor href={githubEditUrl} className="suggest-changes-link chip">
-                Suggest an edit <span aria-hidden="true">↗</span>
+                Suggest an edit <ExternalIcon />
               </ExternalAnchor>
             </footer>
           </main>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { PoastPreview } from "../components/PoastPreview";
 import { ProjectPreview } from "../components/ProjectPreview";
@@ -7,9 +7,10 @@ import { VguiWindow } from "../components/VguiWindow";
 import { postPreviews } from "../data/postPreviews";
 import { projects } from "../data/projects";
 import { getPageMeta, SITE_DESCRIPTION, SITE_TITLE } from "../data/siteMeta";
+import { pingSite } from "../lib/ping";
 
 type BrowserTab = "all" | "projects" | "writing";
-type ProjectSortKey = "default" | "title" | "destination";
+type ProjectSortKey = "default" | "title" | "destination" | "latency";
 type PostSortKey = "date" | "title" | "read";
 type SortDir = "asc" | "desc";
 
@@ -31,15 +32,40 @@ function Home() {
     key: "date",
     dir: "desc",
   });
+  const [latencies, setLatencies] = useState<Record<string, number | null>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const refreshTimer = useRef<number | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const filterInputRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    return () => {
-      if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current);
-    };
+  const runPings = useCallback((showRefreshStatus: boolean) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    if (showRefreshStatus) {
+      setIsRefreshing(true);
+      setLatencies({});
+    }
+
+    let remaining = projects.length;
+    for (const project of projects) {
+      void pingSite(project.href, controller.signal).then((ms) => {
+        if (controller.signal.aborted) return;
+        setLatencies((prev) => ({ ...prev, [project.href]: ms }));
+        remaining -= 1;
+        if (remaining === 0) {
+          setIsRefreshing(false);
+        }
+      });
+    }
   }, []);
+
+  useEffect(() => {
+    runPings(false);
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, [runPings]);
 
   const query = filterText.trim().toLowerCase();
 
@@ -56,8 +82,22 @@ function Home() {
     const sortKey = projectSort.key;
     if (sortKey === "default") return filtered;
     const dir = projectSort.dir === "asc" ? 1 : -1;
+
+    if (sortKey === "latency") {
+      return [...filtered].sort((a, b) => {
+        const aMs = latencies[a.href];
+        const bMs = latencies[b.href];
+        const aVal = typeof aMs === "number" ? aMs : Number.POSITIVE_INFINITY;
+        const bVal = typeof bMs === "number" ? bMs : Number.POSITIVE_INFINITY;
+        if (aVal === bVal) return a.title.localeCompare(b.title);
+        if (aVal === Number.POSITIVE_INFINITY) return 1;
+        if (bVal === Number.POSITIVE_INFINITY) return -1;
+        return (aVal - bVal) * dir;
+      });
+    }
+
     return [...filtered].sort((a, b) => a[sortKey].localeCompare(b[sortKey]) * dir);
-  }, [query, projectSort]);
+  }, [query, projectSort, latencies]);
 
   const visiblePosts = useMemo(() => {
     const filtered = query
@@ -91,12 +131,6 @@ function Home() {
     );
   }
 
-  function handleRefresh() {
-    setIsRefreshing(true);
-    if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current);
-    refreshTimer.current = window.setTimeout(() => setIsRefreshing(false), 320);
-  }
-
   function handleChangeFiltersClick() {
     if (filterText) {
       setFilterText("");
@@ -110,14 +144,10 @@ function Home() {
     (showProjects ? visibleProjects.length : 0) + (showWriting ? visiblePosts.length : 0);
 
   const statusText = isRefreshing
-    ? "Refreshing..."
+    ? "Refreshing server list..."
     : query
       ? `${shownCount} matching`
-      : activeTab === "projects"
-        ? `${visibleProjects.length} projects`
-        : activeTab === "writing"
-          ? `${visiblePosts.length} posts`
-          : `${projects.length} projects, ${postPreviews.length} posts`;
+      : "";
 
   return (
     <main className="page-shell">
@@ -129,7 +159,7 @@ function Home() {
               <SiteLinks />
             </header>
           }
-          statusText={<span role="status">{statusText}</span>}
+          statusText={statusText ? <span role="status">{statusText}</span> : null}
         >
           <p className="home-bio">
             I fix shipping labels at{" "}
@@ -212,12 +242,29 @@ function Home() {
                             </span>
                           )}
                         </button>
+                        <button
+                          type="button"
+                          className="server-col-head server-col-btn server-col-head--latency"
+                          onClick={() => toggleProjectSort("latency")}
+                        >
+                          Latency
+                          {projectSort.key === "latency" && (
+                            <span className="sort-arrow" aria-hidden="true">
+                              {projectSort.dir === "asc" ? "▴" : "▾"}
+                            </span>
+                          )}
+                        </button>
                       </div>
 
                       <div className="project-grid">
                         {visibleProjects.length > 0 ? (
                           visibleProjects.map((project) => (
-                            <ProjectPreview key={project.title} {...project} />
+                            <ProjectPreview
+                              key={project.title}
+                              {...project}
+                              latencyMs={latencies[project.href]}
+                              isPinging={isRefreshing && !(project.href in latencies)}
+                            />
                           ))
                         ) : (
                           <p className="server-empty">No projects match “{filterText}”.</p>
@@ -288,7 +335,6 @@ function Home() {
                   )}
                 </div>
 
-                {/* Classic VGUI scrollbar rail matching the CS 1.6 Server Browser */}
                 <div className="vgui-scrollbar" aria-hidden="true">
                   <span className="vgui-scroll-arrow">▲</span>
                   <div className="vgui-scroll-track">
@@ -315,7 +361,7 @@ function Home() {
                 </div>
 
                 <div className="browser-toolbar-actions">
-                  <button type="button" className="chip" onClick={handleRefresh}>
+                  <button type="button" className="chip" onClick={() => runPings(true)}>
                     Quick refresh
                   </button>
                 </div>
