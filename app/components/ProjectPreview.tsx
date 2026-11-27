@@ -6,7 +6,6 @@ export type ProjectPreviewProps = {
   href: string;
   destination: string;
   latencyMs?: number | null;
-  isPinging?: boolean;
 };
 
 export function ProjectPreview({
@@ -15,9 +14,8 @@ export function ProjectPreview({
   href,
   destination,
   latencyMs,
-  isPinging = false,
 }: ProjectPreviewProps) {
-  const latencyLabel = typeof latencyMs === "number" ? String(latencyMs) : isPinging ? "..." : "--";
+  const latencyLabel = typeof latencyMs === "number" ? String(latencyMs) : "--";
 
   return (
     <ExternalAnchor href={href} className="project-card">

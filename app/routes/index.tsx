@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { PoastPreview } from "../components/PoastPreview";
 import { ProjectPreview } from "../components/ProjectPreview";
@@ -37,43 +37,19 @@ function Home() {
     dir: "desc",
   });
   const [latencies, setLatencies] = useState<Record<string, number | null>>({});
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
 
-  const runPings = useCallback((showRefreshStatus: boolean) => {
-    abortRef.current?.abort();
+  useEffect(() => {
     const controller = new AbortController();
-    abortRef.current = controller;
-
-    if (showRefreshStatus) {
-      setIsRefreshing(true);
-      setLatencies({});
-    }
-
-    let remaining = projects.length;
     for (const project of projects) {
       void pingSite(project.href, controller.signal).then((ms) => {
         if (controller.signal.aborted) return;
         setLatencies((prev) => ({ ...prev, [project.href]: ms }));
-        remaining -= 1;
-        if (remaining === 0) {
-          setIsRefreshing(false);
-        }
       });
     }
-  }, []);
-
-  const stopRefresh = useCallback(() => {
-    abortRef.current?.abort();
-    setIsRefreshing(false);
-  }, []);
-
-  useEffect(() => {
-    runPings(false);
     return () => {
-      abortRef.current?.abort();
+      controller.abort();
     };
-  }, [runPings]);
+  }, []);
 
   const query = filterText.trim().toLowerCase();
   const maxLatencyNum = maxLatency === "all" ? null : Number(maxLatency);
@@ -169,11 +145,7 @@ function Home() {
   const shownCount =
     (showProjects ? visibleProjects.length : 0) + (showWriting ? visiblePosts.length : 0);
 
-  const statusText = isRefreshing
-    ? "Refreshing server list..."
-    : hasActiveFilters
-      ? `${shownCount} matching`
-      : "";
+  const statusText = hasActiveFilters ? `${shownCount} matching` : "";
 
   return (
     <main className="page-shell">
@@ -226,7 +198,7 @@ function Home() {
               </button>
             </div>
 
-            <div className={`vgui-tab-body ${isRefreshing ? "is-refreshing" : ""}`}>
+            <div className="vgui-tab-body">
               <div className="vgui-browser-box">
                 <div className="vgui-browser-content">
                   {showProjects && (
@@ -289,7 +261,6 @@ function Home() {
                               key={project.title}
                               {...project}
                               latencyMs={latencies[project.href]}
-                              isPinging={isRefreshing && !(project.href in latencies)}
                             />
                           ))
                         ) : (
@@ -382,25 +353,6 @@ function Home() {
                     Change filters
                   </button>
                   {filterSummary && <span className="vgui-filter-summary">{filterSummary}</span>}
-                </div>
-
-                <div className="browser-toolbar-actions">
-                  <button
-                    type="button"
-                    className="chip vgui-action-btn"
-                    disabled={isRefreshing}
-                    onClick={() => runPings(true)}
-                  >
-                    Quick refresh
-                  </button>
-                  <button
-                    type="button"
-                    className="chip vgui-action-btn"
-                    disabled={!isRefreshing}
-                    onClick={stopRefresh}
-                  >
-                    Stop refresh
-                  </button>
                 </div>
               </div>
 

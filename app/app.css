@@ -415,10 +415,6 @@ button {
   border-bottom: 1px solid var(--vgui-lo);
 }
 
-.vgui-tab-body.is-refreshing .vgui-browser-content {
-  opacity: 0.85;
-}
-
 .vgui-browser-box {
   display: flex;
   min-height: 0;
@@ -782,13 +778,6 @@ button {
 
 .vgui-filter-clear {
   margin-left: auto;
-}
-
-.browser-toolbar-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
 }
 
 /* =====================================================================
