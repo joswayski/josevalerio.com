@@ -14,32 +14,28 @@ export function BlogShell({ children, post }: { children: ReactNode; post: Poast
     <div className="page-shell">
       <div className="site-panel">
         <VguiWindow
-          title={`MOTD — ${title}`}
-          statusBar={
-            <>
-              <span className="vgui-status-cell vgui-status-cell--grow">MOTD // {link}</span>
-              <span className="vgui-status-cell">josevalerio.com</span>
-            </>
+          header={
+            <header className="site-header">
+              <Link to="/" className="back-link chip" preload="intent">
+                <span aria-hidden="true">←</span> Jose Valerio
+              </Link>
+              <SiteLinks />
+            </header>
           }
         >
-          <header className="site-header">
-            <Link to="/" className="back-link chip" preload="intent">
-              <span aria-hidden="true">←</span> Jose Valerio
-            </Link>
-            <SiteLinks />
-          </header>
+          <main className="post-main">
+            <div className="vgui-inset-pane post-pane">
+              <header className="article-header">
+                <span className="article-meta">
+                  <time dateTime={dateTime}>{formatPostDate(dateTime)}</time> · {readingMinutes} min
+                  read
+                </span>
+                <h1>{title}</h1>
+                <p className="article-summary">{previewText}</p>
+              </header>
 
-          <main className="motd-main">
-            <header className="article-header">
-              <span className="article-meta">
-                <time dateTime={dateTime}>{formatPostDate(dateTime)}</time> · {readingMinutes} min
-                read
-              </span>
-              <h1>{title}</h1>
-              <p className="article-summary">{previewText}</p>
-            </header>
-
-            <article className="article-body">{children}</article>
+              <article className="article-body">{children}</article>
+            </div>
 
             <footer className="article-footer">
               <ExternalAnchor href={githubEditUrl} className="suggest-changes-link chip">

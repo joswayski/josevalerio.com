@@ -1,44 +1,59 @@
 import type { ReactNode } from "react";
 
 type VguiWindowProps = {
-  title: string;
+  header?: ReactNode;
+  title?: string;
   children: ReactNode;
-  statusBar?: ReactNode;
+  statusText?: ReactNode;
   className?: string;
 };
 
-/** Classic Valve VGUI dialog frame (Counter-Strike 1.6 / Steam Server Browser chrome). */
-export function VguiWindow({ title, children, statusBar, className = "" }: VguiWindowProps) {
+/** Classic Counter-Strike 1.6 / Steam VGUI window frame. */
+export function VguiWindow({
+  header,
+  title,
+  children,
+  statusText,
+  className = "",
+}: VguiWindowProps) {
   return (
     <div className={`vgui-window ${className}`.trim()}>
-      <div className="vgui-titlebar" aria-hidden="true">
-        <div className="vgui-titlebar-left">
-          <svg
-            className="vgui-title-icon"
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-            focusable="false"
-          >
-            <rect x="1" y="1" width="12" height="5" fill="#23291e" stroke="#88967c" />
-            <rect x="1" y="8" width="12" height="5" fill="#23291e" stroke="#88967c" />
-            <rect x="3" y="3" width="2" height="1" fill="#6ae06a" />
-            <rect x="6" y="3" width="4" height="1" fill="#c4b550" />
-            <rect x="3" y="10" width="2" height="1" fill="#6ae06a" />
-            <rect x="6" y="10" width="4" height="1" fill="#9ea894" />
-          </svg>
-          <span className="vgui-titlebar-text">{title}</span>
+      <div className="vgui-titlebar">
+        <div className="vgui-titlebar-main">
+          {header ?? (title ? <span className="vgui-titlebar-text">{title}</span> : null)}
         </div>
-        <div className="vgui-titlebar-controls">
-          <span className="vgui-window-btn">_</span>
-          <span className="vgui-window-btn">×</span>
-        </div>
+        <span className="vgui-close-btn" aria-hidden="true">
+          ×
+        </span>
       </div>
 
       <div className="vgui-window-body">{children}</div>
 
-      {statusBar && <div className="vgui-statusbar">{statusBar}</div>}
+      <div className="vgui-footer">
+        <div className="vgui-footer-status">{statusText}</div>
+        <svg
+          className="vgui-resize-grip"
+          width="11"
+          height="11"
+          viewBox="0 0 11 11"
+          fill="none"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <rect x="9" y="1" width="2" height="2" fill="#282e22" />
+          <rect x="8" y="0" width="2" height="2" fill="#889180" />
+          <rect x="5" y="5" width="2" height="2" fill="#282e22" />
+          <rect x="4" y="4" width="2" height="2" fill="#889180" />
+          <rect x="9" y="5" width="2" height="2" fill="#282e22" />
+          <rect x="8" y="4" width="2" height="2" fill="#889180" />
+          <rect x="1" y="9" width="2" height="2" fill="#282e22" />
+          <rect x="0" y="8" width="2" height="2" fill="#889180" />
+          <rect x="5" y="9" width="2" height="2" fill="#282e22" />
+          <rect x="4" y="8" width="2" height="2" fill="#889180" />
+          <rect x="9" y="9" width="2" height="2" fill="#282e22" />
+          <rect x="8" y="8" width="2" height="2" fill="#889180" />
+        </svg>
+      </div>
     </div>
   );
 }

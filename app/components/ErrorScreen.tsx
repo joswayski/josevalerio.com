@@ -13,16 +13,8 @@ export function ErrorScreen({
 }) {
   return (
     <main className="error-page">
-      <VguiWindow
-        title="Disconnect"
-        className="vgui-window--dialog"
-        statusBar={
-          <span className="vgui-status-cell vgui-status-cell--grow">
-            Connection closed // josevalerio.com
-          </span>
-        }
-      >
-        <div className="error-dialog-well">
+      <VguiWindow title="Error" className="vgui-window--dialog">
+        <div className="vgui-inset-pane error-dialog-well">
           <h1>{title}</h1>
           <p>{message}</p>
           {children}
