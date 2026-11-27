@@ -11,17 +11,24 @@ export type PoastPreviewProps = {
   link: PostPath;
 };
 
-export function PoastPreview({ title, previewText, dateTime, link }: PoastPreviewProps) {
+export function PoastPreview({
+  title,
+  previewText,
+  dateTime,
+  readingMinutes,
+  link,
+}: PoastPreviewProps) {
   return (
     <Link to={link} preload="intent" className="post-row">
-      <div className="post-row-top">
+      <span className="server-status-pip server-status-pip--amber" aria-hidden="true" />
+      <div className="post-row-main">
         <h3>{title}</h3>
-        <span className="post-leader" aria-hidden="true" />
-        <time className="post-date" dateTime={dateTime}>
-          {formatPostDate(dateTime)}
-        </time>
+        <p>{previewText}</p>
       </div>
-      <p>{previewText}</p>
+      <span className="post-read-time">{readingMinutes} min</span>
+      <time className="post-date" dateTime={dateTime}>
+        {formatPostDate(dateTime)}
+      </time>
     </Link>
   );
 }

@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { PoastPreviewProps } from "./PoastPreview";
 import { ExternalAnchor } from "./ExternalLink";
 import { SiteLinks } from "./SiteLinks";
+import { VguiWindow } from "./VguiWindow";
 import { formatPostDate } from "../data/postPreviews";
 
 export function BlogShell({ children, post }: { children: ReactNode; post: PoastPreviewProps }) {
@@ -12,31 +13,41 @@ export function BlogShell({ children, post }: { children: ReactNode; post: Poast
   return (
     <div className="page-shell">
       <div className="site-panel">
-        <header className="site-header">
-          <Link to="/" className="back-link" preload="intent">
-            <span aria-hidden="true">←</span> Jose Valerio
-          </Link>
-          <SiteLinks />
-        </header>
-
-        <main className="site-panel">
-          <header className="article-header">
-            <span className="article-meta">
-              <time dateTime={dateTime}>{formatPostDate(dateTime)}</time> · {readingMinutes} min
-              read
-            </span>
-            <h1>{title}</h1>
-            <p className="article-summary">{previewText}</p>
+        <VguiWindow
+          title={`MOTD — ${title}`}
+          statusBar={
+            <>
+              <span className="vgui-status-cell vgui-status-cell--grow">MOTD // {link}</span>
+              <span className="vgui-status-cell">josevalerio.com</span>
+            </>
+          }
+        >
+          <header className="site-header">
+            <Link to="/" className="back-link chip" preload="intent">
+              <span aria-hidden="true">←</span> Jose Valerio
+            </Link>
+            <SiteLinks />
           </header>
 
-          <article className="article-body">{children}</article>
+          <main className="motd-main">
+            <header className="article-header">
+              <span className="article-meta">
+                <time dateTime={dateTime}>{formatPostDate(dateTime)}</time> · {readingMinutes} min
+                read
+              </span>
+              <h1>{title}</h1>
+              <p className="article-summary">{previewText}</p>
+            </header>
 
-          <footer className="article-footer">
-            <ExternalAnchor href={githubEditUrl} className="suggest-changes-link">
-              Suggest an edit <span aria-hidden="true">↗</span>
-            </ExternalAnchor>
-          </footer>
-        </main>
+            <article className="article-body">{children}</article>
+
+            <footer className="article-footer">
+              <ExternalAnchor href={githubEditUrl} className="suggest-changes-link chip">
+                Suggest an edit <span aria-hidden="true">↗</span>
+              </ExternalAnchor>
+            </footer>
+          </main>
+        </VguiWindow>
       </div>
     </div>
   );

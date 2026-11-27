@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Route as IndexRoute } from "../../app/routes/index";
 import { Route as JustDoTheThingRoute } from "../../app/routes/just-do-the-thing";
@@ -57,6 +57,24 @@ describe("home page", () => {
       .getAllByRole("heading", { level: 2 })
       .map((heading) => heading.textContent);
     expect(headings).toEqual(["Projects", "Writing"]);
+  });
+
+  it("switches server browser tabs and filters entries", async () => {
+    await renderRoute(IndexRoute);
+
+    fireEvent.click(screen.getByRole("tab", { name: /^Writing/ }));
+    expect(screen.queryByRole("heading", { level: 2, name: "Projects" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Writing" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /^All/ }));
+    const filter = screen.getByRole("searchbox", { name: "Filter servers" });
+    fireEvent.change(filter, { target: { value: "Rust" } });
+
+    expect(screen.getByRole("heading", { level: 3, name: "sjl" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 3, name: "How to log structured JSON in Rust" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 3, name: "Caper" })).not.toBeInTheDocument();
   });
 });
 
