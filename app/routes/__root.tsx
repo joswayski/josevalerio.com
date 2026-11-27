@@ -9,6 +9,8 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import appCss from "../app.css?url";
+import spaceGrotesk400 from "@fontsource/space-grotesk/files/space-grotesk-latin-400-normal.woff2?url";
+import spaceGrotesk600 from "@fontsource/space-grotesk/files/space-grotesk-latin-600-normal.woff2?url";
 import { ErrorScreen } from "../components/ErrorScreen";
 import { NotFoundPage } from "../components/NotFoundPage";
 import { getSocialMeta, SITE_DESCRIPTION, SITE_TITLE } from "../data/siteMeta";
@@ -25,6 +27,14 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      // Fetch the UI font alongside the stylesheet instead of after it.
+      ...[spaceGrotesk400, spaceGrotesk600].map((href) => ({
+        rel: "preload",
+        href,
+        as: "font",
+        type: "font/woff2",
+        crossOrigin: "anonymous" as const,
+      })),
       { rel: "icon", href: "/favicon.ico" },
       {
         rel: "icon",

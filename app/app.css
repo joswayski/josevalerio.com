@@ -48,6 +48,55 @@
   src: url("@fontsource/space-grotesk/files/space-grotesk-latin-600-normal.woff2") format("woff2");
 }
 
+/* Metric-matched fallbacks: local Arial/Courier New (or their metric clones) resized to each web
+   font's average width and line box, so swapping the web font in moves nothing. Regular faces are
+   matched against Arial/Courier New, bold faces against their bold cuts. */
+@font-face {
+  font-family: "Space Grotesk Fallback";
+  font-weight: 100 500;
+  src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("Arimo"), local("Roboto");
+  ascent-override: 88.83%;
+  descent-override: 26.36%;
+  line-gap-override: 0%;
+  size-adjust: 110.77%;
+}
+
+@font-face {
+  font-family: "Space Grotesk Fallback";
+  font-weight: 501 1000;
+  src:
+    local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("Arimo Bold"),
+    local("Roboto Bold");
+  ascent-override: 96.06%;
+  descent-override: 28.51%;
+  line-gap-override: 0%;
+  size-adjust: 102.44%;
+}
+
+@font-face {
+  font-family: "Space Mono Fallback";
+  font-weight: 100 550;
+  src:
+    local("Courier New"), local("CourierNewPSMT"), local("Liberation Mono"), local("Cousine"),
+    local("Droid Sans Mono");
+  ascent-override: 109.82%;
+  descent-override: 35.4%;
+  line-gap-override: 0%;
+  size-adjust: 101.983%;
+}
+
+@font-face {
+  font-family: "Space Mono Fallback";
+  font-weight: 551 1000;
+  src:
+    local("Courier New Bold"), local("CourierNewPS-BoldMT"), local("Liberation Mono Bold"),
+    local("Cousine Bold");
+  ascent-override: 109.82%;
+  descent-override: 35.4%;
+  line-gap-override: 0%;
+  size-adjust: 101.983%;
+}
+
 :root {
   color-scheme: dark;
   /* Authentic Counter-Strike 1.6 / Steam VGUI Server Browser palette */
@@ -70,10 +119,12 @@
   --accent: #c4b550;
   --accent-hover: #dfd06a;
   --accent-soft: #3a3924;
-  --ui: "Space Grotesk", Tahoma, Verdana, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ui:
+    "Space Grotesk", "Space Grotesk Fallback", Tahoma, Verdana, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
   --mono:
-    "Space Mono", "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas, "Liberation Mono",
-    monospace;
+    "Space Mono", "Space Mono Fallback", "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas,
+    "Liberation Mono", monospace;
   --warning-border: #8a7c32;
   --warning-accent: #d9c55b;
   --warning-bg: #393622;
