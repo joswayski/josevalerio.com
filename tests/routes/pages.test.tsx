@@ -74,6 +74,8 @@ describe("home page", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Writing" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: /^All/ }));
+    expect(screen.queryByRole("searchbox", { name: "Filter servers" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Change filters" }));
     const filter = screen.getByRole("searchbox", { name: "Filter servers" });
     fireEvent.change(filter, { target: { value: "Rust" } });
 

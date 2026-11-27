@@ -13,6 +13,7 @@ type BrowserTab = "all" | "projects" | "writing";
 type ProjectSortKey = "default" | "title" | "destination" | "latency";
 type PostSortKey = "date" | "title" | "read";
 type SortDir = "asc" | "desc";
+type LatencyFilter = "all" | "50" | "100" | "250" | "500";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -23,7 +24,10 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const [activeTab, setActiveTab] = useState<BrowserTab>("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [filterText, setFilterText] = useState("");
+  const [maxLatency, setMaxLatency] = useState<LatencyFilter>("all");
+  const [hideUnreachable, setHideUnreachable] = useState(false);
   const [projectSort, setProjectSort] = useState<{ key: ProjectSortKey; dir: SortDir }>({
     key: "default",
     dir: "asc",
@@ -35,7 +39,6 @@ function Home() {
   const [latencies, setLatencies] = useState<Record<string, number | null>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const filterInputRef = useRef<HTMLInputElement | null>(null);
 
   const runPings = useCallback((showRefreshStatus: boolean) => {
     abortRef.current?.abort();
@@ -60,6 +63,11 @@ function Home() {
     }
   }, []);
 
+  const stopRefresh = useCallback(() => {
+    abortRef.current?.abort();
+    setIsRefreshing(false);
+  }, []);
+
   useEffect(() => {
     runPings(false);
     return () => {
@@ -68,16 +76,29 @@ function Home() {
   }, [runPings]);
 
   const query = filterText.trim().toLowerCase();
+  const maxLatencyNum = maxLatency === "all" ? null : Number(maxLatency);
+  const hasActiveFilters = Boolean(query || maxLatencyNum !== null || hideUnreachable);
 
   const visibleProjects = useMemo(() => {
-    const filtered = query
-      ? projects.filter(
-          (p) =>
-            p.title.toLowerCase().includes(query) ||
-            p.description.toLowerCase().includes(query) ||
-            p.destination.toLowerCase().includes(query),
-        )
-      : projects;
+    const filtered = projects.filter((p) => {
+      if (
+        query &&
+        !p.title.toLowerCase().includes(query) &&
+        !p.description.toLowerCase().includes(query) &&
+        !p.destination.toLowerCase().includes(query)
+      ) {
+        return false;
+      }
+
+      const ms = latencies[p.href];
+      if (hideUnreachable && typeof ms !== "number") {
+        return false;
+      }
+      if (maxLatencyNum !== null && (typeof ms !== "number" || ms >= maxLatencyNum)) {
+        return false;
+      }
+      return true;
+    });
 
     const sortKey = projectSort.key;
     if (sortKey === "default") return filtered;
@@ -97,7 +118,7 @@ function Home() {
     }
 
     return [...filtered].sort((a, b) => a[sortKey].localeCompare(b[sortKey]) * dir);
-  }, [query, projectSort, latencies]);
+  }, [query, projectSort, latencies, maxLatencyNum, hideUnreachable]);
 
   const visiblePosts = useMemo(() => {
     const filtered = query
@@ -131,12 +152,17 @@ function Home() {
     );
   }
 
-  function handleChangeFiltersClick() {
-    if (filterText) {
-      setFilterText("");
-    }
-    filterInputRef.current?.focus();
+  function resetFilters() {
+    setFilterText("");
+    setMaxLatency("all");
+    setHideUnreachable(false);
   }
+
+  const filterSummaryParts: string[] = [];
+  if (filterText.trim()) filterSummaryParts.push(filterText.trim());
+  if (maxLatencyNum !== null) filterSummaryParts.push(`< ${maxLatencyNum} ms`);
+  if (hideUnreachable) filterSummaryParts.push("responding");
+  const filterSummary = filterSummaryParts.join(", ");
 
   const showProjects = activeTab === "all" || activeTab === "projects";
   const showWriting = activeTab === "all" || activeTab === "writing";
@@ -145,7 +171,7 @@ function Home() {
 
   const statusText = isRefreshing
     ? "Refreshing server list..."
-    : query
+    : hasActiveFilters
       ? `${shownCount} matching`
       : "";
 
@@ -267,7 +293,7 @@ function Home() {
                             />
                           ))
                         ) : (
-                          <p className="server-empty">No projects match “{filterText}”.</p>
+                          <p className="server-empty">No projects match the current filters.</p>
                         )}
                       </div>
                     </section>
@@ -328,7 +354,7 @@ function Home() {
                         {visiblePosts.length > 0 ? (
                           visiblePosts.map((post) => <PoastPreview key={post.link} {...post} />)
                         ) : (
-                          <p className="server-empty">No posts match “{filterText}”.</p>
+                          <p className="server-empty">No posts match the current filters.</p>
                         )}
                       </div>
                     </section>
@@ -346,26 +372,83 @@ function Home() {
 
               <div className="browser-toolbar">
                 <div className="vgui-filter-group">
-                  <button type="button" className="chip" onClick={handleChangeFiltersClick}>
-                    {filterText ? "Clear filter" : "Change filters"}
+                  <button
+                    type="button"
+                    className={`chip vgui-action-btn ${filtersOpen ? "chip--pressed" : ""}`}
+                    aria-expanded={filtersOpen}
+                    aria-controls="browser-filters-panel"
+                    onClick={() => setFiltersOpen((open) => !open)}
+                  >
+                    Change filters
                   </button>
-                  <input
-                    ref={filterInputRef}
-                    type="search"
-                    value={filterText}
-                    onChange={(event) => setFilterText(event.target.value)}
-                    placeholder="Filter..."
-                    className="vgui-input"
-                    aria-label="Filter servers"
-                  />
+                  {filterSummary && <span className="vgui-filter-summary">{filterSummary}</span>}
                 </div>
 
                 <div className="browser-toolbar-actions">
-                  <button type="button" className="chip" onClick={() => runPings(true)}>
+                  <button
+                    type="button"
+                    className="chip vgui-action-btn"
+                    disabled={isRefreshing}
+                    onClick={() => runPings(true)}
+                  >
                     Quick refresh
+                  </button>
+                  <button
+                    type="button"
+                    className="chip vgui-action-btn"
+                    disabled={!isRefreshing}
+                    onClick={stopRefresh}
+                  >
+                    Stop refresh
                   </button>
                 </div>
               </div>
+
+              {filtersOpen && (
+                <div id="browser-filters-panel" className="vgui-filters-panel">
+                  <label className="vgui-filter-row">
+                    <span>Search</span>
+                    <input
+                      type="search"
+                      value={filterText}
+                      onChange={(event) => setFilterText(event.target.value)}
+                      placeholder="Name, description, or site..."
+                      className="vgui-input"
+                      aria-label="Filter servers"
+                    />
+                  </label>
+
+                  <label className="vgui-filter-row">
+                    <span>Latency</span>
+                    <select
+                      value={maxLatency}
+                      onChange={(event) => setMaxLatency(event.target.value as LatencyFilter)}
+                      className="vgui-select"
+                    >
+                      <option value="all">&lt; All &gt;</option>
+                      <option value="50">&lt; 50</option>
+                      <option value="100">&lt; 100</option>
+                      <option value="250">&lt; 250</option>
+                      <option value="500">&lt; 500</option>
+                    </select>
+                  </label>
+
+                  <label className="vgui-filter-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={hideUnreachable}
+                      onChange={(event) => setHideUnreachable(event.target.checked)}
+                    />
+                    <span>Responding only</span>
+                  </label>
+
+                  {hasActiveFilters && (
+                    <button type="button" className="chip vgui-filter-clear" onClick={resetFilters}>
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </VguiWindow>

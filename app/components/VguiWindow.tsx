@@ -95,9 +95,6 @@ export function VguiWindow({
         <div className="vgui-titlebar-main">
           {header ?? (title ? <span className="vgui-titlebar-text">{title}</span> : null)}
         </div>
-        <span className="vgui-close-btn" aria-hidden="true">
-          ×
-        </span>
       </div>
 
       <div className="vgui-window-body">{children}</div>
