@@ -143,10 +143,11 @@ html {
 
 body {
   position: relative;
+  isolation: isolate;
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  background-color: var(--canvas);
+  background-color: transparent;
   color: var(--ink);
   font-family: var(--ui);
   font-size: 14px;
@@ -159,7 +160,7 @@ body::before {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: 0;
   pointer-events: none;
   background-color: var(--canvas);
   background-image:
@@ -195,6 +196,8 @@ button {
 ===================================================================== */
 
 .page-shell {
+  position: relative;
+  z-index: 1;
   min-height: 100vh;
   padding: 2.75rem 1.25rem 3.25rem;
 }
@@ -1050,6 +1053,8 @@ button {
 ===================================================================== */
 
 .error-page {
+  position: relative;
+  z-index: 1;
   display: grid;
   width: 100%;
   min-height: 100vh;
