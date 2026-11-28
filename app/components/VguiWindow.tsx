@@ -13,8 +13,8 @@ type WindowSize = {
   height: number;
 };
 
-const MIN_WIDTH = 320;
-const MIN_HEIGHT = 260;
+const MIN_WIDTH = 360;
+const MIN_HEIGHT = 280;
 
 /** Classic Counter-Strike 1.6 / Steam VGUI window frame with interactive corner resizing. */
 export function VguiWindow({

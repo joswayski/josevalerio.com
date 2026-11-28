@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PoastPreview } from "../components/PoastPreview";
 import { ProjectPreview } from "../components/ProjectPreview";
 import { SiteLinks } from "../components/SiteLinks";
+import { VguiScrollArea } from "../components/VguiScrollArea";
 import { VguiWindow } from "../components/VguiWindow";
 import { postPreviews } from "../data/postPreviews";
 import { projects } from "../data/projects";
@@ -199,147 +200,133 @@ function Home() {
             </div>
 
             <div className="vgui-tab-body">
-              <div className="vgui-browser-box">
-                <div className="vgui-browser-content">
-                  {showProjects && (
-                    <section
-                      className="index-section"
-                      id="projects"
-                      aria-labelledby="projects-title"
-                    >
-                      <div className="server-col-headers server-col-headers--projects">
-                        <span className="server-col-head server-col-head--icon" aria-hidden="true">
-                          <svg width="10" height="10" viewBox="0 0 11 11" fill="none">
-                            <path
-                              d="M5.5 1L9.5 2.4V5.6C9.5 7.7 7.8 9.3 5.5 10C3.2 9.3 1.5 7.7 1.5 5.6V2.4L5.5 1Z"
-                              fill="currentColor"
-                            />
-                          </svg>
-                        </span>
-                        <button
-                          type="button"
-                          className="server-col-head server-col-btn"
-                          onClick={() => toggleProjectSort("title")}
-                        >
-                          <h2 id="projects-title">Projects</h2>
-                          {projectSort.key === "title" && (
-                            <span className="sort-arrow" aria-hidden="true">
-                              {projectSort.dir === "asc" ? "▴" : "▾"}
-                            </span>
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          className="server-col-head server-col-btn server-col-head--host"
-                          onClick={() => toggleProjectSort("destination")}
-                        >
-                          Site
-                          {projectSort.key === "destination" && (
-                            <span className="sort-arrow" aria-hidden="true">
-                              {projectSort.dir === "asc" ? "▴" : "▾"}
-                            </span>
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          className="server-col-head server-col-btn server-col-head--latency"
-                          onClick={() => toggleProjectSort("latency")}
-                        >
-                          Latency
-                          {projectSort.key === "latency" && (
-                            <span className="sort-arrow" aria-hidden="true">
-                              {projectSort.dir === "asc" ? "▴" : "▾"}
-                            </span>
-                          )}
-                        </button>
-                      </div>
-
-                      <div className="project-grid">
-                        {visibleProjects.length > 0 ? (
-                          visibleProjects.map((project) => (
-                            <ProjectPreview
-                              key={project.title}
-                              {...project}
-                              latencyMs={latencies[project.href]}
-                            />
-                          ))
-                        ) : (
-                          <p className="server-empty">No projects match the current filters.</p>
+              <VguiScrollArea>
+                {showProjects && (
+                  <section className="index-section" id="projects" aria-labelledby="projects-title">
+                    <div className="server-col-headers server-col-headers--projects">
+                      <span className="server-col-head server-col-head--icon" aria-hidden="true">
+                        <svg width="10" height="10" viewBox="0 0 11 11" fill="none">
+                          <path
+                            d="M5.5 1L9.5 2.4V5.6C9.5 7.7 7.8 9.3 5.5 10C3.2 9.3 1.5 7.7 1.5 5.6V2.4L5.5 1Z"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </span>
+                      <button
+                        type="button"
+                        className="server-col-head server-col-btn"
+                        onClick={() => toggleProjectSort("title")}
+                      >
+                        <h2 id="projects-title">Projects</h2>
+                        {projectSort.key === "title" && (
+                          <span className="sort-arrow" aria-hidden="true">
+                            {projectSort.dir === "asc" ? "▴" : "▾"}
+                          </span>
                         )}
-                      </div>
-                    </section>
-                  )}
-
-                  {showWriting && (
-                    <section className="index-section" id="writing" aria-labelledby="writing-title">
-                      <div className="server-col-headers server-col-headers--posts">
-                        <span className="server-col-head server-col-head--icon" aria-hidden="true">
-                          <svg width="10" height="10" viewBox="0 0 11 11" fill="none">
-                            <path
-                              d="M2 1.5H6.8L9 3.7V9.5H2V1.5Z"
-                              stroke="currentColor"
-                              strokeWidth="1.1"
-                              fill="none"
-                            />
-                          </svg>
-                        </span>
-                        <button
-                          type="button"
-                          className="server-col-head server-col-btn"
-                          onClick={() => togglePostSort("title")}
-                        >
-                          <h2 id="writing-title">Writing</h2>
-                          {postSort.key === "title" && (
-                            <span className="sort-arrow" aria-hidden="true">
-                              {postSort.dir === "asc" ? "▴" : "▾"}
-                            </span>
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          className="server-col-head server-col-btn server-col-head--read"
-                          onClick={() => togglePostSort("read")}
-                        >
-                          Read
-                          {postSort.key === "read" && (
-                            <span className="sort-arrow" aria-hidden="true">
-                              {postSort.dir === "asc" ? "▴" : "▾"}
-                            </span>
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          className="server-col-head server-col-btn server-col-head--date"
-                          onClick={() => togglePostSort("date")}
-                        >
-                          Date
-                          {postSort.key === "date" && (
-                            <span className="sort-arrow" aria-hidden="true">
-                              {postSort.dir === "asc" ? "▴" : "▾"}
-                            </span>
-                          )}
-                        </button>
-                      </div>
-
-                      <div className="post-list">
-                        {visiblePosts.length > 0 ? (
-                          visiblePosts.map((post) => <PoastPreview key={post.link} {...post} />)
-                        ) : (
-                          <p className="server-empty">No posts match the current filters.</p>
+                      </button>
+                      <button
+                        type="button"
+                        className="server-col-head server-col-btn server-col-head--host"
+                        onClick={() => toggleProjectSort("destination")}
+                      >
+                        Site
+                        {projectSort.key === "destination" && (
+                          <span className="sort-arrow" aria-hidden="true">
+                            {projectSort.dir === "asc" ? "▴" : "▾"}
+                          </span>
                         )}
-                      </div>
-                    </section>
-                  )}
-                </div>
+                      </button>
+                      <button
+                        type="button"
+                        className="server-col-head server-col-btn server-col-head--latency"
+                        onClick={() => toggleProjectSort("latency")}
+                      >
+                        Latency
+                        {projectSort.key === "latency" && (
+                          <span className="sort-arrow" aria-hidden="true">
+                            {projectSort.dir === "asc" ? "▴" : "▾"}
+                          </span>
+                        )}
+                      </button>
+                    </div>
 
-                <div className="vgui-scrollbar" aria-hidden="true">
-                  <span className="vgui-scroll-arrow">▲</span>
-                  <div className="vgui-scroll-track">
-                    <span className="vgui-scroll-thumb" />
-                  </div>
-                  <span className="vgui-scroll-arrow">▼</span>
-                </div>
-              </div>
+                    <div className="project-grid">
+                      {visibleProjects.length > 0 ? (
+                        visibleProjects.map((project) => (
+                          <ProjectPreview
+                            key={project.title}
+                            {...project}
+                            latencyMs={latencies[project.href]}
+                          />
+                        ))
+                      ) : (
+                        <p className="server-empty">No projects match the current filters.</p>
+                      )}
+                    </div>
+                  </section>
+                )}
+
+                {showWriting && (
+                  <section className="index-section" id="writing" aria-labelledby="writing-title">
+                    <div className="server-col-headers server-col-headers--posts">
+                      <span className="server-col-head server-col-head--icon" aria-hidden="true">
+                        <svg width="10" height="10" viewBox="0 0 11 11" fill="none">
+                          <path
+                            d="M2 1.5H6.8L9 3.7V9.5H2V1.5Z"
+                            stroke="currentColor"
+                            strokeWidth="1.1"
+                            fill="none"
+                          />
+                        </svg>
+                      </span>
+                      <button
+                        type="button"
+                        className="server-col-head server-col-btn"
+                        onClick={() => togglePostSort("title")}
+                      >
+                        <h2 id="writing-title">Writing</h2>
+                        {postSort.key === "title" && (
+                          <span className="sort-arrow" aria-hidden="true">
+                            {postSort.dir === "asc" ? "▴" : "▾"}
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="server-col-head server-col-btn server-col-head--read"
+                        onClick={() => togglePostSort("read")}
+                      >
+                        Read
+                        {postSort.key === "read" && (
+                          <span className="sort-arrow" aria-hidden="true">
+                            {postSort.dir === "asc" ? "▴" : "▾"}
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="server-col-head server-col-btn server-col-head--date"
+                        onClick={() => togglePostSort("date")}
+                      >
+                        Date
+                        {postSort.key === "date" && (
+                          <span className="sort-arrow" aria-hidden="true">
+                            {postSort.dir === "asc" ? "▴" : "▾"}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="post-list">
+                      {visiblePosts.length > 0 ? (
+                        visiblePosts.map((post) => <PoastPreview key={post.link} {...post} />)
+                      ) : (
+                        <p className="server-empty">No posts match the current filters.</p>
+                      )}
+                    </div>
+                  </section>
+                )}
+              </VguiScrollArea>
 
               <div className="browser-toolbar">
                 <div className="vgui-filter-group">

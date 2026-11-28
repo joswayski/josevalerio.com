@@ -142,9 +142,25 @@ html {
 }
 
 body {
+  position: relative;
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  background-color: var(--canvas);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background-color: var(--canvas);
   background-image:
     radial-gradient(circle at 50% 42%, rgba(20, 24, 18, 0.26) 0%, rgba(14, 18, 12, 0.58) 85%),
@@ -152,13 +168,6 @@ body {
   background-position: center center;
   background-size: cover;
   background-repeat: no-repeat;
-  background-attachment: fixed;
-  color: var(--ink);
-  font-family: var(--ui);
-  font-size: 14px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 
 a {
@@ -196,6 +205,8 @@ button {
 }
 
 .vgui-window {
+  container-name: vgui;
+  container-type: inline-size;
   display: flex;
   width: min(100%, 52rem);
   margin-inline: auto;
@@ -483,10 +494,20 @@ button {
   min-height: 0;
   flex: 1 1 auto;
   overflow-y: auto;
-  transition: opacity 100ms ease;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-/* Classic VGUI Right-Edge Scrollbar Strip */
+.vgui-browser-content::-webkit-scrollbar {
+  display: none;
+}
+
+.vgui-scroll-inner {
+  min-width: 0;
+}
+
+/* Real Interactive CS 1.6 VGUI Scrollbar */
 
 .vgui-scrollbar {
   display: flex;
@@ -500,32 +521,74 @@ button {
 
 .vgui-scroll-arrow {
   display: grid;
+  width: 100%;
   height: 1.05rem;
+  flex-shrink: 0;
+  padding: 0;
   place-items: center;
   background: var(--vgui-bg);
   border-top: 1px solid var(--vgui-hi);
   border-left: 1px solid var(--vgui-hi);
   border-right: 1px solid var(--vgui-lo);
   border-bottom: 1px solid var(--vgui-lo);
-  color: var(--muted);
+  color: var(--ink-soft);
   font-size: 0.5rem;
   line-height: 1;
+  cursor: pointer;
+}
+
+.vgui-scroll-arrow:hover:not(:disabled) {
+  background: var(--vgui-bg-hover);
+  color: var(--ink-strong);
+}
+
+.vgui-scroll-arrow:active:not(:disabled) {
+  border-top: 1px solid var(--vgui-lo);
+  border-left: 1px solid var(--vgui-lo);
+  border-right: 1px solid var(--vgui-hi);
+  border-bottom: 1px solid var(--vgui-hi);
+}
+
+.vgui-scroll-arrow:disabled {
+  color: #6b7663;
+  cursor: default;
 }
 
 .vgui-scroll-track {
+  position: relative;
   flex: 1 1 auto;
-  padding: 1px;
+  min-height: 1.5rem;
+  cursor: pointer;
+}
+
+.vgui-scrollbar--idle .vgui-scroll-track {
+  cursor: default;
 }
 
 .vgui-scroll-thumb {
-  display: block;
-  width: 100%;
-  height: 62%;
+  position: absolute;
+  left: 1px;
+  right: 1px;
   background: var(--vgui-thumb);
   border-top: 1px solid var(--vgui-hi);
   border-left: 1px solid var(--vgui-hi);
   border-right: 1px solid var(--vgui-lo);
   border-bottom: 1px solid var(--vgui-lo);
+  cursor: grab;
+  touch-action: none;
+}
+
+.vgui-scroll-thumb:hover {
+  background: #64735a;
+}
+
+.vgui-scroll-thumb:active {
+  cursor: grabbing;
+}
+
+.vgui-scrollbar--idle .vgui-scroll-thumb {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* Column Header Strip (flat matte olive matching image.png) */
@@ -535,6 +598,9 @@ button {
 }
 
 .server-col-headers {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: grid;
   align-items: stretch;
   background: var(--vgui-bg);
@@ -662,7 +728,7 @@ button {
 .project-card p,
 .post-row p {
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   color: var(--muted);
   font-size: 0.8rem;
   line-height: 1.4;
@@ -1039,18 +1105,10 @@ button {
 }
 
 /* =====================================================================
-   RESPONSIVE BREAKPOINTS
+   RESPONSIVE BREAKPOINTS (CONTAINER + VIEWPORT)
 ===================================================================== */
 
-@media (max-width: 44rem) {
-  body {
-    background-attachment: scroll;
-  }
-
-  .page-shell {
-    padding: 1rem 0.5rem 1.75rem;
-  }
-
+@container vgui (max-width: 40rem) {
   .vgui-titlebar {
     padding: 0.55rem 0.6rem 0.3rem;
   }
@@ -1068,7 +1126,6 @@ button {
     padding: 0.5rem;
   }
 
-  .vgui-scrollbar,
   .server-col-head--host,
   .server-col-head--read,
   .post-read-time {
@@ -1121,7 +1178,18 @@ button {
   }
 
   .vgui-input {
+    width: 100%;
     max-width: none;
+  }
+
+  .vgui-filter-row {
+    width: 100%;
+  }
+}
+
+@media (max-width: 44rem) {
+  .page-shell {
+    padding: 1rem 0.5rem 1.75rem;
   }
 }
 
@@ -1146,6 +1214,7 @@ button {
 }
 
 @media print {
+  body::before,
   .vgui-footer,
   .vgui-tabbar,
   .vgui-scrollbar,
@@ -1157,7 +1226,6 @@ button {
 
   body {
     background: #fff;
-    background-image: none;
     color: #000;
   }
 
